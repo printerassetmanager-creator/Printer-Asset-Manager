@@ -1,0 +1,91 @@
+import React from 'react';
+import { useApp, IS_ADMIN, CURRENT_USER } from '../context/AppContext';
+
+const initials = (user) => user.split('.').map(s => s[0].toUpperCase()).join('');
+const displayName = (user) => user.split('.').map(s => s[0].toUpperCase() + s.slice(1)).join(' ');
+
+export default function Sidebar() {
+  const { currentScreen, setCurrentScreen, openIssues } = useApp();
+
+  const ni = (name) => `ni${currentScreen === name ? ' active' : ''}`;
+
+  return (
+    <div className="sidebar">
+      <div className="sb-brand">
+        <div className="co">Jabil Circuit Pvt Ltd</div>
+        <div className="ti">Printer Asset Manager</div>
+      </div>
+      <div className="sb-user">
+        <div className="av">{initials(CURRENT_USER)}</div>
+        <div className="sb-user-info">
+          <div className="un">{displayName(CURRENT_USER)}</div>
+          <div className="ur">JABIL\{CURRENT_USER.split('.')[0]} &nbsp;<span className="badge b-admin" style={{fontSize:'9px',padding:'1px 5px'}}>Admin</span></div>
+        </div>
+      </div>
+
+      <div className="sb-nav">
+        <div className={ni('dashboard')} onClick={() => setCurrentScreen('dashboard')}>
+          <svg className="ni-icon" viewBox="0 0 16 16" fill="none"><rect x="1" y="1" width="6" height="6" rx="1" fill="#4a7fd4"/><rect x="9" y="1" width="6" height="6" rx="1" fill="#4a7fd4"/><rect x="1" y="9" width="6" height="6" rx="1" fill="#4a7fd4"/><rect x="9" y="9" width="6" height="6" rx="1" fill="#4a7fd4"/></svg>
+          <span className="ni-label">Dashboard</span>
+        </div>
+        <div className={ni('printerdashboard')} onClick={() => setCurrentScreen('printerdashboard')}>
+          <svg className="ni-icon" viewBox="0 0 16 16" fill="none"><rect x="1.5" y="2" width="13" height="10" rx="1.4" stroke="#4a7fd4" strokeWidth="1.2"/><path d="M4 14h8M8 12v2" stroke="#4a7fd4" strokeWidth="1.2" strokeLinecap="round"/><path d="M4 6h8M4 8.5h5" stroke="#4a7fd4" strokeWidth="1" strokeLinecap="round"/></svg>
+          <span className="ni-label">Printer Dashboard</span>
+        </div>
+        <div className={ni('health')} onClick={() => setCurrentScreen('health')}>
+          <svg className="ni-icon" viewBox="0 0 16 16" fill="none"><rect x="1" y="3" width="14" height="10" rx="1.5" stroke="#4a7fd4" strokeWidth="1.2"/><path d="M3 8h3l1.5-2.5 2 5L11 8h2" stroke="#4a7fd4" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round"/></svg>
+          <span className="ni-label">Health Checkup</span>
+        </div>
+        <div className={ni('pmform')} onClick={() => setCurrentScreen('pmform')}>
+          <svg className="ni-icon" viewBox="0 0 16 16" fill="none"><rect x="2" y="1" width="12" height="14" rx="1.5" stroke="#4a7fd4" strokeWidth="1.2"/><path d="M5 5h6M5 8h6M5 11h4" stroke="#4a7fd4" strokeWidth="1" strokeLinecap="round"/></svg>
+          <span className="ni-label">PM Pasted Form</span>
+        </div>
+        <div className={ni('viewprinters')} onClick={() => setCurrentScreen('viewprinters')}>
+          <svg className="ni-icon" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="3" stroke="#4a7fd4" strokeWidth="1.2"/><path d="M1 8s2.5-5 7-5 7 5 7 5-2.5 5-7 5-7-5-7-5z" stroke="#4a7fd4" strokeWidth="1.2"/></svg>
+          <span className="ni-label">View Printers</span>
+        </div>
+        <div className={ni('vlan')} onClick={() => setCurrentScreen('vlan')}>
+          <svg className="ni-icon" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="2.5" r="2" stroke="#4a7fd4" strokeWidth="1.2"/><circle cx="2.5" cy="13" r="2" stroke="#4a7fd4" strokeWidth="1.2"/><circle cx="13.5" cy="13" r="2" stroke="#4a7fd4" strokeWidth="1.2"/><path d="M8 4.5v4M8 8.5L2.5 11M8 8.5l5.5 2.5" stroke="#4a7fd4" strokeWidth="1"/></svg>
+          <span className="ni-label">VLAN Activity</span>
+        </div>
+        <div className={ni('spare')} onClick={() => setCurrentScreen('spare')}>
+          <svg className="ni-icon" viewBox="0 0 16 16" fill="none"><rect x="1" y="5" width="14" height="9" rx="1.5" stroke="#4a7fd4" strokeWidth="1.2"/><path d="M5 5V4a3 3 0 016 0v1" stroke="#4a7fd4" strokeWidth="1.2"/><path d="M5 9.5h6M8 7.5v4" stroke="#4a7fd4" strokeWidth="1" strokeLinecap="round"/></svg>
+          <span className="ni-label">Spare Parts</span>
+        </div>
+        <div className={ni('hp')} onClick={() => setCurrentScreen('hp')}>
+          <svg className="ni-icon" viewBox="0 0 16 16" fill="none"><rect x="1" y="4" width="14" height="8" rx="1.5" stroke="#22d3ee" strokeWidth="1.2"/><path d="M4 4V3a1 1 0 012 0v1M10 4V3a1 1 0 012 0v1" stroke="#22d3ee" strokeWidth="1.2"/><circle cx="8" cy="8" r="1.5" fill="#22d3ee"/></svg>
+          <span className="ni-label" style={{color:'#22d3ee'}}>HP Printers</span>
+        </div>
+        <div className={ni('recipe')} onClick={() => setCurrentScreen('recipe')}>
+          <svg className="ni-icon" viewBox="0 0 16 16" fill="none"><path d="M3 2h10a1 1 0 011 1v10a1 1 0 01-1 1H3a1 1 0 01-1-1V3a1 1 0 011-1z" stroke="#4a7fd4" strokeWidth="1.2"/><path d="M5 6h6M5 9h6M5 12h3" stroke="#4a7fd4" strokeWidth="1" strokeLinecap="round"/></svg>
+          <span className="ni-label">Label Recipes</span>
+        </div>
+        <div className={ni('upcoming')} onClick={() => setCurrentScreen('upcoming')}>
+          <svg className="ni-icon" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="9" r="5.5" stroke="#4a7fd4" strokeWidth="1.2"/><path d="M8 6v3l2 1.5" stroke="#4a7fd4" strokeWidth="1.2" strokeLinecap="round"/><path d="M5.5 2h5" stroke="#4a7fd4" strokeWidth="1.2" strokeLinecap="round"/></svg>
+          <span className="ni-label">Upcoming PM</span>
+        </div>
+
+        <div className={ni('dueoverdue')} onClick={() => setCurrentScreen('dueoverdue')}>
+          <svg className="ni-icon" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6" stroke="#4a7fd4" strokeWidth="1.2"/><path d="M8 5v3" stroke="#e05252" strokeWidth="1.6" strokeLinecap="round"/><circle cx="8" cy="11.5" r=".9" fill="#e05252"/></svg>
+          <span className="ni-label">PM Due / Overdue</span>
+        </div>
+
+        <div className={ni('issues')} onClick={() => setCurrentScreen('issues')}>
+          <svg className="ni-icon" viewBox="0 0 16 16" fill="none"><path d="M8 2L14 13H2L8 2Z" stroke="#e05252" strokeWidth="1.2" strokeLinejoin="round"/><path d="M8 6v3" stroke="#e05252" strokeWidth="1.4" strokeLinecap="round"/><circle cx="8" cy="11" r=".8" fill="#e05252"/></svg>
+          <span className="ni-label">Issues Tracker</span>
+          {openIssues > 0 && <span className="nb">{openIssues}</span>}
+        </div>
+      </div>
+
+      {IS_ADMIN && (
+        <div className="adm-section">
+          <div className="adm-lbl">Admin Only</div>
+          <div className={`ni adm-ni${currentScreen === 'printermaster' ? ' active' : ''}`} onClick={() => setCurrentScreen('printermaster')}>
+            <svg className="ni-icon" viewBox="0 0 16 16" fill="none"><rect x="2" y="5" width="12" height="9" rx="1.5" stroke="#e8a020" strokeWidth="1.2"/><path d="M5 5V3h6v2" stroke="#e8a020" strokeWidth="1.2"/><circle cx="8" cy="9.5" r="1.8" fill="#e8a020"/></svg>
+            <span className="ni-label">Printer Master</span>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
