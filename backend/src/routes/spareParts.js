@@ -4,7 +4,18 @@ const pool = require('../db/pool');
 
 router.get('/', async (req, res) => {
   try {
-    const { rows } = await pool.query('SELECT * FROM spare_parts ORDER BY code');
+    const { plants } = req.query;
+    let query = 'SELECT * FROM spare_parts';
+    const params = [];
+
+    if (plants) {
+      const plantList = plants.split(',').map((p) => p.trim());
+      query += ' WHERE plant_location = ANY($1)';
+      params.push(plantList);
+    }
+
+    query += ' ORDER BY code';
+    const { rows } = await pool.query(query, params);
     res.json(rows);
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
@@ -17,11 +28,11 @@ router.get('/usage-log', async (req, res) => {
 });
 
 router.post('/', async (req, res) => {
-  const { code, name, compat, avail, min, loc, serial, condition } = req.body;
+  const { code, name, compat, avail, min, loc, serial, condition, plant_location } = req.body;
   try {
     const { rows } = await pool.query(
-      `INSERT INTO spare_parts (code,name,compat,avail,min,loc,serial,condition) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
-      [code, name, compat, avail||0, min||2, loc, serial, condition||'New']
+      `INSERT INTO spare_parts (code,name,compat,avail,min,loc,serial,condition,plant_location) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,
+      [code, name, compat, avail||0, min||2, loc, serial, condition||'New', plant_location || 'B26']
     );
     res.status(201).json(rows[0]);
   } catch (e) { res.status(500).json({ error: e.message }); }

@@ -14,7 +14,9 @@ const screenTitles = {
   recipe: 'Label Recipes',
   upcoming: 'Upcoming PM',
   dueoverdue: 'PM Due / Overdue',
+  ilearn: 'i Learn',
   printermaster: 'Printer Master',
+  userapprovals: 'User Approvals',
 };
 
 const screenMeta = {
@@ -30,7 +32,9 @@ const screenMeta = {
   recipe: 'Label design recipes - searchable by name, make, DPI, model',
   upcoming: 'PMs due within the next 5 days',
   dueoverdue: 'PM due and overdue tracker',
+  ilearn: 'Learning platform - search issues and follow step-by-step guides with images',
   printermaster: 'Admin - add / edit / delete printers from master database',
+  userapprovals: 'Super admin - approve, reject and manage user roles',
 };
 
 export default function Topbar() {
@@ -51,6 +55,7 @@ export default function Topbar() {
         <div className="tb-meta">{screenMeta[currentScreen] || ''}</div>
       </div>
       <div className="tb-right">
+        <div className="tb-signature">Developed by :- Aniket Bhosale</div>
         <div className="time-chip">{time}</div>
         <div className="live-pill"><div className="live-dot"></div>Live</div>
       </div>

@@ -1,135 +1,523 @@
 import React, { useEffect, useState } from 'react';
-import { recipesAPI } from '../utils/api';
 import { IS_ADMIN } from '../context/AppContext';
+import { printerPushAPI, recipesAPI } from '../utils/api';
+import {
+  buildRecipeSummary,
+  createEmptyDraft,
+  filterRecipes,
+  getBrandDefaults,
+  getDpiRange,
+  getModelOptions,
+  normalizeRecipeForForm,
+  validateRecipeDraft,
+} from '../utils/recipeConfig';
 
-const empty = {name:'',make:'Honeywell',model:'',dpi:'203',media:'Direct Thermal',width:'',length:'',top:'',left_margin:'',darkness:'',speed:'',loft:'',verifier:'None',calibration:'Smart Calibration',contrast:'+10',size:'',desc:''};
-const makeColors = {Honeywell:'b-online',Zebra:'b-upcoming',Datamax:'b-due',Any:'b-user'};
-const dpiColors = {'203':'b-hp','300':'b-instock','600':'b-warn'};
+const brandBadgeClass = {
+  Honeywell: 'b-online',
+  Zebra: 'b-upcoming',
+};
+
+function Field({ label, hint, children, full = false }) {
+  return (
+    <div className={`field${full ? ' full' : ''}`}>
+      <label>{label}</label>
+      {children}
+      {hint ? <div className="hint">{hint}</div> : null}
+    </div>
+  );
+}
+
+function HoneywellFields({ config, onChange }) {
+  return (
+    <>
+      <Field label="Print Method">
+        <select value={config.printMethod} onChange={(e) => onChange('printMethod', e.target.value)}>
+          <option>Direct Thermal</option>
+          <option>Thermal Transfer</option>
+        </select>
+      </Field>
+      <Field label="Media Type">
+        <select value={config.mediaType} onChange={(e) => onChange('mediaType', e.target.value)}>
+          <option>Media With Gaps</option>
+          <option>Continuous</option>
+          <option>Black Mark</option>
+        </select>
+      </Field>
+      <Field label="Media Width" hint="Dots">
+        <input value={config.mediaWidth} onChange={(e) => onChange('mediaWidth', e.target.value)} placeholder="e.g. 812" />
+      </Field>
+      <Field label="Media Length" hint="Dots">
+        <input value={config.mediaLength} onChange={(e) => onChange('mediaLength', e.target.value)} placeholder="e.g. 1218" />
+      </Field>
+      <Field label="Media Margin (X)">
+        <input value={config.mediaMarginX} onChange={(e) => onChange('mediaMarginX', e.target.value)} placeholder="e.g. 0" />
+      </Field>
+      <Field label="Label Top Adjust">
+        <input value={config.labelTopAdjust} onChange={(e) => onChange('labelTopAdjust', e.target.value)} placeholder="e.g. -8" />
+      </Field>
+      <Field label="Label Rest Adjust">
+        <input value={config.labelRestAdjust} onChange={(e) => onChange('labelRestAdjust', e.target.value)} placeholder="e.g. 0" />
+      </Field>
+      <Field label="Calibration Mode">
+        <select value={config.calibrationMode} onChange={(e) => onChange('calibrationMode', e.target.value)}>
+          <option>Off</option>
+          <option>Fast</option>
+          <option>Slow</option>
+          <option>Slow With Retraction</option>
+          <option>Smart (Auto Calibration)</option>
+        </select>
+      </Field>
+      <Field label="Print Mode">
+        <select value={config.printMode} onChange={(e) => onChange('printMode', e.target.value)}>
+          <option>Tear Off</option>
+          <option>Peel Off</option>
+          <option>Cutter</option>
+        </select>
+      </Field>
+      <Field label="Media Sensitivity">
+        <select value={config.mediaSensitivity} onChange={(e) => onChange('mediaSensitivity', e.target.value)}>
+          <option>Very Low</option>
+          <option>Low</option>
+          <option>Medium</option>
+          <option>High</option>
+        </select>
+      </Field>
+      <Field label="Print Speed" hint="mm/sec">
+        <input value={config.printSpeed} onChange={(e) => onChange('printSpeed', e.target.value)} placeholder="e.g. 100" />
+      </Field>
+      <Field label="Darkness" hint="0-100">
+        <input value={config.darkness} onChange={(e) => onChange('darkness', e.target.value)} placeholder="e.g. 24" />
+      </Field>
+    </>
+  );
+}
+
+function ZebraFields({ config, onChange }) {
+  return (
+    <>
+      <Field label="Print Method">
+        <select value={config.printMethod} onChange={(e) => onChange('printMethod', e.target.value)}>
+          <option>Direct Thermal</option>
+          <option>Thermal Transfer</option>
+        </select>
+      </Field>
+      <Field label="Media Type">
+        <select value={config.mediaType} onChange={(e) => onChange('mediaType', e.target.value)}>
+          <option>Continuous</option>
+          <option>Gap (Web)</option>
+          <option>Black Mark</option>
+        </select>
+      </Field>
+      <Field label="Print Width" hint="Dots">
+        <input value={config.printWidth} onChange={(e) => onChange('printWidth', e.target.value)} placeholder="e.g. 832" />
+      </Field>
+      <Field label="Label Length" hint="Dots">
+        <input value={config.labelLength} onChange={(e) => onChange('labelLength', e.target.value)} placeholder="e.g. 1200" />
+      </Field>
+      <Field label="Label Top">
+        <input value={config.labelTop} onChange={(e) => onChange('labelTop', e.target.value)} placeholder="e.g. -8" />
+      </Field>
+      <Field label="Tear Off Adjust" hint="-120 to +120">
+        <input value={config.tearOffAdjust} onChange={(e) => onChange('tearOffAdjust', e.target.value)} placeholder="e.g. 0" />
+      </Field>
+      <Field label="Sensor Method">
+        <select value={config.sensorMethod} onChange={(e) => onChange('sensorMethod', e.target.value)}>
+          <option>Transmissive</option>
+          <option>Reflective</option>
+        </select>
+      </Field>
+      <Field label="Media Calibration">
+        <select value={config.mediaCalibration} onChange={(e) => onChange('mediaCalibration', e.target.value)}>
+          <option>Auto</option>
+          <option>Manual</option>
+        </select>
+      </Field>
+      <Field label="Print Mode">
+        <select value={config.printMode} onChange={(e) => onChange('printMode', e.target.value)}>
+          <option>Tear Off</option>
+          <option>Peel Off</option>
+          <option>Cutter</option>
+        </select>
+      </Field>
+      <Field label="Print Speed" hint="2-14 IPS">
+        <input value={config.printSpeed} onChange={(e) => onChange('printSpeed', e.target.value)} placeholder="e.g. 6" />
+      </Field>
+      <Field label="Darkness" hint="0-30">
+        <input value={config.darkness} onChange={(e) => onChange('darkness', e.target.value)} placeholder="e.g. 18" />
+      </Field>
+    </>
+  );
+}
 
 export default function LabelRecipes() {
-  const [data, setData] = useState([]);
-  const [form, setForm] = useState(empty);
-  const [editId, setEditId] = useState(null);
-  const [open, setOpen] = useState(false);
+  const [recipes, setRecipes] = useState([]);
+  const [draft, setDraft] = useState(() => createEmptyDraft());
+  const [editorOpen, setEditorOpen] = useState(false);
   const [search, setSearch] = useState('');
-  const [makeF, setMakeF] = useState('');
-  const [dpiF, setDpiF] = useState('');
-  const [msg, setMsg] = useState('');
-  const fld = (k,v) => setForm(f=>({...f,[k]:v}));
-
-  const load = () => recipesAPI.getAll().then(r=>setData(r.data)).catch(()=>{});
-  useEffect(()=>{ load(); },[]);
-
-  const filtered = data.filter(r=>{
-    const q = search.toLowerCase();
-    const m = !q || (r.name+r.make+r.model+r.dpi+(r.loft||'')+r.desc).toLowerCase().includes(q);
-    return m && (!makeF||r.make===makeF) && (!dpiF||r.dpi===dpiF);
+  const [brandFilter, setBrandFilter] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [saveState, setSaveState] = useState('');
+  const [errorState, setErrorState] = useState('');
+  const [pushModal, setPushModal] = useState({
+    open: false,
+    recipe: null,
+    printerIp: '',
+    message: '',
+    type: '',
+    status: '',
+    busy: false,
   });
 
-  const save = async () => {
-    if (!form.name) { setMsg('Label name required'); return; }
-    const size = form.width && form.length ? form.width+'mm × '+form.length+'mm' : form.size;
+  async function loadRecipes() {
+    setLoading(true);
     try {
-      if (editId) await recipesAPI.update(editId, {...form, size});
-      else await recipesAPI.create({...form, size});
-      load(); clear(); setOpen(false); setMsg('Saved'); setTimeout(()=>setMsg(''),2000);
-    } catch { setMsg('Error saving'); }
+      const response = await recipesAPI.getAll();
+      setRecipes(Array.isArray(response.data) ? response.data : []);
+      setErrorState('');
+    } catch (error) {
+      setErrorState(error.response?.data?.error || 'Could not load recipes.');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    loadRecipes();
+  }, []);
+
+  const filteredRecipes = filterRecipes(recipes, search, brandFilter);
+  const modelOptions = getModelOptions(draft.brand);
+
+  const setDraftField = (field, value) => {
+    setDraft((current) => ({ ...current, [field]: value }));
   };
 
-  const del = async () => { if (!editId) return; await recipesAPI.delete(editId); load(); clear(); setOpen(false); };
-
-  const edit = (r) => {
-    if (!IS_ADMIN) return;
-    setEditId(r.id);
-    setForm({name:r.name||'',make:r.make||'Honeywell',model:r.model||'',dpi:r.dpi||'203',media:r.media||'Direct Thermal',width:r.width||'',length:r.length||'',top:r.top||'',left_margin:r.left_margin||'',darkness:r.darkness||'',speed:r.speed||'',loft:r.loft||'',verifier:r.verifier||'None',calibration:r.calibration||'Smart Calibration',contrast:r.contrast||'+10',size:r.size||'',desc:r.desc||''});
-    setOpen(true);
+  const setConfigField = (field, value) => {
+    setDraft((current) => ({
+      ...current,
+      config: {
+        ...current.config,
+        [field]: value,
+      },
+    }));
   };
 
-  const clear = () => { setEditId(null); setForm(empty); setMsg(''); };
-  const isHW = form.make === 'Honeywell';
+  const setBrand = (brand) => {
+    const nextModel = getModelOptions(brand)[0]?.value || '';
+    setDraft((current) => ({
+      ...current,
+      brand,
+      model: nextModel,
+      dpi: getDpiRange(brand, nextModel),
+      config: getBrandDefaults(brand),
+    }));
+  };
+
+  const setModel = (model) => {
+    setDraft((current) => ({
+      ...current,
+      model,
+      dpi: getDpiRange(current.brand, model),
+    }));
+  };
+
+  const resetDraft = () => {
+    setDraft(createEmptyDraft());
+    setSaveState('');
+    setErrorState('');
+  };
+
+  const openNewRecipe = () => {
+    resetDraft();
+    setEditorOpen(true);
+  };
+
+  const closeEditor = () => {
+    resetDraft();
+    setEditorOpen(false);
+  };
+
+  const editRecipe = (recipe) => {
+    setDraft(normalizeRecipeForForm(recipe));
+    setSaveState('');
+    setErrorState('');
+    setEditorOpen(true);
+  };
+
+  const saveRecipe = async () => {
+    const errors = validateRecipeDraft(draft);
+    if (errors.length > 0) {
+      setErrorState(errors[0]);
+      setSaveState('');
+      return;
+    }
+
+    setErrorState('');
+    setSaveState('Saving recipe...');
+    const payload = {
+      name: draft.name.trim(),
+      brand: draft.brand,
+      model: draft.model,
+      dpi: draft.dpi,
+      notes: draft.notes.trim(),
+      config: draft.config,
+    };
+
+    try {
+      if (draft.id) await recipesAPI.update(draft.id, payload);
+      else await recipesAPI.create(payload);
+
+      await loadRecipes();
+      if (!draft.id) {
+        setDraft(createEmptyDraft());
+        setErrorState('');
+      }
+      setSaveState('Recipe saved successfully.');
+    } catch (error) {
+      setErrorState(error.response?.data?.error || 'Could not save recipe.');
+      setSaveState('');
+    }
+  };
+
+  const deleteRecipe = async () => {
+    if (!draft.id) return;
+    if (!window.confirm('Delete this recipe?')) return;
+
+    try {
+      await recipesAPI.delete(draft.id);
+      await loadRecipes();
+      resetDraft();
+      setSaveState('Recipe deleted.');
+    } catch (error) {
+      setErrorState(error.response?.data?.error || 'Could not delete recipe.');
+    }
+  };
+
+  const openPushModal = (recipe) => {
+    setPushModal({
+      open: true,
+      recipe,
+      printerIp: '',
+      message: '',
+      type: '',
+      status: '',
+      busy: false,
+    });
+  };
+
+  const closePushModal = () => {
+    setPushModal({
+      open: false,
+      recipe: null,
+      printerIp: '',
+      message: '',
+      type: '',
+      status: '',
+      busy: false,
+    });
+  };
+
+  const runPrinterAction = async (action) => {
+    if (!pushModal.printerIp.trim()) {
+      setPushModal((current) => ({
+        ...current,
+        message: 'Printer IP is required.',
+        type: 'error',
+      }));
+      return;
+    }
+
+    setPushModal((current) => ({
+      ...current,
+      busy: true,
+      message: action === 'status' ? 'Checking printer status...' : 'Sending command...',
+      type: 'info',
+    }));
+
+    try {
+      const response = await printerPushAPI.push({
+        recipeId: pushModal.recipe?.id,
+        printerIp: pushModal.printerIp.trim(),
+        action,
+      });
+
+      setPushModal((current) => ({
+        ...current,
+        busy: false,
+        message: response.data.message,
+        type: response.data.success ? 'success' : 'error',
+        status: action === 'status' ? (response.data.online ? 'Online' : 'Offline') : current.status,
+      }));
+    } catch (error) {
+      setPushModal((current) => ({
+        ...current,
+        busy: false,
+        message: error.response?.data?.error || 'Printer not reachable.',
+        type: 'error',
+      }));
+    }
+  };
 
   return (
     <div className="screen">
-      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'4px'}}>
-        <div style={{display:'flex',gap:'8px',alignItems:'center',flex:1}}>
-          <input style={{flex:1,maxWidth:'400px',background:'var(--bg)',border:'1px solid var(--border)',borderRadius:'var(--r)',padding:'8px 11px',fontSize:'13px',color:'var(--text)',fontFamily:'Inter,sans-serif',outline:'none'}}
-            placeholder="Search by label name, printer make, DPI, model..." value={search} onChange={e=>setSearch(e.target.value)}/>
-          <select value={makeF} onChange={e=>setMakeF(e.target.value)} style={{background:'var(--bg)',border:'1px solid var(--border)',borderRadius:'var(--r)',padding:'8px 11px',fontSize:'13px',color:'var(--text)',fontFamily:'Inter,sans-serif',outline:'none'}}>
-            <option value="">All Makes</option><option>Honeywell</option><option>Zebra</option><option>Datamax</option>
-          </select>
-          <select value={dpiF} onChange={e=>setDpiF(e.target.value)} style={{background:'var(--bg)',border:'1px solid var(--border)',borderRadius:'var(--r)',padding:'8px 11px',fontSize:'13px',color:'var(--text)',fontFamily:'Inter,sans-serif',outline:'none'}}>
-            <option value="">All DPI</option><option>203</option><option>300</option><option>600</option>
-          </select>
+      <div className="recipe-header-row">
+        <div>
+          <div className="card-title">Recipe Builder</div>
+          <div className="tb-meta">Create brand-specific printer recipes, save them as JSON, and push them over TCP port 9100.</div>
         </div>
-        {IS_ADMIN && <div style={{marginLeft:'10px'}}><button className="btn btn-primary" onClick={()=>{clear();setOpen(o=>!o);}}>+ Add Recipe</button></div>}
+        <div className="recipe-header-actions">
+          <button className="btn btn-ghost" onClick={openNewRecipe}>New Recipe</button>
+        </div>
       </div>
 
-      {IS_ADMIN && <div className={`collapse-form${open?' open':''}`}>
-        <div className="cf-header">
-          <div className="cf-title">{editId ? 'Edit Label Recipe' : 'Add Label Recipe'}</div>
-          <button className="btn btn-ghost btn-sm" onClick={()=>{setOpen(false);clear();}}>Cancel</button>
-        </div>
-        <div className="fgrid fg4" style={{marginBottom:'12px'}}>
-          <div className="field"><label>Label Design Name *</label><input value={form.name} onChange={e=>fld('name',e.target.value)} placeholder="e.g. PCB Serial Label"/></div>
-          <div className="field"><label>Printer Make *</label>
-            <select value={form.make} onChange={e=>fld('make',e.target.value)}><option>Honeywell</option><option>Zebra</option><option>Datamax</option><option>Any</option></select>
-          </div>
-          <div className="field"><label>Printer Model *</label><input value={form.model} onChange={e=>fld('model',e.target.value)} placeholder="e.g. PM43, ZT410"/></div>
-          <div className="field"><label>DPI *</label>
-            <select value={form.dpi} onChange={e=>fld('dpi',e.target.value)}><option>203</option><option>300</option><option>600</option></select>
-          </div>
-          <div className="field"><label>Label Width (mm)</label><input value={form.width} onChange={e=>fld('width',e.target.value)} placeholder="e.g. 100"/></div>
-          <div className="field"><label>Label Length (mm)</label><input value={form.length} onChange={e=>fld('length',e.target.value)} placeholder="e.g. 50"/></div>
-          <div className="field"><label>Top Margin (mm)</label><input value={form.top} onChange={e=>fld('top',e.target.value)} placeholder="e.g. 2"/></div>
-          <div className="field"><label>Left Margin (mm)</label><input value={form.left_margin} onChange={e=>fld('left_margin',e.target.value)} placeholder="e.g. 2"/></div>
-          <div className="field"><label>Media Type</label>
-            <select value={form.media} onChange={e=>fld('media',e.target.value)}><option>Direct Thermal</option><option>Thermal Transfer</option></select>
-          </div>
-          <div className="field"><label>Darkness</label><input value={form.darkness} onChange={e=>fld('darkness',e.target.value)} placeholder="e.g. 10"/></div>
-          <div className="field"><label>Print Speed</label><input value={form.speed} onChange={e=>fld('speed',e.target.value)} placeholder="e.g. 4 ips"/></div>
-          <div className="field"><label>Loftware Script Name</label><input value={form.loft} onChange={e=>fld('loft',e.target.value)} placeholder="Script file name..."/></div>
-          {isHW && <>
-            <div className="field"><label>Verifier</label><select value={form.verifier} onChange={e=>fld('verifier',e.target.value)}><option>None</option><option>Internal</option><option>External</option></select></div>
-            <div className="field"><label>Media Calibration</label><select value={form.calibration} onChange={e=>fld('calibration',e.target.value)}><option>Smart Calibration</option><option>Manual Calibration</option><option>Feed Calibration</option></select></div>
-            <div className="field"><label>Contrast</label><input value={form.contrast} onChange={e=>fld('contrast',e.target.value)} placeholder="e.g. +10"/></div>
-          </>}
-          <div className="field"><label>Size Summary</label><input className="af" readOnly value={form.width&&form.length ? form.width+'mm × '+form.length+'mm' : form.size} placeholder="Auto-calculated"/></div>
-          <div className="field full"><label>Description / Notes</label><textarea value={form.desc} onChange={e=>fld('desc',e.target.value)} placeholder="Additional notes about this label recipe..." style={{minHeight:'60px'}}/></div>
-        </div>
-        <div style={{display:'flex',gap:'8px',alignItems:'center'}}>
-          <button className="btn btn-success" onClick={save}>Save Recipe</button>
-          {editId && <button className="btn btn-danger btn-sm" onClick={del}>Delete</button>}
-          {msg && <span style={{fontSize:'12px',color:'var(--green)',marginLeft:'8px'}}>{msg}</span>}
-        </div>
-      </div>}
+      {errorState ? <div className="notice n-err">{errorState}</div> : null}
+      {saveState ? <div className="notice n-ok">{saveState}</div> : null}
+      {!IS_ADMIN ? <div className="notice n-info">View and push saved recipes are available. Save and delete remain admin-only.</div> : null}
 
-      <div className="recipe-grid">
-        {filtered.length === 0
-          ? <div style={{color:'var(--text3)',padding:'20px',gridColumn:'1/-1'}}>No recipes found.</div>
-          : filtered.map(r=>(
-            <div key={r.id} className="recipe-card" onClick={()=>edit(r)}>
-              <div className="recipe-name">{r.name}</div>
-              <div className="recipe-meta">
-                <span className={`recipe-tag badge ${makeColors[r.make]||'b-user'}`}>{r.make}</span>
-                <span className="recipe-tag badge b-offline">{r.model}</span>
-                <span className={`recipe-tag badge ${dpiColors[r.dpi]||'b-hp'}`}>{r.dpi} DPI</span>
-                <span className="recipe-tag badge b-upcoming">{r.media}</span>
-              </div>
-              <div style={{fontSize:'11px',color:'var(--text3)',marginBottom:'8px',lineHeight:1.5}}>{r.desc||''}</div>
-              <div style={{display:'flex',flexWrap:'wrap',gap:'8px',fontSize:'11px',color:'var(--text3)'}}>
-                {r.width&&r.length && <span>📐 {r.width}×{r.length}mm</span>}
-                {r.top && <span>↕ Top:{r.top}mm</span>}
-                {r.left_margin && <span>↔ Left:{r.left_margin}mm</span>}
-                {r.darkness && <span>🔆 Dark:{r.darkness}</span>}
-                {r.speed && <span>⚡ {r.speed}</span>}
-                {r.loft && <span>📄 {r.loft}</span>}
-                {r.make==='Honeywell'&&r.verifier && <span>🔍 Verifier:{r.verifier}</span>}
-                {r.make==='Honeywell'&&r.calibration && <span>📏 {r.calibration}</span>}
-                {r.make==='Honeywell'&&r.contrast && <span>◑ Contrast:{r.contrast}</span>}
-              </div>
+      <div className={`recipe-layout${editorOpen ? '' : ' recipe-layout-single'}`}>
+        <div className="card recipe-list-card">
+          <div className="cf-header">
+            <div className="cf-title">Saved Recipes</div>
+            <span className="badge b-user">{filteredRecipes.length} shown</span>
+          </div>
+
+          <div className="recipe-filter-row">
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search recipe, brand, model, media..."
+            />
+            <select value={brandFilter} onChange={(e) => setBrandFilter(e.target.value)}>
+              <option value="">All Brands</option>
+              <option>Honeywell</option>
+              <option>Zebra</option>
+            </select>
+          </div>
+
+          {loading ? (
+            <div className="recipe-empty">Loading recipes...</div>
+          ) : filteredRecipes.length === 0 ? (
+            <div className="recipe-empty">No recipes found.</div>
+          ) : (
+            <div className="recipe-grid recipe-grid-scroll">
+              {filteredRecipes.map((recipe) => {
+                const summary = buildRecipeSummary(recipe);
+                return (
+                  <div key={recipe.id} className="recipe-card recipe-card-tight" onClick={() => editRecipe(recipe)}>
+                    <div className="recipe-name">{recipe.name}</div>
+                    <div className="recipe-meta">
+                      <span className={`recipe-tag badge ${brandBadgeClass[recipe.brand] || 'b-user'}`}>{recipe.brand}</span>
+                      <span className="recipe-tag badge b-offline">{recipe.model}</span>
+                      <span className="recipe-tag badge b-hp">{recipe.dpi}</span>
+                    </div>
+                    <div className="recipe-desc">{recipe.notes || 'No notes added.'}</div>
+                    <div className="recipe-stat-row">
+                      <span>{summary.size}</span>
+                      <span>{summary.media}</span>
+                      <span>Top: {summary.top || '0'}</span>
+                      <span>Side: {summary.side || '0'}</span>
+                      <span>Speed: {summary.speed || '-'}</span>
+                      <span>Darkness: {summary.darkness || '-'}</span>
+                    </div>
+                    <div className="recipe-card-actions">
+                      <button className="btn btn-ghost btn-sm" onClick={(e) => { e.stopPropagation(); editRecipe(recipe); }}>Edit</button>
+                      <button className="btn btn-primary btn-sm" onClick={(e) => { e.stopPropagation(); openPushModal(recipe); }}>Push</button>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
-          ))}
+          )}
+        </div>
+
+        {editorOpen ? (
+          <div className="card recipe-builder-card">
+            <div className="cf-header">
+              <div className="cf-title">{draft.id ? `Edit Recipe - ${draft.name}` : 'New Recipe'}</div>
+              <button className="btn btn-ghost btn-sm" onClick={closeEditor}>{draft.id ? 'Clear' : 'Close'}</button>
+            </div>
+
+            <div className="fgrid fg4">
+              <Field label="Recipe Name">
+                <input value={draft.name} onChange={(e) => setDraftField('name', e.target.value)} placeholder="e.g. Zebra carton 4x6" />
+              </Field>
+              <Field label="Brand">
+                <select value={draft.brand} onChange={(e) => setBrand(e.target.value)}>
+                  <option>Honeywell</option>
+                  <option>Zebra</option>
+                </select>
+              </Field>
+              <Field label="Model">
+                <select value={draft.model} onChange={(e) => setModel(e.target.value)}>
+                  {modelOptions.map((option) => (
+                    <option key={option.value} value={option.value}>{option.label}</option>
+                  ))}
+                </select>
+              </Field>
+              <Field label="DPI">
+                <input className="af" value={draft.dpi} readOnly />
+              </Field>
+            </div>
+
+            <div className="sec" style={{ marginTop: '18px' }}>Configuration</div>
+            <div className="fgrid fg4">
+              {draft.brand === 'Honeywell' ? (
+                <HoneywellFields config={draft.config} onChange={setConfigField} />
+              ) : (
+                <ZebraFields config={draft.config} onChange={setConfigField} />
+              )}
+              <Field label="Notes" full>
+                <textarea value={draft.notes} onChange={(e) => setDraftField('notes', e.target.value)} placeholder="Optional notes for technicians..." />
+              </Field>
+            </div>
+
+            <div className="recipe-builder-actions">
+              {IS_ADMIN ? <button className="btn btn-success" onClick={saveRecipe}>Save Recipe</button> : null}
+              {draft.id ? <button className="btn btn-primary" onClick={() => openPushModal(draft)}>Push To Printer</button> : null}
+              {IS_ADMIN && draft.id ? <button className="btn btn-danger" onClick={deleteRecipe}>Delete Recipe</button> : null}
+            </div>
+          </div>
+        ) : null}
       </div>
+
+      {pushModal.open ? (
+        <div className="modal-bg show" onClick={(e) => { if (e.target === e.currentTarget) closePushModal(); }}>
+          <div className="modal">
+            <div className="modal-title">Push Recipe To Printer</div>
+            <button className="modal-close" onClick={closePushModal}>X</button>
+
+            <div className="notice n-info" style={{ marginBottom: '16px' }}>
+              {pushModal.recipe?.brand} {pushModal.recipe?.model} - {pushModal.recipe?.name}
+            </div>
+
+            <div className="fgrid fg2">
+              <Field label="Printer IP">
+                <input
+                  value={pushModal.printerIp}
+                  onChange={(e) => setPushModal((current) => ({ ...current, printerIp: e.target.value }))}
+                  placeholder="e.g. 192.168.10.21"
+                />
+              </Field>
+              <Field label="Current Status">
+                <input className="af" readOnly value={pushModal.status || 'Unknown'} />
+              </Field>
+            </div>
+
+            {pushModal.message ? (
+              <div className={`notice ${pushModal.type === 'success' ? 'n-ok' : pushModal.type === 'error' ? 'n-err' : 'n-info'}`}>
+                {pushModal.message}
+              </div>
+            ) : null}
+
+            <div className="recipe-builder-actions">
+              <button className="btn btn-ghost" onClick={() => runPrinterAction('status')} disabled={pushModal.busy}>Check Status</button>
+              <button className="btn btn-primary" onClick={() => runPrinterAction('push')} disabled={pushModal.busy}>Push</button>
+              <button className="btn btn-success" onClick={() => runPrinterAction('test-print')} disabled={pushModal.busy}>Test Print</button>
+              <button className="btn btn-amber" onClick={() => runPrinterAction('calibrate')} disabled={pushModal.busy}>Auto Calibration</button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

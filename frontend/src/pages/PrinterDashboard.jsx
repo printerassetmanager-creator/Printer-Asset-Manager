@@ -1,5 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { printersAPI } from '../utils/api';
+import { printersAPI, vlanAPI } from '../utils/api';
+import { useApp } from '../context/AppContext';
+import { fetchPrinterData, formatHoneywellSerial } from '../utils/printerFetcher';
 
 function includesText(value, query) {
   return String(value || '').toLowerCase().includes(String(query || '').toLowerCase());
@@ -48,6 +50,7 @@ const EVENT_LABEL = {
 };
 
 export default function PrinterDashboard() {
+  const { selectedPlants } = useApp();
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(false);
   const [filters, setFilters] = useState({
@@ -69,16 +72,61 @@ export default function PrinterDashboard() {
   const [selectedPm, setSelectedPm] = useState('');
   const [statusLogs, setStatusLogs] = useState([]);
   const [logsLoading, setLogsLoading] = useState(false);
+  const [printerWebData, setPrinterWebData] = useState({});
+  const [vlanData, setVlanData] = useState([]);
+
+  // Function to get location data from VLAN if IP matches, otherwise from printer data
+  const getLocationData = (printer) => {
+    if (!printer.ip || !vlanData.length) {
+      return {
+        wc: printer.resolved_wc || '-',
+        stage: printer.resolved_stage || '-',
+        bay: printer.resolved_bay || '-',
+        plant: printer.plant_location || 'B26',
+        source: 'printer'
+      };
+    }
+
+    // Find matching VLAN entry by IP
+    const vlanMatch = vlanData.find(v => v.ip === printer.ip);
+    if (vlanMatch) {
+      return {
+        wc: vlanMatch.wc || '-',
+        stage: vlanMatch.stage || '-',
+        bay: vlanMatch.bay || '-',
+        plant: vlanMatch.plant_location || 'B26',
+        source: 'vlan'
+      };
+    }
+
+    // Fallback to printer data if no VLAN match
+    return {
+      wc: printer.resolved_wc || '-',
+      stage: printer.resolved_stage || '-',
+      bay: printer.resolved_bay || '-',
+      plant: printer.plant_location || 'B26',
+      source: 'printer'
+    };
+  };
 
   const load = async () => {
     setLoading(true);
     try {
-      const { data } = await printersAPI.getDashboardLive();
+      const { data } = await printersAPI.getDashboardLive(selectedPlants);
       setRows(Array.isArray(data) ? data : []);
     } catch {
       setRows([]);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadVlanData = async () => {
+    try {
+      const { data } = await vlanAPI.getAll(selectedPlants);
+      setVlanData(Array.isArray(data) ? data : []);
+    } catch {
+      setVlanData([]);
     }
   };
 
@@ -91,11 +139,53 @@ export default function PrinterDashboard() {
     await load();
   };
 
+
+
   useEffect(() => {
     load();
-    const t = setInterval(load, 15000);
-    return () => clearInterval(t);
-  }, []);
+    loadVlanData();
+    
+    // Refresh database data every 15 seconds
+    const dbInterval = setInterval(load, 15000);
+    
+    // Refresh VLAN data every 30 seconds
+    const vlanInterval = setInterval(loadVlanData, 30000);
+    
+    // Continuously fetch printer web data every 2 seconds
+    const webDataInterval = setInterval(async () => {
+      if (rows.length > 0) {
+        // Fetch data from all printers in parallel
+        await Promise.all(
+          rows.map(async (printer) => {
+            if (printer.ip && printer.serial) {
+              try {
+                // Use PX940V- prefix for Honeywell printers
+                const formattedSerial = String(printer.serial).toUpperCase().includes('PX940') ? 
+                  (!String(printer.serial).startsWith('PX940V-') ? `PX940V-${printer.serial}` : printer.serial) : 
+                  printer.serial;
+                const data = await fetchPrinterData(printer.ip, formattedSerial);
+                setPrinterWebData((prev) => ({
+                  ...prev,
+                  [printer.id]: data,
+                }));
+              } catch (e) {
+                setPrinterWebData((prev) => ({
+                  ...prev,
+                  [printer.id]: { error: 'Failed to fetch', timestamp: new Date() },
+                }));
+              }
+            }
+          })
+        );
+      }
+    }, 5000); // Fetch web data every 5 seconds
+    
+    return () => {
+      clearInterval(dbInterval);
+      clearInterval(vlanInterval);
+      clearInterval(webDataInterval);
+    };
+  }, [selectedPlants, rows]);
 
   const openLogs = async (pmno) => {
     setSelectedPm(pmno);
@@ -117,9 +207,11 @@ export default function PrinterDashboard() {
       includesText(p.sapno, appliedFilters.printerNo) ||
       includesText(p.mesno, appliedFilters.printerNo);
 
+    const locData = getLocationData(p);
+
     return (
-      includesText(p.resolved_wc, appliedFilters.wc) &&
-      includesText(p.resolved_bay, appliedFilters.bay) &&
+      includesText(locData.wc, appliedFilters.wc) &&
+      includesText(locData.bay, appliedFilters.bay) &&
       includesText(p.pmno, appliedFilters.pmno) &&
       includesText(p.resolved_stage, appliedFilters.stage) &&
       printerNoMatch
@@ -139,28 +231,28 @@ export default function PrinterDashboard() {
         <div className="kpi c-total">
           <div className="kpi-lbl">Total Printers</div>
           <div className="kpi-val">{total}</div>
-          <div className="kpi-sub">Filtered result</div>
+          <div className="kpi-sub">&nbsp;</div>
         </div>
         <div className="kpi c-online">
           <div className="kpi-lbl">Online</div>
           <div className="kpi-val">{online}</div>
-          <div className="kpi-sub">Live ping monitor</div>
+          <div className="kpi-sub">&nbsp;</div>
         </div>
         <div className="kpi c-offline">
           <div className="kpi-lbl">Offline</div>
           <div className="kpi-val">{offline}</div>
-          <div className="kpi-sub">Live ping monitor</div>
+          <div className="kpi-sub">&nbsp;</div>
         </div>
         <div className="kpi c-overdue">
           <div className="kpi-lbl">Printer With Error</div>
           <div className="kpi-val">{error}</div>
-          <div className="kpi-sub">Web condition check</div>
+          <div className="kpi-sub">&nbsp;</div>
         </div>
       </div>
 
-      <div className="card">
+      <div className="card search-printers-card">
         <div className="sec">Search Printers</div>
-        <div className="fgrid fg5" style={{ marginBottom: '2px' }}>
+        <div className="fgrid fg5" style={{ marginBottom: '8px' }}>
           <div className="field">
             <label>Workcell</label>
             <input value={filters.wc} onChange={(e) => setFilter('wc', e.target.value)} placeholder="Search by workcell" />
@@ -182,7 +274,7 @@ export default function PrinterDashboard() {
             <input value={filters.stage} onChange={(e) => setFilter('stage', e.target.value)} placeholder="Search by stage" />
           </div>
         </div>
-        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '10px' }}>
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '6px' }}>
           <button className="btn btn-ghost btn-sm" onClick={refreshLive} style={{ marginRight: '8px' }}>Refresh Live</button>
           <button className="btn btn-primary btn-sm" onClick={() => setAppliedFilters({ ...filters })}>Search</button>
         </div>
@@ -194,48 +286,74 @@ export default function PrinterDashboard() {
           <table className="tbl">
             <thead>
               <tr>
-                <th>PM No</th>
-                <th>Make</th>
-                <th>Online / Offline</th>
-                <th>Condition</th>
+<th>PM No</th>
+                <th>Make / Model</th>
+                <th>Online Status</th>
+                <th>Current State</th>
+                <th>Firmware</th>
+                <th>Head KM</th>
                 <th>IP Address</th>
-                <th>Printer Location</th>
+                <th>Location</th>
+
               </tr>
             </thead>
             <tbody>
               {filtered.length === 0 ? (
                 <tr>
-                  <td colSpan="6" style={{ textAlign: 'center', padding: '20px', color: 'var(--text3)' }}>
+<td colSpan="8" style={{ textAlign: 'center', padding: '20px', color: 'var(--text3)' }}>
                     No printers found
                   </td>
                 </tr>
               ) : (
-                filtered.map((p) => (
-                  <tr key={p.id}>
-                    <td className="em">
-                      <button
-                        className="btn btn-ghost btn-xs"
-                        onClick={() => openLogs(p.pmno)}
-                        style={{ padding: '2px 8px' }}
-                      >
-                        {p.pmno || '-'}
-                      </button>
-                    </td>
-                    <td>{p.make || '-'}</td>
-                    <td>
-                      <span className={`badge ${onlineOfflineStatus(p) === 'Online' ? 'b-online' : 'b-offline'}`}>
-                        <span className="badge-dot"></span>{onlineOfflineStatus(p)}
-                      </span>
-                    </td>
-                    <td>
-                      <span className={`badge ${conditionClass(p)}`}>
-                        {conditionLabel(p)}
-                      </span>
-                    </td>
-                    <td className="mono">{p.ip || '-'}</td>
-                    <td>{locationText(p)}</td>
-                  </tr>
-                ))
+                filtered.map((p) => {
+                  const webData = printerWebData[p.id];
+                  return (
+                    <tr key={p.id}>
+                      <td className="em">
+                        <button
+                          className="btn btn-ghost btn-xs"
+                          onClick={() => openLogs(p.pmno)}
+                          style={{ padding: '2px 8px' }}
+                        >
+                          {p.pmno || '-'}
+                        </button>
+                      </td>
+                      <td>{p.make} {p.model}</td>
+                      <td>
+                        <span className={`badge ${onlineOfflineStatus(p) === 'Online' ? 'b-online' : 'b-offline'}`}>
+                          ● {onlineOfflineStatus(p)}
+                        </span>
+                      </td>
+                      <td style={{ fontSize: '11px' }}>
+                        {webData ? (
+                          webData.error ? (
+                            <span style={{ color: 'var(--text3)' }}>{webData.error}</span>
+                          ) : (
+                            <span style={{ color: webData.printerCondition ? 'var(--green)' : 'var(--text3)' }}>
+                              {webData.printerCondition || '-'}
+                            </span>
+                          )
+                        ) : (
+                          <span className={`badge ${conditionClass(p)}`}>{conditionLabel(p)}</span>
+                        )}
+                      </td>
+                      <td style={{ fontSize: '11px' }}>
+                        {webData && !webData.error ? (webData.firmwareVersion || '-') : (p.firmware_version || '-')}
+                      </td>
+                      <td style={{ fontSize: '11px' }}>
+                        {webData && !webData.error ? (webData.headRunKm !== null && webData.headRunKm !== undefined ? `${webData.headRunKm} km` : '-') : (p.printer_km ? `${p.printer_km} km` : '-')}
+                      </td>
+                      <td className="mono">{p.ip || '-'}</td>
+                      <td style={{ fontSize: '11px' }}>
+                        {(() => {
+                          const locData = getLocationData(p);
+                          return `${locData.wc}, ${locData.stage}, ${locData.bay}${locData.source === 'vlan' ? ' (VLAN)' : ''}`;
+                        })()}
+                      </td>
+
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>

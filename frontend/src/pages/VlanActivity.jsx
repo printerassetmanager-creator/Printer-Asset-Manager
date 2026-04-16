@@ -1,9 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import { vlanAPI } from '../utils/api';
+import { useApp, PLANT_LOCATIONS } from '../context/AppContext';
+import { toSentenceCase } from '../utils/textFormat';
 
-const empty = {port:'',ip:'',mac:'',sw:'',loc:'',stage:'',bay:'',wc:''};
+const empty = {port:'',ip:'',mac:'',sw:'',loc:'',stage:'',bay:'',wc:'',plant_location:'B26'};
 
 export default function VlanActivity() {
+  const { selectedPlants } = useApp();
   const [data, setData] = useState([]);
   const [form, setForm] = useState(empty);
   const [editId, setEditId] = useState(null);
@@ -11,14 +14,23 @@ export default function VlanActivity() {
   const [msg, setMsg] = useState('');
   const fld = (k,v) => setForm(f=>({...f,[k]:v}));
 
-  const load = () => vlanAPI.getAll().then(r=>setData(r.data)).catch(()=>{});
-  useEffect(()=>{ load(); },[]);
+  const load = () => vlanAPI.getAll(selectedPlants).then(r=>setData(r.data)).catch(()=>{});
+  useEffect(()=>{ load(); },[selectedPlants]);
 
   const save = async () => {
     if (!form.port || !form.ip) { setMsg('Port and IP are required'); return; }
     try {
-      if (editId) await vlanAPI.update(editId, form);
-      else await vlanAPI.create(form);
+      const payload = {
+        ...form,
+        port: toSentenceCase(form.port),
+        sw: toSentenceCase(form.sw),
+        loc: toSentenceCase(form.loc),
+        stage: toSentenceCase(form.stage),
+        bay: toSentenceCase(form.bay),
+        wc: toSentenceCase(form.wc)
+      };
+      if (editId) await vlanAPI.update(editId, payload);
+      else await vlanAPI.create(payload);
       load(); clear(); setOpen(false); setMsg('Saved successfully');
       setTimeout(()=>setMsg(''),2500);
     } catch { setMsg('Error saving'); }
@@ -30,7 +42,7 @@ export default function VlanActivity() {
     load(); clear(); setOpen(false);
   };
 
-  const edit = (v) => { setEditId(v.id); setForm({port:v.port||'',ip:v.ip||'',mac:v.mac||'',sw:v.sw||'',loc:v.loc||'',stage:v.stage||'',bay:v.bay||'',wc:v.wc||''}); setOpen(true); };
+  const edit = (v) => { setEditId(v.id); setForm({port:v.port||'',ip:v.ip||'',mac:v.mac||'',sw:v.sw||'',loc:v.loc||'',stage:v.stage||'',bay:v.bay||'',wc:v.wc||'',plant_location:v.plant_location||'B26'}); setOpen(true); };
   const clear = () => { setEditId(null); setForm(empty); setMsg(''); };
 
   return (
@@ -55,6 +67,13 @@ export default function VlanActivity() {
           <div className="field"><label>Location</label><input value={form.loc} onChange={e=>fld('loc',e.target.value)} placeholder="Floor 2 - Line B"/></div>
           <div className="field"><label>Stage</label><input value={form.stage} onChange={e=>fld('stage',e.target.value)} placeholder="e.g. SMT-2"/></div>
           <div className="field"><label>Bay</label><input value={form.bay} onChange={e=>fld('bay',e.target.value)} placeholder="e.g. Bay-3"/></div>
+          <div className="field"><label>Plant Location</label>
+            <select value={form.plant_location} onChange={e=>fld('plant_location',e.target.value)}>
+              {PLANT_LOCATIONS.map((plant) => <option key={plant} value={plant}>{plant}</option>)}
+            </select>
+          </div>
+        </div>
+        <div className="fgrid fg2" style={{marginBottom:'14px'}}>
           <div className="field"><label>Workcell</label><input value={form.wc} onChange={e=>fld('wc',e.target.value)} placeholder="e.g. WC-05"/></div>
         </div>
         <div style={{display:'flex',gap:'8px',alignItems:'center'}}>

@@ -1,9 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import { sparePartsAPI } from '../utils/api';
+import { useApp, PLANT_LOCATIONS } from '../context/AppContext';
+import { toSentenceCase } from '../utils/textFormat';
 
-const empty = {code:'',name:'',compat:'All',avail:0,min:2,loc:'',serial:'',condition:'New'};
+const empty = {code:'',name:'',compat:'All',avail:0,min:2,loc:'',serial:'',condition:'New',plant_location:'B26'};
 
 export default function SpareParts() {
+  const { selectedPlants } = useApp();
   const [data, setData] = useState([]);
   const [usageLog, setUsageLog] = useState([]);
   const [form, setForm] = useState(empty);
@@ -14,20 +17,26 @@ export default function SpareParts() {
   const [useForm, setUseForm] = useState({code:'',name:'',qty:1,pmno:'',serial:'',wc:'',used_by:'Aniket'});
   const fld = (k,v) => setForm(f=>({...f,[k]:v}));
 
-  const load = () => { sparePartsAPI.getAll().then(r=>setData(r.data)).catch(()=>{}); sparePartsAPI.getUsageLog().then(r=>setUsageLog(r.data)).catch(()=>{}); };
-  useEffect(()=>{ load(); },[]);
+  const load = () => { sparePartsAPI.getAll(selectedPlants).then(r=>setData(r.data)).catch(()=>{}); sparePartsAPI.getUsageLog().then(r=>setUsageLog(r.data)).catch(()=>{}); };
+  useEffect(()=>{ load(); },[selectedPlants]);
 
   const save = async () => {
     if (!form.code || !form.name) { setMsg('Code and Name required'); return; }
     try {
-      if (editId) await sparePartsAPI.update(editId, form);
-      else await sparePartsAPI.create(form);
+      const payload = {
+        ...form,
+        name: toSentenceCase(form.name),
+        loc: toSentenceCase(form.loc),
+        serial: toSentenceCase(form.serial)
+      };
+      if (editId) await sparePartsAPI.update(editId, payload);
+      else await sparePartsAPI.create(payload);
       load(); clear(); setOpen(false); setMsg('Saved'); setTimeout(()=>setMsg(''),2000);
     } catch { setMsg('Error'); }
   };
 
   const del = async () => { if (!editId) return; await sparePartsAPI.delete(editId); load(); clear(); setOpen(false); };
-  const edit = (p) => { setEditId(p.id); setForm({code:p.code||'',name:p.name||'',compat:p.compat||'All',avail:p.avail||0,min:p.min||2,loc:p.loc||'',serial:p.serial||'',condition:p.condition||'New'}); setOpen(true); };
+  const edit = (p) => { setEditId(p.id); setForm({code:p.code||'',name:p.name||'',compat:p.compat||'All',avail:p.avail||0,min:p.min||2,loc:p.loc||'',serial:p.serial||'',condition:p.condition||'New',plant_location:p.plant_location||'B26'}); setOpen(true); };
   const clear = () => { setEditId(null); setForm(empty); setMsg(''); };
 
   const logUse = async () => {
@@ -63,6 +72,11 @@ export default function SpareParts() {
           <div className="field"><label>Part Name *</label><input value={form.name} onChange={e=>fld('name',e.target.value)} placeholder="e.g. Print Head 203dpi"/></div>
           <div className="field"><label>Compatible With</label>
             <select value={form.compat} onChange={e=>fld('compat',e.target.value)}><option>All</option><option>Honeywell</option><option>Zebra</option><option>Datamax</option></select>
+          </div>
+          <div className="field"><label>Plant Location</label>
+            <select value={form.plant_location} onChange={e=>fld('plant_location',e.target.value)}>
+              {PLANT_LOCATIONS.map((plant) => <option key={plant} value={plant}>{plant}</option>)}
+            </select>
           </div>
           <div className="field"><label>Storage Location</label><input value={form.loc} onChange={e=>fld('loc',e.target.value)} placeholder="Rack A - Shelf 1"/></div>
           <div className="field"><label>Qty in Stock</label><input type="number" value={form.avail} onChange={e=>fld('avail',parseInt(e.target.value)||0)} min="0"/></div>

@@ -1,7 +1,52 @@
 -- Printer Asset Management System - PostgreSQL Schema
 -- Run this file to create all required tables
 
--- ═══ PRINTERS (Master) ═══
+-- ═══ USERS ═══
+CREATE TABLE IF NOT EXISTS users (
+  id SERIAL PRIMARY KEY,
+  email VARCHAR(100) UNIQUE NOT NULL,
+  password_hash VARCHAR(255) NOT NULL,
+  full_name VARCHAR(100),
+  role VARCHAR(20) DEFAULT 'user',
+  status VARCHAR(20) DEFAULT 'pending',
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW()
+);
+
+-- ═══ PASSWORD RESET TOKENS ═══
+CREATE TABLE IF NOT EXISTS password_reset_tokens (
+  id SERIAL PRIMARY KEY,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  otp VARCHAR(6) NOT NULL,
+  expires_at TIMESTAMP NOT NULL,
+  is_used BOOLEAN DEFAULT FALSE,
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
+-- ═══ REGISTRATION EMAIL OTPs ═══
+CREATE TABLE IF NOT EXISTS registration_otps (
+  id SERIAL PRIMARY KEY,
+  email VARCHAR(100) NOT NULL,
+  otp VARCHAR(6) NOT NULL,
+  expires_at TIMESTAMP NOT NULL,
+  is_used BOOLEAN DEFAULT FALSE,
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_registration_otps_email_created
+  ON registration_otps (email, created_at DESC);
+
+-- ═══ USER APPROVALS (For Super Admin to approve new users) ═══
+CREATE TABLE IF NOT EXISTS user_approvals (
+  id SERIAL PRIMARY KEY,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  requested_at TIMESTAMP DEFAULT NOW(),
+  approved_by VARCHAR(100),
+  approved_at TIMESTAMP,
+  status VARCHAR(20) DEFAULT 'pending'
+);
+
+-- ═══ PINTERS (Master) ═══
 CREATE TABLE IF NOT EXISTS printers (
   id SERIAL PRIMARY KEY,
   pmno VARCHAR(20) UNIQUE NOT NULL,
@@ -22,6 +67,8 @@ CREATE TABLE IF NOT EXISTS printers (
   loftware VARCHAR(50),
   buyoff VARCHAR(100),
   remarks TEXT,
+  maintenance_type VARCHAR(20) DEFAULT 'quarterly',
+  plant_location VARCHAR(50) DEFAULT 'B26',
   created_at TIMESTAMP DEFAULT NOW(),
   updated_at TIMESTAMP DEFAULT NOW()
 );
@@ -37,6 +84,7 @@ CREATE TABLE IF NOT EXISTS vlan (
   stage VARCHAR(30),
   bay VARCHAR(30),
   wc VARCHAR(30),
+  plant_location VARCHAR(50) DEFAULT 'B26',
   created_at TIMESTAMP DEFAULT NOW()
 );
 
@@ -51,6 +99,7 @@ CREATE TABLE IF NOT EXISTS spare_parts (
   loc VARCHAR(100),
   serial VARCHAR(50),
   condition VARCHAR(20) DEFAULT 'New',
+  plant_location VARCHAR(50) DEFAULT 'B26',
   created_at TIMESTAMP DEFAULT NOW(),
   updated_at TIMESTAMP DEFAULT NOW()
 );
@@ -82,6 +131,7 @@ CREATE TABLE IF NOT EXISTS hp_printers (
   black_pct INTEGER DEFAULT 85,
   color_pct INTEGER,
   online BOOLEAN DEFAULT TRUE,
+  plant_location VARCHAR(50) DEFAULT 'B26',
   created_at TIMESTAMP DEFAULT NOW()
 );
 
@@ -108,6 +158,8 @@ CREATE TABLE IF NOT EXISTS cartridge_usage_log (
   qty INTEGER DEFAULT 1,
   wc VARCHAR(30),
   ip VARCHAR(20),
+  printer_location VARCHAR(255),
+  printer_tag VARCHAR(50),
   used_by VARCHAR(100),
   used_at TIMESTAMP DEFAULT NOW()
 );
@@ -118,7 +170,7 @@ CREATE TABLE IF NOT EXISTS recipes (
   name VARCHAR(100) NOT NULL,
   make VARCHAR(50),
   model VARCHAR(50),
-  dpi VARCHAR(10),
+  dpi VARCHAR(20),
   media VARCHAR(50),
   width VARCHAR(20),
   length VARCHAR(20),
@@ -132,6 +184,7 @@ CREATE TABLE IF NOT EXISTS recipes (
   contrast VARCHAR(20),
   size VARCHAR(50),
   "desc" TEXT,
+  config_json JSONB NOT NULL DEFAULT '{}'::jsonb,
   created_at TIMESTAMP DEFAULT NOW(),
   updated_at TIMESTAMP DEFAULT NOW()
 );
@@ -150,10 +203,37 @@ CREATE TABLE IF NOT EXISTS issues (
   category VARCHAR(50) DEFAULT 'Other',
   status VARCHAR(20) DEFAULT 'open',
   reporter VARCHAR(100),
+  sapno VARCHAR(50),
+  mesno VARCHAR(50),
+  assigned_to VARCHAR(100),
+  plant_location VARCHAR(50) DEFAULT 'B26',
+  severity_at_resolve VARCHAR(20),
+  status_changed_at TIMESTAMP DEFAULT NOW(),
+  resolution_deadline TIMESTAMP,
+  breach_status VARCHAR(20) DEFAULT 'on-track',
+  last_activity_user VARCHAR(100),
   created_at TIMESTAMP DEFAULT NOW(),
   expires_at TIMESTAMP DEFAULT (NOW() + INTERVAL '10 days'),
   resolved_at TIMESTAMP
 );
+
+-- ═══ ISSUE ACTIVITY LOG ═══
+CREATE TABLE IF NOT EXISTS issue_activity_log (
+  id SERIAL PRIMARY KEY,
+  issue_id INTEGER NOT NULL REFERENCES issues(id) ON DELETE CASCADE,
+  activity_type VARCHAR(50) NOT NULL,
+  old_severity VARCHAR(20),
+  new_severity VARCHAR(20),
+  reason TEXT,
+  action_taken TEXT,
+  severity_at_time VARCHAR(20),
+  assigned_to VARCHAR(100),
+  user_name VARCHAR(100) NOT NULL,
+  created_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_issue_activity_issue_id ON issue_activity_log(issue_id);
+CREATE INDEX IF NOT EXISTS idx_issue_status ON issues(status);
 
 -- ═══ HEALTH CHECKUPS ═══
 CREATE TABLE IF NOT EXISTS health_checkups (
@@ -261,3 +341,32 @@ CREATE INDEX IF NOT EXISTS idx_printer_status_logs_pmno_time
 
 CREATE INDEX IF NOT EXISTS idx_printer_status_logs_logged_at
   ON printer_status_logs (logged_at DESC);
+
+-- ═══ I-LEARN ISSUES ═══
+CREATE TABLE IF NOT EXISTS i_learn_issues (
+  id SERIAL PRIMARY KEY,
+  title VARCHAR(255) NOT NULL,
+  description TEXT,
+  category VARCHAR(50) DEFAULT 'General',
+  keywords TEXT,
+  created_by VARCHAR(100),
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW()
+);
+
+-- ═══ I-LEARN RESOLUTION STEPS ═══
+CREATE TABLE IF NOT EXISTS i_learn_steps (
+  id SERIAL PRIMARY KEY,
+  issue_id INTEGER NOT NULL REFERENCES i_learn_issues(id) ON DELETE CASCADE,
+  step_number INTEGER NOT NULL,
+  title VARCHAR(255) NOT NULL,
+  description TEXT,
+  image_url VARCHAR(500),
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_i_learn_issues_category ON i_learn_issues(category);
+CREATE INDEX IF NOT EXISTS idx_i_learn_issues_created_at ON i_learn_issues(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_i_learn_steps_issue_id ON i_learn_steps(issue_id);
+CREATE INDEX IF NOT EXISTS idx_i_learn_steps_step_number ON i_learn_steps(step_number);

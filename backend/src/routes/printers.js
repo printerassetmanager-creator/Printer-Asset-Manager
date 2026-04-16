@@ -13,7 +13,18 @@ function composeLocation(bay, stage, wc) {
 
 router.get('/', async (req, res) => {
   try {
-    const { rows } = await pool.query('SELECT * FROM printers ORDER BY pmno');
+    const { plants } = req.query;
+    let query = 'SELECT * FROM printers';
+    const params = [];
+
+    if (plants) {
+      const plantList = plants.split(',').map((p) => p.trim());
+      query += ' WHERE plant_location = ANY($1)';
+      params.push(plantList);
+    }
+
+    query += ' ORDER BY pmno';
+    const { rows } = await pool.query(query, params);
     res.json(rows);
   } catch (e) {
     res.status(500).json({ error: e.message });
@@ -35,8 +46,19 @@ router.get('/dashboard-live', async (req, res) => {
     await ensurePrinterMonitorTables();
     await cleanupOldPrinterLogs();
 
+    const { plants } = req.query;
+    const plantList = plants ? plants.split(',').map((p) => p.trim()) : null;
+
+    let printerQuery = 'SELECT * FROM printers';
+    const params = [];
+    if (plantList && plantList.length > 0) {
+      printerQuery += ' WHERE plant_location = ANY($1)';
+      params.push(plantList);
+    }
+    printerQuery += ' ORDER BY pmno';
+
     const [{ rows: printers }, { rows: liveRows }, { rows: vlanRows }, { rows: latestHealthRows }] = await Promise.all([
-      pool.query('SELECT * FROM printers ORDER BY pmno'),
+      pool.query(printerQuery, params),
       pool.query('SELECT * FROM printer_live_state'),
       pool.query('SELECT ip, bay, stage, wc, loc FROM vlan'),
       pool.query(`
@@ -117,12 +139,12 @@ router.get('/:pmno', async (req, res) => {
 });
 
 router.post('/', async (req, res) => {
-  const { pmno, serial, make, model, dpi, ip, wc, loc, stage, bay, status, pmdate, sapno, mesno, firmware, loftware, buyoff, remarks } = req.body;
+  const { pmno, serial, make, model, dpi, ip, wc, loc, stage, bay, status, pmdate, sapno, mesno, firmware, loftware, buyoff, remarks, maintenance_type, plant_location } = req.body;
   try {
     const { rows } = await pool.query(
-      `INSERT INTO printers (pmno,serial,make,model,dpi,ip,wc,loc,stage,bay,status,pmdate,sapno,mesno,firmware,loftware,buyoff,remarks)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18) RETURNING *`,
-      [pmno?.toUpperCase(), serial, make, model, dpi, ip, wc, loc, stage, bay, status || 'ready', pmdate, sapno, mesno, firmware, loftware, buyoff, remarks]
+      `INSERT INTO printers (pmno,serial,make,model,dpi,ip,wc,loc,stage,bay,status,pmdate,sapno,mesno,firmware,loftware,buyoff,remarks,maintenance_type,plant_location)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20) RETURNING *`,
+      [pmno?.toUpperCase(), serial, make, model, dpi, ip, wc, loc, stage, bay, status || 'ready', pmdate, sapno, mesno, firmware, loftware, buyoff, remarks, maintenance_type || 'quarterly', plant_location || 'B26']
     );
     res.status(201).json(rows[0]);
   } catch (e) {
@@ -132,12 +154,12 @@ router.post('/', async (req, res) => {
 });
 
 router.put('/:id', async (req, res) => {
-  const { serial, make, model, dpi, ip, wc, loc, stage, bay, status, pmdate, sapno, mesno, firmware, loftware, buyoff, remarks } = req.body;
+  const { serial, make, model, dpi, ip, wc, loc, stage, bay, status, pmdate, sapno, mesno, firmware, loftware, buyoff, remarks, maintenance_type, plant_location } = req.body;
   try {
     const { rows } = await pool.query(
       `UPDATE printers SET serial=$1,make=$2,model=$3,dpi=$4,ip=$5,wc=$6,loc=$7,stage=$8,bay=$9,status=$10,pmdate=$11,
-       sapno=$12,mesno=$13,firmware=$14,loftware=$15,buyoff=$16,remarks=$17,updated_at=NOW() WHERE id=$18 RETURNING *`,
-      [serial, make, model, dpi, ip, wc, loc, stage, bay, status, pmdate, sapno, mesno, firmware, loftware, buyoff, remarks, req.params.id]
+       sapno=$12,mesno=$13,firmware=$14,loftware=$15,buyoff=$16,remarks=$17,maintenance_type=$18,plant_location=$19,updated_at=NOW() WHERE id=$20 RETURNING *`,
+      [serial, make, model, dpi, ip, wc, loc, stage, bay, status, pmdate, sapno, mesno, firmware, loftware, buyoff, remarks, maintenance_type || 'quarterly', plant_location || 'B26', req.params.id]
     );
     res.json(rows[0]);
   } catch (e) {

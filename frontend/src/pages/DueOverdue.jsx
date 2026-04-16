@@ -1,21 +1,23 @@
 import React, { useEffect, useState } from 'react';
 import { dashboardAPI } from '../utils/api';
+import { useApp } from '../context/AppContext';
 
 export default function DueOverdue() {
+  const { selectedPlants } = useApp();
   const [rows, setRows] = useState([]);
 
   useEffect(() => {
-    dashboardAPI.getDueOverdue().then((r) => {
+    dashboardAPI.getDueOverdue(selectedPlants).then((r) => {
       setRows(r.data.filter((p) => p.pm_status === 'due' || p.pm_status === 'overdue'));
     }).catch(() => {});
-  }, []);
+  }, [selectedPlants]);
 
   const overdue = rows.filter((p) => p.pm_status === 'overdue');
   const due = rows.filter((p) => p.pm_status === 'due');
 
   const exportCSV = () => {
-    const hdr = 'PM No,Serial No,Make,Model,Stage,Bay,Workcell,Location,PM Date,Status\n';
-    const body = rows.map((p) => `${p.pmno},${p.serial},${p.make},${p.model},${p.stage},${p.bay},${p.wc},${p.loc},${p.pmdate},${p.pm_status}`).join('\n');
+    const hdr = 'PM No,Serial No,Make,Model,Stage,Bay,Workcell,Plant,PM Date,Status\n';
+    const body = rows.map((p) => `${p.pmno},${p.serial},${p.make},${p.model},${p.stage},${p.bay},${p.wc},${p.plant_location || 'B26'},${p.pmdate},${p.pm_status}`).join('\n');
     const a = document.createElement('a');
     a.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(hdr + body);
     a.download = 'due-overdue.csv';
@@ -34,7 +36,7 @@ export default function DueOverdue() {
       <div className="tbl-wrap">
         <table className="tbl">
           <thead>
-            <tr><th>PM No</th><th>Serial No</th><th>Make / Model</th><th>Stage</th><th>Bay</th><th>Workcell</th><th>Location</th><th>PM Date</th><th>Days Overdue</th><th>Status</th></tr>
+<tr><th>PM No</th><th>Serial No</th><th>Make / Model</th><th>Stage</th><th>Bay</th><th>Workcell</th><th>Plant</th><th>PM Date</th><th>Days Overdue</th><th>Status</th></tr>
           </thead>
           <tbody>
             {list.length === 0
@@ -49,7 +51,7 @@ export default function DueOverdue() {
                     <td>{p.stage}</td>
                     <td>{p.bay}</td>
                     <td>{p.wc}</td>
-                    <td style={{ fontSize: '11px' }}>{p.loc}</td>
+                    <td style={{ fontSize: '11px', fontWeight: 500, color: 'var(--blue)' }}>{p.plant_location || 'B26'}</td>
                     <td>{p.pmdate}</td>
                     <td style={{ fontFamily: 'JetBrains Mono,monospace', fontSize: '11px', color: p.pm_status === 'overdue' ? 'var(--red)' : 'var(--amber)', fontWeight: 600 }}>{days > 0 ? `+${days}d` : '-'}</td>
                     <td><span className={`badge ${badgeCls}`}>{p.pm_status === 'overdue' ? 'Overdue' : 'Due'}</span></td>

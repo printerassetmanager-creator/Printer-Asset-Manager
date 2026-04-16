@@ -11,8 +11,8 @@ export default function UpcomingPM() {
   }, []);
 
   const exportCSV = () => {
-    const hdr = 'PM No,Serial No,Make,Model,Stage,Bay,Workcell,Location,PM Due Date\n';
-    const body = rows.map((p) => `${p.pmno},${p.serial},${p.make},${p.model},${p.stage},${p.bay},${p.wc},${p.loc},${p.pmdate}`).join('\n');
+    const hdr = 'PM No,Serial No,Make,Model,Stage,Bay,Workcell,PM Due Date\n';
+    const body = rows.map((p) => `${p.pmno},${p.serial},${p.make},${p.model},${p.stage},${p.bay},${p.wc},${p.pmdate}`).join('\n');
     const a = document.createElement('a');
     a.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(hdr + body);
     a.download = 'upcoming-pm.csv';
@@ -31,13 +31,13 @@ export default function UpcomingPM() {
             <thead>
               <tr>
                 <th>PM No</th><th>Serial No</th><th>Make / Model</th>
-                <th>Stage</th><th>Bay</th><th>Workcell</th><th>Location</th>
+                <th>Stage</th><th>Bay</th><th>Workcell</th>
                 <th>PM Due Date</th><th>Days Left</th>
               </tr>
             </thead>
             <tbody>
               {rows.length === 0
-                ? <tr><td colSpan="9" style={{ textAlign: 'center', padding: '20px', color: 'var(--text3)' }}>No upcoming PMs in the next 5 days</td></tr>
+                ? <tr><td colSpan="8" style={{ textAlign: 'center', padding: '20px', color: 'var(--text3)' }}>No upcoming PMs in the next 5 days</td></tr>
                 : rows.map((p, i) => {
                   const daysLeft = p.pmdate ? Math.max(0, Math.ceil((new Date(p.pmdate) - Date.now()) / 86400000)) : '-';
                   return (
@@ -48,7 +48,6 @@ export default function UpcomingPM() {
                       <td>{p.stage}</td>
                       <td>{p.bay}</td>
                       <td>{p.wc}</td>
-                      <td style={{ fontSize: '11px' }}>{p.loc}</td>
                       <td><span className="badge b-upcoming">{p.pmdate}</span></td>
                       <td style={{ color: 'var(--purple)', fontWeight: 600, fontFamily: 'JetBrains Mono,monospace', fontSize: '11px' }}>{daysLeft}{typeof daysLeft === 'number' ? (daysLeft === 1 ? ' day' : ' days') : ''}</td>
                     </tr>

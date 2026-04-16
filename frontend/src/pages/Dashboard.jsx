@@ -3,7 +3,7 @@ import { dashboardAPI, issuesAPI } from '../utils/api';
 import { useApp } from '../context/AppContext';
 
 export default function Dashboard() {
-  const { setCurrentScreen } = useApp();
+  const { setCurrentScreen, selectedPlants } = useApp();
   const [stats, setStats] = useState({
     total: 0,
     online: 0,
@@ -19,15 +19,15 @@ export default function Dashboard() {
 
   useEffect(() => {
     dashboardAPI
-      .getStats()
+      .getStats(selectedPlants)
       .then((r) => setStats((s) => ({ ...s, ...r.data, performance: r.data.performance || [] })))
       .catch(() => {});
-    dashboardAPI.getDueOverdue().then((r) => setDueData(r.data)).catch(() => {});
+    dashboardAPI.getDueOverdue(selectedPlants).then((r) => setDueData(r.data)).catch(() => {});
     issuesAPI
-      .getAll()
+      .getAll(selectedPlants)
       .then((r) => setOpenIssuesList(r.data.filter((i) => i.status === 'open')))
       .catch(() => {});
-  }, []);
+  }, [selectedPlants]);
 
   const perf = stats.performance || [];
   const maxPerf = Math.max(...perf.flatMap((p) => [p.checkups || 0, p.pasted || 0]), 1);
@@ -40,6 +40,17 @@ export default function Dashboard() {
       return (s[a.severity] || 1) - (s[b.severity] || 1);
     })
     .slice(0, 4);
+  
+  // Calculate breached issues and high severity count
+  const breachedCount = openIssuesList.filter((issue) => {
+    const created = new Date(issue.created_at);
+    const severityDays = { High: 1, Medium: 3, Low: 7 };
+    const days = severityDays[issue.severity] || 3;
+    const deadline = new Date(created);
+    deadline.setDate(deadline.getDate() + days);
+    return deadline < Date.now() && issue.status === 'open';
+  }).length;
+  const highSevCount = openIssuesList.filter((i) => i.severity === 'High' && i.status === 'open').length;
 
   return (
     <div className="screen">
@@ -51,7 +62,13 @@ export default function Dashboard() {
         <div className="kpi c-due"><div className="kpi-lbl">PM Due</div><div className="kpi-val">{stats.due}</div><div className="kpi-sub">Label not pasted</div></div>
         <div className="kpi c-overdue"><div className="kpi-lbl">PM Overdue</div><div className="kpi-val">{stats.overdue}</div><div className="kpi-sub">7+ days passed</div></div>
         <div className="kpi" style={{ borderColor: 'rgba(224,82,82,.3)', cursor: 'pointer' }} onClick={() => setCurrentScreen('issues')}>
-          <div className="kpi-lbl">Open Issues</div><div className="kpi-val" style={{ color: 'var(--red)' }}>{stats.openIssues}</div><div className="kpi-sub">Logged issues</div>
+          <div className="kpi-lbl">Critical Issues</div>
+          <div style={{display:'flex',gap:'12px',justifyContent:'center',alignItems:'center',margin:'8px 0'}}>
+            <div style={{flex:1,textAlign:'center'}}><div className="kpi-val" style={{ color: 'var(--amber)' }}>{highSevCount}</div><div style={{fontSize:'10px',color:'var(--text3)',marginTop:'2px'}}>High</div></div>
+            <div style={{width:'1px',height:'30px',background:'var(--border)'}}/>
+            <div style={{flex:1,textAlign:'center'}}><div className="kpi-val" style={{ color: 'var(--red)' }}>{breachedCount}</div><div style={{fontSize:'10px',color:'var(--text3)',marginTop:'2px'}}>Breached</div></div>
+          </div>
+          <div className="kpi-sub">Action needed</div>
         </div>
       </div>
 
@@ -59,19 +76,18 @@ export default function Dashboard() {
         <div className="card">
           <div className="card-hd"><div className="card-title">PM Due &amp; Overdue</div></div>
           <div className="tbl-wrap"><table className="tbl">
-            <thead><tr><th>PM No</th><th>Serial No</th><th>Location</th><th>Workcell</th><th>Due Date</th><th>Status</th></tr></thead>
+            <thead><tr><th>PM No</th><th>Serial No</th><th>Location</th><th>Due Date</th><th>Status</th></tr></thead>
             <tbody>
               {dueRows.length ? dueRows.map((p) => (
                 <tr key={p.id}>
                   <td className="em">{p.pmno}</td>
                   <td className="mono">{p.serial}</td>
-                  <td>{p.loc}</td>
-                  <td>{p.wc}</td>
+                  <td style={{ fontSize: '11px' }}>{[p.stage, p.bay, p.wc].filter(Boolean).join(', ')}</td>
                   <td>{p.pmdate}</td>
                   <td><span className={`badge ${p.pm_status === 'overdue' ? 'b-overdue' : 'b-due'}`}>{p.pm_status}</span></td>
                 </tr>
               )) : (
-                <tr><td colSpan="6" style={{ textAlign: 'center', padding: '20px', color: 'var(--text3)' }}>No due or overdue PM records</td></tr>
+                <tr><td colSpan="5" style={{ textAlign: 'center', padding: '20px', color: 'var(--text3)' }}>No due or overdue PM records</td></tr>
               )}
             </tbody>
           </table></div>
@@ -84,7 +100,7 @@ export default function Dashboard() {
               <thead><tr><th>PM No</th><th>Serial No</th><th>Location</th><th>Due Date</th></tr></thead>
               <tbody>
                 {upcomingRows.length ? upcomingRows.map((p) => (
-                  <tr key={p.id}><td className="em">{p.pmno}</td><td className="mono">{p.serial}</td><td>{p.loc}</td><td><span className="badge b-upcoming">{p.pmdate}</span></td></tr>
+                  <tr key={p.id}><td className="em">{p.pmno}</td><td className="mono">{p.serial}</td><td style={{ fontSize: '11px' }}>{[p.stage, p.bay, p.wc].filter(Boolean).join(', ')}</td><td><span className="badge b-upcoming">{p.pmdate}</span></td></tr>
                 )) : (
                   <tr><td colSpan="4" style={{ textAlign: 'center', padding: '20px', color: 'var(--text3)' }}>No upcoming PM records</td></tr>
                 )}

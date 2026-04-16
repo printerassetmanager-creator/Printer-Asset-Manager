@@ -1,6 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { printersAPI, vlanAPI, healthAPI } from '../utils/api';
+import { PLANT_LOCATIONS } from '../context/AppContext';
 import { buildLoftwareValue, getDefaultLoftwareForSap, LOFTWARE_OPTIONS, parseLoftwareValue } from '../utils/loftware';
+import { toSentenceCase } from '../utils/textFormat';
+
+const CURRENT_USER = 'Admin';
 
 function nowStr() {
   return new Date().toLocaleString('en-GB', {
@@ -24,6 +28,17 @@ function fmtDateTime(value) {
   });
 }
 
+function calculateNextPMDate(pmdate) {
+  if (!pmdate) return '-';
+  try {
+    const date = new Date(pmdate);
+    date.setMonth(date.getMonth() + 3);
+    return date.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+  } catch {
+    return '-';
+  }
+}
+
 export default function HealthCheckup() {
   const [pm, setPm] = useState('');
   const [status, setStatus] = useState('');
@@ -43,6 +58,9 @@ export default function HealthCheckup() {
     stage: '',
     bay: '',
     wc: '',
+    pmdate: '',
+    nextpmdate: '',
+    plant_location: '',
     health: 'ok',
     issue_desc: '',
     req_parts: '',
@@ -50,7 +68,6 @@ export default function HealthCheckup() {
     engineer: 'Aniket'
   });
   const [vlanInfo, setVlanInfo] = useState(null);
-  const [pingStatus, setPingStatus] = useState(null);
   const [usedParts, setUsedParts] = useState([]);
   const [dmgParts, setDmgParts] = useState([]);
   const [showDmgModal, setShowDmgModal] = useState(false);
@@ -92,23 +109,35 @@ export default function HealthCheckup() {
   }, [form.sapno, form.loftware]);
 
   const fetchPrinter = async () => {
+    if (!pm.trim()) {
+      setStatus(<span style={{ color: 'var(--red)' }}>Please enter PM No</span>);
+      return;
+    }
+
     try {
       const { data: p } = await printersAPI.getOne(pm.trim().toUpperCase());
       const loftware = parseLoftwareValue(p.loftware);
-      setStatus(<span style={{ color: 'var(--green)' }}>PM found</span>);
+      setStatus(<span style={{ color: 'var(--green)' }}>✓ PM found</span>);
+      const nextPMDate = calculateNextPMDate(p.pmdate);
       setForm((f) => ({
         ...f,
         serial: p.serial || '',
         model: p.model || '',
         make: p.make || '',
         dpi: `${p.dpi || ''} DPI`,
-        firmware: 'R17.09.01',
-        km: '1,248,392 labels',
+        firmware: p.firmware || '',
+        km: '',
         loftware: loftware.primary || '',
         ip: p.ip || '',
         stage: p.stage || '',
         bay: p.bay || '',
-        wc: p.wc || ''
+        wc: p.wc || '',
+        sapno: p.sapno || '',
+        mesno: p.mesno || '',
+        pmdate: p.pmdate || '',
+        nextpmdate: nextPMDate,
+        plant_location: p.plant_location || 'B26',
+        pmno_disp: p.pmno || ''
       }));
       setSecondaryLoftware(loftware.secondary || '');
 
@@ -121,19 +150,6 @@ export default function HealthCheckup() {
           // no-op
         }
       }
-
-      setPingStatus('pinging');
-      setTimeout(() => {
-        const online = p.ip && p.ip.startsWith('192.168.1');
-        setPingStatus(online ? 'online' : 'offline');
-        if (online) {
-          setForm((f) => ({
-            ...f,
-            firmware: 'R17.09.01 (web)',
-            km: '1,248,392 labels (web)'
-          }));
-        }
-      }, 1200);
     } catch {
       setStatus(<span style={{ color: 'var(--red)' }}>PM not found</span>);
     }
@@ -143,12 +159,13 @@ export default function HealthCheckup() {
     try {
       await healthAPI.create({
         ...form,
-        pmno: pm.trim().toUpperCase(),
-        user: CURRENT_USER,
+        pmno: form.pmno_disp || pm.trim().toUpperCase(),
+        engineer: toSentenceCase(form.engineer),
+        issue_desc: toSentenceCase(form.issue_desc),
+        req_parts: toSentenceCase(form.req_parts),
         loftware: buildLoftwareValue(form.loftware, allowTwoLoftware ? secondaryLoftware : ''),
         logged_at: nowStr(),
-        vlan: vlanInfo,
-        ping: pingStatus
+        vlan: vlanInfo
       });
       await loadActivityLog();
       setMsg('Saved');
@@ -162,12 +179,19 @@ export default function HealthCheckup() {
     <div className="screen">
       <div className="card">
         <div className="sec">PM Lookup - Enter PM No to auto-fetch all details</div>
-        <div className="frow" style={{ gap: '10px', alignItems: 'flex-end' }}>
+        <div className="frow" style={{ gap: '10px', alignItems: 'flex-end', marginBottom: '12px' }}>
           <div className="field" style={{ maxWidth: '200px' }}>
             <label>PM Number <span style={{ fontSize: '10px', color: 'var(--amber)' }}>- Enter first</span></label>
             <input className="pm-in" placeholder="e.g. 1256" value={pm} onChange={(e) => setPm(e.target.value)} />
           </div>
-          <button className="btn btn-primary" onClick={fetchPrinter}>Fetch &amp; Ping</button>
+          <div className="field" style={{ maxWidth: '150px' }}>
+            <label>Plant Location</label>
+            <select value={form.plant_location || ''} onChange={(e) => fld('plant_location', e.target.value)}>
+              <option value="">Select...</option>
+              {PLANT_LOCATIONS.map((plant) => <option key={plant} value={plant}>{plant}</option>)}
+            </select>
+          </div>
+          <button className="btn btn-primary" onClick={fetchPrinter}>Fetch Details</button>
           <div style={{ fontSize: '12px', paddingBottom: '4px' }}>{status}</div>
         </div>
       </div>
@@ -175,18 +199,30 @@ export default function HealthCheckup() {
       <div className="g2" style={{ alignItems: 'start' }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
           <div className="card">
-            <div className="sec">Printer Details <span className="tag-a">Auto-fetched via ping</span></div>
-            <div className="fgrid fg5" style={{ marginBottom: '12px' }}>
+            <div className="sec">Printer Details <span className="tag-a">Auto-fetched from PM</span></div>
+            
+            {/* Row 1: Basic Printer Info */}
+            <div className="fgrid fg3" style={{ marginBottom: '12px' }}>
               <div className="field"><label>Serial No <span className="tag-r">Auto</span></label><input className="af" readOnly value={form.serial} placeholder="-" /></div>
               <div className="field"><label>Model <span className="tag-r">Auto</span></label><input className="af" readOnly value={form.model} placeholder="-" /></div>
               <div className="field"><label>Make <span className="tag-r">Auto</span></label><input className="af" readOnly value={form.make} placeholder="-" /></div>
+            </div>
+
+            {/* Row 2: SAP & MES Numbers */}
+            <div className="fgrid fg2" style={{ marginBottom: '12px' }}>
               <div className="field"><label>SAP Printer No</label><input value={form.sapno} onChange={(e) => fld('sapno', e.target.value)} placeholder="SAP No" /></div>
               <div className="field"><label>MES Printer No</label><input value={form.mesno} onChange={(e) => fld('mesno', e.target.value)} placeholder="MES No" /></div>
             </div>
-            <div className="fgrid fg5">
+
+            {/* Row 3: System Information */}
+            <div className="fgrid fg3" style={{ marginBottom: '12px' }}>
               <div className="field"><label>DPI <span className="tag-r">Auto</span></label><input className="af" readOnly value={form.dpi} placeholder="-" /></div>
-              <div className="field"><label>Firmware <span className="tag-r">Web Fetch</span></label><input className="af" readOnly value={form.firmware} placeholder="-" /></div>
-              <div className="field"><label>Printer KM <span className="tag-r">Web Fetch</span></label><input className="af" readOnly value={form.km} placeholder="-" /></div>
+              <div className="field"><label>Firmware <span className="tag-r">Saved</span></label><input className="af" readOnly value={form.firmware} placeholder="-" /></div>
+              <div className="field"><label>Printer KM</label><input className="af" readOnly value={form.km} placeholder="-" /></div>
+            </div>
+
+            {/* Row 4: Loftware Versions */}
+            <div className="fgrid fg3" style={{ marginBottom: '12px' }}>
               <div className="field"><label>{allowTwoLoftware ? 'Loftware Version 1' : 'Loftware Ver'} <span className="tag-r">Auto</span></label>
                 <select value={form.loftware} onChange={(e) => fld('loftware', e.target.value)}>
                   <option value="">-- Select --</option>
@@ -201,7 +237,20 @@ export default function HealthCheckup() {
                   </select>
                 </div>
               )}
-              <div className="field"><label>Next PM Date <span className="tag-a">+3 Months</span></label><input className="af" readOnly placeholder="-" /></div>
+              {!allowTwoLoftware && <div></div>}
+            </div>
+
+            {/* Row 5: Location & Workcell Info */}
+            <div className="fgrid fg3" style={{ marginBottom: '12px' }}>
+              <div className="field"><label>Stage</label><input value={form.stage} onChange={(e) => fld('stage', e.target.value)} placeholder="e.g. Assembly" /></div>
+              <div className="field"><label>Bay</label><input value={form.bay} onChange={(e) => fld('bay', e.target.value)} placeholder="e.g. B-14" /></div>
+              <div className="field"><label>Workcell</label><input value={form.wc} onChange={(e) => fld('wc', e.target.value)} placeholder="e.g. WC-01" /></div>
+            </div>
+
+            {/* Row 6: PM Dates */}
+            <div className="fgrid fg2" style={{ marginBottom: '0' }}>
+              <div className="field"><label>Next PM Date <span className="tag-a">+3 Months</span></label><input className="af" readOnly value={form.nextpmdate} placeholder="-" /></div>
+              <div className="field"><label>PM Date <span className="tag-r">Auto</span></label><input className="af" readOnly value={form.pmdate} placeholder="-" /></div>
             </div>
           </div>
 

@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import { printersAPI } from '../utils/api';
-import { IS_ADMIN } from '../context/AppContext';
+import { IS_ADMIN, PLANT_LOCATIONS } from '../context/AppContext';
 import CustomDatePicker from './DatePicker';
 import { buildLoftwareValue, getDefaultLoftwareForSap, LOFTWARE_OPTIONS, parseLoftwareValue } from '../utils/loftware';
+import { toSentenceCase } from '../utils/textFormat';
 
-const empty = {pmno:'',serial:'',make:'Honeywell',model:'',dpi:'203',ip:'',wc:'',stage:'',bay:'',pmdate:'',sapno:'',mesno:'',loftware:'',remarks:''};
+const empty = {pmno:'',serial:'',make:'Honeywell',model:'',dpi:'203',ip:'',wc:'',stage:'',bay:'',pmdate:'',sapno:'',mesno:'',loftware:'',remarks:'',maintenance_type:'quarterly',plant_location:'B26'};
 
 export default function PrinterMaster() {
   const [data, setData] = useState([]);
@@ -56,7 +57,16 @@ export default function PrinterMaster() {
 
   const save = async () => {
     if (!form.pmno || !form.serial) { setMsg('PM No and Serial No required'); return; }
-    const payload = { ...form, loftware: buildLoftwareValue(form.loftware, allowTwoLoftware ? secondaryLoftware : '') };
+    if (!form.pmdate) { setMsg('PM Date is required'); return; }
+    const payload = {
+      ...form,
+      model: toSentenceCase(form.model),
+      wc: toSentenceCase(form.wc),
+      stage: toSentenceCase(form.stage),
+      bay: toSentenceCase(form.bay),
+      remarks: toSentenceCase(form.remarks),
+      loftware: buildLoftwareValue(form.loftware, allowTwoLoftware ? secondaryLoftware : '')
+    };
     try {
       if (editId) await printersAPI.update(editId, payload);
       else await printersAPI.create(payload);
@@ -73,7 +83,7 @@ export default function PrinterMaster() {
   const edit = (p) => {
     const loftware = parseLoftwareValue(p.loftware);
     setEditId(p.id);
-    setForm({pmno:p.pmno||'',serial:p.serial||'',make:p.make||'Honeywell',model:p.model||'',dpi:p.dpi||'203',ip:p.ip||'',wc:p.wc||'',stage:p.stage||'',bay:p.bay||'',pmdate:p.pmdate||'',sapno:p.sapno||'',mesno:p.mesno||'',loftware:loftware.primary,remarks:p.remarks||''});
+    setForm({pmno:p.pmno||'',serial:p.serial||'',make:p.make||'Honeywell',model:p.model||'',dpi:p.dpi||'203',ip:p.ip||'',wc:p.wc||'',stage:p.stage||'',bay:p.bay||'',pmdate:p.pmdate||'',sapno:p.sapno||'',mesno:p.mesno||'',loftware:loftware.primary,remarks:p.remarks||'',maintenance_type:p.maintenance_type||'quarterly',plant_location:p.plant_location||'B26'});
     setSecondaryLoftware(loftware.secondary);
     setOpen(true);
   };
@@ -125,7 +135,21 @@ export default function PrinterMaster() {
           <div className="field"><label>Stage</label><input value={form.stage} onChange={e=>fld('stage',e.target.value)} placeholder="e.g. F1"/></div>
           <div className="field"><label>Bay</label><input value={form.bay} onChange={e=>fld('bay',e.target.value)} placeholder="e.g. Bay-A"/></div>
 
-          <div className="field"><label>PM Date</label><CustomDatePicker selected={form.pmdate} onChange={(date) => fld('pmdate', date)} placeholderText="Select PM Date" /></div>
+          <div className="field"><label>PM Date *</label><CustomDatePicker selected={form.pmdate} onChange={(date) => fld('pmdate', date)} placeholderText="Select PM Date" /></div>
+          <div className="field"><label>Maintenance Type</label>
+            <select value={form.maintenance_type} onChange={e=>fld('maintenance_type',e.target.value)}>
+              <option value="monthly">Monthly</option>
+              <option value="2month">2 Month</option>
+              <option value="quarterly">Quarterly (3 Month)</option>
+              <option value="4month">4 Month</option>
+              <option value="yearly">Yearly</option>
+            </select>
+          </div>
+          <div className="field"><label>Plant Location</label>
+            <select value={form.plant_location} onChange={e=>fld('plant_location',e.target.value)}>
+              {PLANT_LOCATIONS.map((plant) => <option key={plant} value={plant}>{plant}</option>)}
+            </select>
+          </div>
           <div className="field"><label>SAP Printer No</label><input value={form.sapno} onChange={e=>fld('sapno',e.target.value)} placeholder="SAP No"/></div>
           <div className="field"><label>MES Printer No</label><input value={form.mesno} onChange={e=>fld('mesno',e.target.value)} placeholder="MES No"/></div>
           <div className="field"><label>{allowTwoLoftware ? 'Loftware Version 1' : 'Loftware Version'}</label>

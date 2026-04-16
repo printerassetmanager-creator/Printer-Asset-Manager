@@ -1,18 +1,37 @@
 import React, { useEffect, useState } from 'react';
 import { printersAPI, vlanAPI, pmPastedAPI } from '../utils/api';
 import { buildLoftwareValue, getDefaultLoftwareForSap, LOFTWARE_OPTIONS, parseLoftwareValue } from '../utils/loftware';
+import { CURRENT_USER } from '../context/AppContext';
 
 function nowStr() { return new Date().toLocaleString('en-GB',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'}); }
 
 export default function PmForm() {
   const [pm, setPm] = useState('');
   const [status, setStatus] = useState('');
-  const [form, setForm] = useState({serial:'',model:'',make:'',dpi:'',ip:'',firmware:'',pmno_disp:'',pmdate:'',pasted_at:nowStr(),stage:'',bay:'',wc:'',loc:'',sapno:'',mesno:'',loftware:'',engineer:'Aniket',shift:'1st Shift',remarks:''});
+  const [form, setForm] = useState({serial:'',model:'',make:'',dpi:'',ip:'',firmware:'',pmno_disp:'',pmdate:'',pasted_at:nowStr(),stage:'',bay:'',wc:'',loc:'',sapno:'',mesno:'',loftware:'',user:CURRENT_USER,engineer:'Aniket',shift:'1st Shift'});
   const [vlanInfo, setVlanInfo] = useState(null);
   const [msg, setMsg] = useState('');
   const [secondaryLoftware, setSecondaryLoftware] = useState('');
+  const [auditTrail, setAuditTrail] = useState([]);
+  const [loadingAudit, setLoadingAudit] = useState(false);
   const fld = (k,v) => setForm(f=>({...f,[k]:v}));
   const allowTwoLoftware = Boolean(form.sapno && form.mesno);
+
+  const loadAuditTrail = async () => {
+    setLoadingAudit(true);
+    try {
+      const { data } = await pmPastedAPI.getAll();
+      setAuditTrail(Array.isArray(data) ? data.slice(0, 20) : []);
+    } catch {
+      setAuditTrail([]);
+    } finally {
+      setLoadingAudit(false);
+    }
+  };
+
+  useEffect(() => {
+    loadAuditTrail();
+  }, []);
 
   useEffect(() => {
     if (!allowTwoLoftware) setSecondaryLoftware('');
@@ -43,7 +62,9 @@ export default function PmForm() {
   const save = async () => {
     try {
       await pmPastedAPI.create({ ...form, pmno: pm.trim().toUpperCase(), loftware: buildLoftwareValue(form.loftware, allowTwoLoftware ? secondaryLoftware : '') });
-      setMsg('✓ PM pasted log saved'); setTimeout(()=>setMsg(''),2500);
+      setMsg('✓ PM pasted log saved'); 
+      setTimeout(()=>setMsg(''),2500);
+      await loadAuditTrail();
     } catch { setMsg('Error saving'); }
   };
 
@@ -62,14 +83,13 @@ export default function PmForm() {
       <div className="g2" style={{alignItems:'start'}}>
         <div style={{display:'flex',flexDirection:'column',gap:'14px'}}>
           <div className="card">
-            <div className="sec">Printer Details <span style={{fontSize:'10px',color:'var(--text3)',fontWeight:400,textTransform:'none',letterSpacing:0}}>Auto-filled · Editable</span></div>
+            <div className="sec">Printer Details <span style={{fontSize:'10px',color:'var(--text3)',fontWeight:400,textTransform:'none',letterSpacing:0}}>Auto-filled</span></div>
             <div className="fgrid fg2" style={{marginBottom:'10px'}}>
-              <div className="field"><label>Serial No</label><input value={form.serial} onChange={e=>fld('serial',e.target.value)} placeholder="Serial number"/></div>
-              <div className="field"><label>Model</label><input value={form.model} onChange={e=>fld('model',e.target.value)} placeholder="Printer model"/></div>
-              <div className="field"><label>Make / Brand</label><input value={form.make} onChange={e=>fld('make',e.target.value)} placeholder="Honeywell / Zebra..."/></div>
-              <div className="field"><label>DPI</label><input value={form.dpi} onChange={e=>fld('dpi',e.target.value)} placeholder="e.g. 203"/></div>
+              <div className="field"><label>Serial No <span className="tag-r">Auto</span></label><input className="af" readOnly value={form.serial} placeholder="-"/></div>
+              <div className="field"><label>Model <span className="tag-r">Auto</span></label><input className="af" readOnly value={form.model} placeholder="-"/></div>
+              <div className="field"><label>Make / Brand <span className="tag-r">Auto</span></label><input className="af" readOnly value={form.make} placeholder="-"/></div>
+              <div className="field"><label>DPI <span className="tag-r">Auto</span></label><input className="af" readOnly value={form.dpi} placeholder="-"/></div>
               <div className="field"><label>IP Address</label><input value={form.ip} onChange={e=>fld('ip',e.target.value)} placeholder="e.g. 192.168.1.101"/></div>
-              <div className="field"><label>Firmware Version</label><input value={form.firmware} onChange={e=>fld('firmware',e.target.value)} placeholder="Firmware ver."/></div>
             </div>
             <div className="fgrid fg2">
               <div className="field"><label>SAP Printer No</label><input value={form.sapno} onChange={e=>fld('sapno',e.target.value)} placeholder="SAP Printer No"/></div>
@@ -96,7 +116,6 @@ export default function PmForm() {
               <div className="field"><label>PM No</label><input className="af" readOnly value={form.pmno_disp} placeholder="—"/></div>
               <div className="field"><label>PM Date</label><input value={form.pmdate} onChange={e=>fld('pmdate',e.target.value)} placeholder="Last PM date"/></div>
               <div className="field"><label>PM Pasted Date &amp; Time <span className="tag-r" style={{color:'var(--red)'}}>Locked · Auto</span></label><input className="af" readOnly value={form.pasted_at} style={{cursor:'not-allowed'}}/></div>
-              <div className="field"><label>Remarks</label><input value={form.remarks} onChange={e=>fld('remarks',e.target.value)} placeholder="Any remarks..."/></div>
             </div>
           </div>
         </div>
@@ -109,11 +128,13 @@ export default function PmForm() {
                 ? <div className="vlan-match" style={{marginBottom:'8px'}}>✓ Location from VLAN — edit if wrong</div>
                 : <div className="vlan-nomatch" style={{marginBottom:'8px'}}>⚠ IP not in VLAN — enter manually</div>
             )}
-            <div className="fgrid" style={{gap:'10px'}}>
+            <div className="fgrid fg3" style={{gap:'10px',marginBottom:'10px'}}>
               <div className="field"><label>Stage</label><input value={form.stage} onChange={e=>fld('stage',e.target.value)} placeholder="e.g. SMT-2"/></div>
               <div className="field"><label>Bay</label><input value={form.bay} onChange={e=>fld('bay',e.target.value)} placeholder="e.g. Bay-04"/></div>
               <div className="field"><label>Workcell</label><input value={form.wc} onChange={e=>fld('wc',e.target.value)} placeholder="e.g. WC-14B"/></div>
-              <div className="field"><label>Full Location <span style={{fontSize:'9px',color:'var(--amber)'}}>(editable if wrong)</span></label><input value={form.loc} onChange={e=>fld('loc',e.target.value)} placeholder="Floor / Line description"/></div>
+            </div>
+            <div className="fgrid">
+              <div className="field"><label>Full Location <span style={{fontSize:'9px',color:'var(--green)'}}>Auto-combined</span></label><input className="af" readOnly value={[form.wc, form.bay, form.stage].filter(Boolean).join(' / ') || '-'} placeholder="Workcell / Bay / Stage"/></div>
             </div>
           </div>
           <div className="card">
@@ -128,8 +149,40 @@ export default function PmForm() {
             </div>
           </div>
           <div className="card">
-            <div className="sec">Audit Trail</div>
-            <div style={{fontSize:'12px',color:'var(--text3)',padding:'14px',textAlign:'center'}}>No PM paste records yet</div>
+            <div className="sec">Audit Trail - PM Pasted Log</div>
+            <div className="tbl-wrap">
+              <table className="tbl">
+                <thead>
+                  <tr>
+                    <th>PM No</th>
+                    <th>User</th>
+                    <th>Engineer</th>
+                    <th>Shift</th>
+                    <th>Date & Time</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {loadingAudit ? (
+                    <tr><td colSpan="5" style={{textAlign:'center'}}>Loading...</td></tr>
+                  ) : auditTrail.length === 0 ? (
+                    <tr><td colSpan="5" style={{textAlign:'center',color:'var(--text3)'}}>No PM paste records yet</td></tr>
+                  ) : (
+                    auditTrail.map((a, i) => {
+                      const dateTime = a.pasted_at ? new Date(a.pasted_at).toLocaleString('en-GB', {day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'}) : '-';
+                      return (
+                        <tr key={i}>
+                          <td className="em">{a.pmno || '-'}</td>
+                          <td>{a.user || '-'}</td>
+                          <td>{a.engineer || '-'}</td>
+                          <td>{a.shift || '-'}</td>
+                          <td style={{fontSize:'11px'}}>{dateTime}</td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
       </div>

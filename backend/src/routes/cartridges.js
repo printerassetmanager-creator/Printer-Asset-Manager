@@ -28,20 +28,53 @@ router.post('/', async (req, res) => {
 });
 
 router.post('/use', async (req, res) => {
-  const { dn, model, qty, wc, ip, used_by } = req.body;
+  const { dn, model, qty, wc, ip, used_by, printer_location, printer_tag } = req.body;
   const client = await pool.connect();
   try {
+    const normalizedQty = Math.max(1, parseInt(qty, 10) || 1);
+    const trimmedDn = String(dn || '').trim();
+    const trimmedModel = String(model || '').trim();
+    const trimmedUser = String(used_by || '').trim();
+
+    if (!trimmedDn && !trimmedModel) {
+      return res.status(400).json({ error: 'DN No or cartridge model is required.' });
+    }
+
     await client.query('BEGIN');
-    await client.query(
-      `INSERT INTO cartridge_usage_log (dn,model,qty,wc,ip,used_by) VALUES ($1,$2,$3,$4,$5,$6)`,
-      [dn, model, qty||1, wc, ip, used_by]
+    const cartridgeQuery = await client.query(
+      `SELECT *
+       FROM cartridges
+       WHERE ($1 <> '' AND dn = $1) OR ($2 <> '' AND model = $2)
+       ORDER BY CASE WHEN $1 <> '' AND dn = $1 THEN 0 ELSE 1 END, id
+       LIMIT 1`,
+      [trimmedDn, trimmedModel]
     );
+    const cartridge = cartridgeQuery.rows[0];
+
+    if (!cartridge) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Matching cartridge not found in inventory.' });
+    }
+
+    if ((cartridge.stock || 0) < normalizedQty) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ error: `Only ${cartridge.stock || 0} cartridge(s) available in stock.` });
+    }
+
     await client.query(
-      `UPDATE cartridges SET stock=GREATEST(0,stock-$1),updated_at=NOW() WHERE dn=$2 OR model=$3`,
-      [qty||1, dn, model]
+      `INSERT INTO cartridge_usage_log (dn,model,qty,wc,ip,printer_location,printer_tag,used_by) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
+      [cartridge.dn, cartridge.model, normalizedQty, wc, ip, printer_location || null, printer_tag || null, trimmedUser || 'System']
+    );
+
+    const stockUpdate = await client.query(
+      `UPDATE cartridges
+       SET stock = stock - $1, updated_at = NOW()
+       WHERE id = $2
+       RETURNING *`,
+      [normalizedQty, cartridge.id]
     );
     await client.query('COMMIT');
-    res.json({ success: true });
+    res.json({ success: true, cartridge: stockUpdate.rows[0] });
   } catch (e) {
     await client.query('ROLLBACK');
     res.status(500).json({ error: e.message });
