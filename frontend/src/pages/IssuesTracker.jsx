@@ -44,7 +44,7 @@ export default function IssuesTracker() {
     } catch {}
   };
 
-  useEffect(()=>{ load(); loadUsers(); },[]);
+  useEffect(()=>{ load(); loadUsers(); },[selectedPlants]);
 
   const autoFill = async (pmno) => {
     fld('pmno', pmno);

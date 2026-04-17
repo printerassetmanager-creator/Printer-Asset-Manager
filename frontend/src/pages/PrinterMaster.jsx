@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { printersAPI } from '../utils/api';
-import { IS_ADMIN, PLANT_LOCATIONS } from '../context/AppContext';
+import { IS_ADMIN, PLANT_LOCATIONS, useApp } from '../context/AppContext';
 import CustomDatePicker from './DatePicker';
 import { buildLoftwareValue, getDefaultLoftwareForSap, LOFTWARE_OPTIONS, parseLoftwareValue } from '../utils/loftware';
 import { toSentenceCase } from '../utils/textFormat';
@@ -8,6 +8,7 @@ import { toSentenceCase } from '../utils/textFormat';
 const empty = {pmno:'',serial:'',make:'Honeywell',model:'',dpi:'203',ip:'',wc:'',stage:'',bay:'',pmdate:'',sapno:'',mesno:'',loftware:'',remarks:'',maintenance_type:'quarterly',plant_location:'B26'};
 
 export default function PrinterMaster() {
+  const { selectedPlants } = useApp();
   const [data, setData] = useState([]);
   const [form, setForm] = useState(empty);
   const [editId, setEditId] = useState(null);
@@ -18,8 +19,8 @@ export default function PrinterMaster() {
   const fld = (k,v) => setForm(f=>({...f,[k]:v}));
   const allowTwoLoftware = Boolean(form.sapno && form.mesno);
 
-  const load = () => printersAPI.getAll().then(r=>setData(r.data)).catch(()=>{});
-  useEffect(()=>{ load(); },[]);
+  const load = () => printersAPI.getAll(selectedPlants).then(r=>setData(r.data)).catch(()=>{});
+  useEffect(()=>{ load(); },[selectedPlants]);
   useEffect(() => {
     if (!allowTwoLoftware) setSecondaryLoftware('');
   }, [allowTwoLoftware]);
