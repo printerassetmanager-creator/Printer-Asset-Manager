@@ -107,6 +107,114 @@ export default function ILearn() {
     setImagePreview(null);
   };
 
+  // Missing functions added
+  const viewIssueDetail = async (issueId) => {
+    try {
+      const data = await iLearnAPI.getById(issueId);
+      setSelectedIssue(data.data);
+      setView('detail');
+    } catch (e) {
+      console.error('Error loading issue:', e);
+      setMsg('Error loading issue');
+    }
+  };
+
+  const saveIssue = async () => {
+    try {
+      if (!form.title) {
+        setMsg('Issue title is required');
+        return;
+      }
+      if (stepsBeingSaved.length === 0) {
+        setMsg('Add at least one step before saving');
+        return;
+      }
+      const payload = {
+        title: form.title,
+        category: form.category,
+        created_by: loggedInUser,
+        steps: stepsBeingSaved,
+      };
+      await iLearnAPI.create(payload);
+      setMsg('Issue saved successfully');
+      setForm(emptyIssue);
+      setStepsBeingSaved([]);
+      setView('list');
+      load();
+      setTimeout(() => setMsg(''), 1500);
+    } catch (e) {
+      console.error('Error saving issue:', e);
+      setMsg(`Error: ${e.message || 'Failed to save issue'}`);
+    }
+  };
+
+  const deleteIssue = async () => {
+    if (!window.confirm('Are you sure you want to delete this issue and all its steps?')) return;
+    try {
+      await iLearnAPI.delete(selectedIssue.id);
+      setMsg('Issue deleted');
+      setView('list');
+      load();
+    } catch (e) {
+      console.error('Error deleting issue:', e);
+      setMsg('Error deleting issue');
+    }
+  };
+
+  const editStep = (step) => {
+    setStepForm(step);
+    setImagePreview(step.image_url);
+    setEditStepId(step.id);
+    setShowStepModal(true);
+  };
+
+  const saveStep = async () => {
+    try {
+      if (!stepForm.title) {
+        setMsg('Step title is required');
+        return;
+      }
+      if (editStepId && typeof editStepId === 'number' && editStepId < stepsBeingSaved.length) {
+        // Updating in local form
+        updateStepInForm();
+      } else {
+        // Saving to API
+        const payload = {
+          step_number: stepForm.step_number,
+          title: stepForm.title,
+          description: stepForm.description,
+          image_url: stepForm.image_url,
+        };
+        if (editStepId && typeof editStepId === 'string') {
+          // Edit existing step
+          await iLearnAPI.updateStep(selectedIssue.id, editStepId, payload);
+        } else {
+          // Create new step
+          await iLearnAPI.addStep(selectedIssue.id, payload);
+        }
+        setMsg('Step saved successfully');
+        clearStepForm();
+        setShowStepModal(false);
+        viewIssueDetail(selectedIssue.id);
+      }
+    } catch (e) {
+      console.error('Error saving step:', e);
+      setMsg(`Error: ${e.message || 'Failed to save step'}`);
+    }
+  };
+
+  const deleteStep = async (stepId) => {
+    if (!window.confirm('Delete this step?')) return;
+    try {
+      await iLearnAPI.deleteStep(selectedIssue.id, stepId);
+      setMsg('Step deleted');
+      viewIssueDetail(selectedIssue.id);
+    } catch (e) {
+      console.error('Error deleting step:', e);
+      setMsg('Error deleting step');
+    }
+  };
+
   return (
     <div className="screen">
       {view === 'list' && (
