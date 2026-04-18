@@ -213,7 +213,7 @@ html,body,#root{height:100%;overflow:hidden;font-family:'Inter',system-ui,sans-s
 .btn-primary:hover{background:rgba(74,127,212,.3)}
 .btn-success{background:rgba(61,184,122,.12);border-color:rgba(61,184,122,.4);color:var(--green)}
 .btn-success:hover{background:rgba(61,184,122,.22)}
-.btn-ghost{background:transparent;border-color:var(--border2);color:var(--text2)}
+.btn-ghost{background:transparent;border-color:var(--border2);color:var(--text)}
 .btn-ghost:hover{background:var(--bg3);color:var(--text)}
 .btn-danger{background:var(--red-bg);border-color:rgba(224,82,82,.35);color:var(--red)}
 .btn-danger:hover{background:rgba(224,82,82,.18)}
