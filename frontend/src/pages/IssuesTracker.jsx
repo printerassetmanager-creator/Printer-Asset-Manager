@@ -116,11 +116,15 @@ export default function IssuesTracker() {
     if (!assigningId) return;
     try {
       await issuesAPI.assign(assigningId, { assigned_to: assignTo, user_name: displayName(CURRENT_USER) });
-      setMsg('Issue assigned'); setTimeout(()=>setMsg(''),2000);
+      setMsg('Issue assigned'); 
+      setTimeout(()=>setMsg(''),2000);
       setAssigningId(null);
       setAssignTo('');
       load();
-    } catch (e) { setMsg(e.response?.data?.error || 'Error assigning'); }
+    } catch (e) { 
+      console.error('Error assigning:', e);
+      setMsg(e.response?.data?.error || 'Error assigning'); 
+    }
   };
 
   const edit = (issue) => {
@@ -273,9 +277,12 @@ export default function IssuesTracker() {
 
       {/* Downgrade Modal */}
       {downgradingId && (
-        <div style={{position:'fixed',top:0,left:0,right:0,bottom:0,background:'rgba(0,0,0,.5)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:1000}}>
-          <div style={{background:'var(--bg)',borderRadius:'8px',padding:'20px',minWidth:'350px',border:'1px solid var(--border)'}}>
-            <h3 style={{marginTop:0,marginBottom:'15px',color:'var(--text)'}}>Downgrade Severity</h3>
+        <div style={{position:'fixed',top:0,left:0,right:0,bottom:0,background:'rgba(0,0,0,.5)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:1000}} onClick={(e)=>{ if(e.target===e.currentTarget) setDowngradingId(null); }}>
+          <div style={{background:'var(--bg)',borderRadius:'8px',padding:'20px',minWidth:'350px',border:'1px solid var(--border)',boxShadow:'0 4px 12px rgba(0,0,0,.15)'}}>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'15px'}}>
+              <h3 style={{margin:0,color:'var(--text)'}}>⬇ Downgrade Severity</h3>
+              <button className="btn btn-ghost btn-sm" onClick={()=>setDowngradingId(null)} style={{padding:'4px 8px'}}>✕</button>
+            </div>
             <div className="field" style={{marginBottom:'12px'}}>
               <label>Downgrade to:</label>
               <select value={downgradeTo} onChange={e=>setDowngradeTo(e.target.value)} style={{width:'100%',padding:'8px',borderRadius:'4px',border:'1px solid var(--border)',background:'var(--bg)',color:'var(--text)'}}>
@@ -287,9 +294,10 @@ export default function IssuesTracker() {
               <label>Reason *</label>
               <textarea value={downgradeReason} onChange={e=>setDowngradeReason(e.target.value)} placeholder="Why are you downgrading this issue?" style={{width:'100%',padding:'8px',borderRadius:'4px',border:'1px solid var(--border)',background:'var(--bg)',color:'var(--text)',minHeight:'80px',boxSizing:'border-box'}}/>
             </div>
+            {msg && <div style={{fontSize:'12px',color:msg.includes('Error')?'var(--red)':'var(--green)',marginBottom:'10px',padding:'8px',background:msg.includes('Error')?'rgba(239,68,68,.1)':'rgba(34,197,94,.1)',borderRadius:'4px'}}>{msg}</div>}
             <div style={{display:'flex',gap:'8px',justifyContent:'flex-end'}}>
               <button className="btn btn-ghost btn-sm" onClick={()=>setDowngradingId(null)}>Cancel</button>
-              <button className="btn btn-warning" onClick={doDowngrade}>Confirm Downgrade</button>
+              <button className="btn btn-warning" onClick={doDowngrade} disabled={!downgradeReason.trim()}>Confirm Downgrade</button>
             </div>
           </div>
         </div>
@@ -297,9 +305,12 @@ export default function IssuesTracker() {
 
       {/* Upgrade Modal */}
       {upgradingId && (
-        <div style={{position:'fixed',top:0,left:0,right:0,bottom:0,background:'rgba(0,0,0,.5)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:1000}}>
-          <div style={{background:'var(--bg)',borderRadius:'8px',padding:'20px',minWidth:'350px',border:'1px solid var(--border)'}}>
-            <h3 style={{marginTop:0,marginBottom:'15px',color:'var(--text)'}}>Upgrade Severity</h3>
+        <div style={{position:'fixed',top:0,left:0,right:0,bottom:0,background:'rgba(0,0,0,.5)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:1000}} onClick={(e)=>{ if(e.target===e.currentTarget) setUpgradingId(null); }}>
+          <div style={{background:'var(--bg)',borderRadius:'8px',padding:'20px',minWidth:'350px',border:'1px solid var(--border)',boxShadow:'0 4px 12px rgba(0,0,0,.15)'}}>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'15px'}}>
+              <h3 style={{margin:0,color:'var(--text)'}}>⬆ Upgrade Severity</h3>
+              <button className="btn btn-ghost btn-sm" onClick={()=>setUpgradingId(null)} style={{padding:'4px 8px'}}>✕</button>
+            </div>
             <div className="field" style={{marginBottom:'12px'}}>
               <label>Upgrade to:</label>
               <select disabled style={{width:'100%',padding:'8px',borderRadius:'4px',border:'1px solid var(--border)',background:'var(--bg)',color:'var(--text)'}}>
@@ -312,9 +323,10 @@ export default function IssuesTracker() {
               <label>Reason *</label>
               <textarea value={upgradeReason} onChange={e=>setUpgradeReason(e.target.value)} placeholder="Why are you upgrading this issue?" style={{width:'100%',padding:'8px',borderRadius:'4px',border:'1px solid var(--border)',background:'var(--bg)',color:'var(--text)',minHeight:'80px',boxSizing:'border-box'}}/>
             </div>
+            {msg && <div style={{fontSize:'12px',color:msg.includes('Error')?'var(--red)':'var(--green)',marginBottom:'10px',padding:'8px',background:msg.includes('Error')?'rgba(239,68,68,.1)':'rgba(34,197,94,.1)',borderRadius:'4px'}}>{msg}</div>}
             <div style={{display:'flex',gap:'8px',justifyContent:'flex-end'}}>
               <button className="btn btn-ghost btn-sm" onClick={()=>setUpgradingId(null)}>Cancel</button>
-              <button className="btn btn-danger" onClick={doUpgrade}>Confirm Upgrade</button>
+              <button className="btn btn-danger" onClick={doUpgrade} disabled={!upgradeReason.trim()}>Confirm Upgrade</button>
             </div>
           </div>
         </div>
@@ -322,19 +334,23 @@ export default function IssuesTracker() {
 
       {/* Assignment Modal */}
       {assigningId && (
-        <div style={{position:'fixed',top:0,left:0,right:0,bottom:0,background:'rgba(0,0,0,.5)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:1000}}>
-          <div style={{background:'var(--bg)',borderRadius:'8px',padding:'20px',minWidth:'350px',border:'1px solid var(--border)'}}>
-            <h3 style={{marginTop:0,marginBottom:'15px',color:'var(--text)'}}>Assign Issue</h3>
+        <div style={{position:'fixed',top:0,left:0,right:0,bottom:0,background:'rgba(0,0,0,.5)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:1000}} onClick={(e)=>{ if(e.target===e.currentTarget) { setAssigningId(null); setAssignTo(''); } }}>
+          <div style={{background:'var(--bg)',borderRadius:'8px',padding:'20px',minWidth:'350px',border:'1px solid var(--border)',boxShadow:'0 4px 12px rgba(0,0,0,.15)'}}>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'15px'}}>
+              <h3 style={{margin:0,color:'var(--text)'}}>👤 Assign Issue</h3>
+              <button className="btn btn-ghost btn-sm" onClick={()=>{setAssigningId(null);setAssignTo('');}} style={{padding:'4px 8px'}}>✕</button>
+            </div>
             <div className="field" style={{marginBottom:'15px'}}>
               <label>Assign to User *</label>
               <select value={assignTo} onChange={e=>setAssignTo(e.target.value)} style={{width:'100%',padding:'8px',borderRadius:'4px',border:'1px solid var(--border)',background:'var(--bg)',color:'var(--text)'}}>
                 <option value="">-- Select User --</option>
-                {users.map(u => <option key={u} value={u}>{u}</option>)}
+                {users && users.length > 0 ? users.map(u => <option key={u} value={u}>{u}</option>) : <option value="">No users found</option>}
               </select>
             </div>
+            {msg && <div style={{fontSize:'12px',color:msg.includes('Error')?'var(--red)':'var(--green)',marginBottom:'10px',padding:'8px',background:msg.includes('Error')?'rgba(239,68,68,.1)':'rgba(34,197,94,.1)',borderRadius:'4px'}}>{msg}</div>}
             <div style={{display:'flex',gap:'8px',justifyContent:'flex-end'}}>
               <button className="btn btn-ghost btn-sm" onClick={()=>{setAssigningId(null);setAssignTo('');}}>Cancel</button>
-              <button className="btn btn-primary" onClick={doAssign}>Assign</button>
+              <button className="btn btn-primary" onClick={doAssign} disabled={!assignTo}>Assign</button>
             </div>
           </div>
         </div>
