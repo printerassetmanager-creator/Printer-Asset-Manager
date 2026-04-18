@@ -335,6 +335,86 @@ export default function LabelRecipes() {
     });
   };
 
+  const generateZPL = (recipe) => {
+    const config = recipe.config || {};
+    let zpl = '^XA\n'; // Start format
+    
+    if (recipe.brand === 'Zebra') {
+      // Zebra ZPL commands
+      if (config.labelLength) {
+        zpl += `^LL${config.labelLength}\n`; // Label length in dots
+      }
+      if (config.printWidth) {
+        zpl += `^PW${config.printWidth}\n`; // Print width
+      }
+      
+      // Sensor method
+      if (config.sensorMethod === 'Reflective') {
+        zpl += '^MFR\n'; // Reflective sensor
+      } else {
+        zpl += '^MFT\n'; // Transmissive sensor
+      }
+      
+      // Media calibration
+      if (config.mediaCalibration === 'Auto') {
+        zpl += '^MC\n'; // Media calibration
+      }
+      
+      // Print mode
+      if (config.printMode === 'Peel Off') {
+        zpl += '^MPE\n'; // Peel mode
+      } else if (config.printMode === 'Cutter') {
+        zpl += '^MCC\n'; // Cutter mode
+      } else {
+        zpl += '^MPN\n'; // Tear off
+      }
+      
+      // Print speed (in inches per second, range 2-14)
+      if (config.printSpeed) {
+        zpl += `^PR${config.printSpeed}\n`;
+      }
+      
+      // Darkness (0-30 for Zebra)
+      if (config.darkness) {
+        zpl += `^MD${config.darkness}\n`;
+      }
+      
+      // Media type
+      if (config.mediaType === 'Black Mark') {
+        zpl += '^MIB\n'; // Black mark detection
+      } else if (config.mediaType === 'Continuous') {
+        zpl += '^MIC\n'; // Continuous media
+      }
+      
+    } else if (recipe.brand === 'Honeywell') {
+      // Honeywell ESim language commands
+      if (config.printWidth) {
+        zpl += `. Set media width\nT ${config.printWidth}\n`;
+      }
+      if (config.labelTop) {
+        zpl += `. Label top position\nV ${config.labelTop}\n`;
+      }
+      
+      // Print speed (mm/sec)
+      if (config.printSpeed) {
+        zpl += `S${config.printSpeed}\n`;
+      }
+      
+      // Darkness (0-100 for Honeywell)
+      if (config.darkness) {
+        zpl += `D${config.darkness}\n`;
+      }
+      
+      // Calibration mode
+      if (config.calibrationMode !== 'Off') {
+        zpl += `. Auto calibration enabled\nFXA\n`;
+      }
+    }
+    
+    zpl += '^XZ'; // End format
+    return zpl;
+  };
+
   const runPrinterAction = async (action) => {
     if (!pushModal.printerIp.trim()) {
       setPushModal((current) => ({
@@ -541,11 +621,11 @@ export default function LabelRecipes() {
       {scriptModal.open ? (
         <div className="modal-bg show" onClick={(e) => { if (e.target === e.currentTarget) closeScriptModal(); }}>
           <div className="modal" style={{ maxWidth: '800px', maxHeight: '80vh', overflowY: 'auto' }}>
-            <div className="modal-title">Recipe Script</div>
+            <div className="modal-title">{scriptModal.recipe?.brand} Script - {scriptModal.recipe?.model}</div>
             <button className="modal-close" onClick={closeScriptModal}>X</button>
 
             <div className="notice n-info" style={{ marginBottom: '16px' }}>
-              {scriptModal.recipe?.brand} {scriptModal.recipe?.model} - {scriptModal.recipe?.name}
+              {scriptModal.recipe?.notes || 'No description available'}
             </div>
 
             <div style={{ 
@@ -558,14 +638,15 @@ export default function LabelRecipes() {
               wordBreak: 'break-all',
               border: '1px solid #ddd',
               maxHeight: '500px',
-              overflowY: 'auto'
+              overflowY: 'auto',
+              color: '#333'
             }}>
-              {JSON.stringify(scriptModal.recipe, null, 2)}
+              {generateZPL(scriptModal.recipe)}
             </div>
 
             <div className="recipe-builder-actions" style={{ marginTop: '16px' }}>
               <button className="btn btn-ghost" onClick={() => {
-                const scriptText = JSON.stringify(scriptModal.recipe, null, 2);
+                const scriptText = generateZPL(scriptModal.recipe);
                 navigator.clipboard.writeText(scriptText);
                 alert('Script copied to clipboard!');
               }}>📋 Copy to Clipboard</button>
