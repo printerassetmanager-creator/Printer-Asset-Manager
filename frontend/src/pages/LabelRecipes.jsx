@@ -167,6 +167,10 @@ export default function LabelRecipes() {
     status: '',
     busy: false,
   });
+  const [scriptModal, setScriptModal] = useState({
+    open: false,
+    recipe: null,
+  });
 
   async function loadRecipes() {
     setLoading(true);
@@ -317,6 +321,20 @@ export default function LabelRecipes() {
     });
   };
 
+  const openScriptModal = (recipe) => {
+    setScriptModal({
+      open: true,
+      recipe,
+    });
+  };
+
+  const closeScriptModal = () => {
+    setScriptModal({
+      open: false,
+      recipe: null,
+    });
+  };
+
   const runPrinterAction = async (action) => {
     if (!pushModal.printerIp.trim()) {
       setPushModal((current) => ({
@@ -422,6 +440,7 @@ export default function LabelRecipes() {
                     <div className="recipe-card-actions">
                       <button className="btn btn-ghost btn-sm" onClick={(e) => { e.stopPropagation(); editRecipe(recipe); }}>Edit</button>
                       <button className="btn btn-primary btn-sm" onClick={(e) => { e.stopPropagation(); openPushModal(recipe); }}>Push</button>
+                      <button className="btn btn-info btn-sm" onClick={(e) => { e.stopPropagation(); openScriptModal(recipe); }}>View Script</button>
                     </div>
                   </div>
                 );
@@ -514,6 +533,43 @@ export default function LabelRecipes() {
               <button className="btn btn-primary" onClick={() => runPrinterAction('push')} disabled={pushModal.busy}>Push</button>
               <button className="btn btn-success" onClick={() => runPrinterAction('test-print')} disabled={pushModal.busy}>Test Print</button>
               <button className="btn btn-amber" onClick={() => runPrinterAction('calibrate')} disabled={pushModal.busy}>Auto Calibration</button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {scriptModal.open ? (
+        <div className="modal-bg show" onClick={(e) => { if (e.target === e.currentTarget) closeScriptModal(); }}>
+          <div className="modal" style={{ maxWidth: '800px', maxHeight: '80vh', overflowY: 'auto' }}>
+            <div className="modal-title">Recipe Script</div>
+            <button className="modal-close" onClick={closeScriptModal}>X</button>
+
+            <div className="notice n-info" style={{ marginBottom: '16px' }}>
+              {scriptModal.recipe?.brand} {scriptModal.recipe?.model} - {scriptModal.recipe?.name}
+            </div>
+
+            <div style={{ 
+              backgroundColor: '#f5f5f5', 
+              padding: '12px', 
+              borderRadius: '6px', 
+              fontSize: '12px',
+              fontFamily: 'monospace',
+              whiteSpace: 'pre-wrap',
+              wordBreak: 'break-all',
+              border: '1px solid #ddd',
+              maxHeight: '500px',
+              overflowY: 'auto'
+            }}>
+              {JSON.stringify(scriptModal.recipe, null, 2)}
+            </div>
+
+            <div className="recipe-builder-actions" style={{ marginTop: '16px' }}>
+              <button className="btn btn-ghost" onClick={() => {
+                const scriptText = JSON.stringify(scriptModal.recipe, null, 2);
+                navigator.clipboard.writeText(scriptText);
+                alert('Script copied to clipboard!');
+              }}>📋 Copy to Clipboard</button>
+              <button className="btn btn-success" onClick={closeScriptModal}>Close</button>
             </div>
           </div>
         </div>

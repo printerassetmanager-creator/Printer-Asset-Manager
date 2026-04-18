@@ -218,6 +218,8 @@ html,body,#root{height:100%;overflow:hidden;font-family:'Inter',system-ui,sans-s
 .btn-danger{background:var(--red-bg);border-color:rgba(224,82,82,.35);color:var(--red)}
 .btn-danger:hover{background:rgba(224,82,82,.18)}
 .btn-amber{background:var(--amber-bg);border-color:rgba(232,160,32,.35);color:var(--amber)}
+.btn-info{background:var(--cyan-bg);border-color:rgba(34,211,238,.35);color:var(--cyan)}
+.btn-info:hover{background:rgba(34,211,238,.18)}
 .btn-sm{padding:5px 12px;font-size:11px}
 .btn-xs{padding:3px 8px;font-size:10px;border-radius:5px}
 
