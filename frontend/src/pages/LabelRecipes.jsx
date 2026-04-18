@@ -335,147 +335,151 @@ export default function LabelRecipes() {
     });
   };
 
-  const generateZPL = (recipe) => {
+  const generateHoneywellDPL = (recipe) => {
     const config = recipe.config || {};
-    
-    if (recipe.brand === 'Zebra') {
-      // Zebra ZPL - Only include explicitly set values, no defaults
-      let zpl = '^XA\n'; // Start format
-      
-      // Only add if explicitly set (not empty)
-      if (config.labelLength) {
-        zpl += `^LL${config.labelLength}\n`; // Label length in dots
-      }
-      if (config.printWidth) {
-        zpl += `^PW${config.printWidth}\n`; // Print width
-      }
-      
-      // Sensor method - only if explicitly set to Reflective
-      if (config.sensorMethod === 'Reflective') {
-        zpl += '^MFR\n'; // Reflective sensor
-      }
-      
-      // Media calibration - only if explicitly set to Manual
-      if (config.mediaCalibration === 'Manual') {
-        zpl += '^MM\n'; // Manual calibration
-      }
-      
-      // Print mode - only add if not default (Tear Off)
-      if (config.printMode && config.printMode !== 'Tear Off') {
-        if (config.printMode === 'Peel Off') {
-          zpl += '^MPE\n'; // Peel mode
-        } else if (config.printMode === 'Cutter') {
-          zpl += '^MCC\n'; // Cutter mode
-        }
-      }
-      
-      // Print speed (in inches per second, range 2-14) - only if set
-      if (config.printSpeed) {
-        zpl += `^PR${config.printSpeed}\n`;
-      }
-      
-      // Darkness (0-30 for Zebra) - only if set
-      if (config.darkness) {
-        zpl += `^MD${config.darkness}\n`;
-      }
-      
-      // Media type - only add non-default values
-      if (config.mediaType && config.mediaType !== 'Gap (Web)') {
-        if (config.mediaType === 'Black Mark') {
-          zpl += '^MIB\n'; // Black mark detection
-        } else if (config.mediaType === 'Continuous') {
-          zpl += '^MIC\n'; // Continuous media
-        }
-      }
-      
-      zpl += '^XZ'; // End format
-      return zpl;
-      
-    } else if (recipe.brand === 'Honeywell') {
-      // Honeywell ESim language - Include all settings with defaults
-      let esl = '';
-      
-      // Start with all configuration values
-      esl += `. Honeywell Label Printer Configuration\n`;
-      esl += `. ===================================\n\n`;
-      
-      // Print method
-      esl += `. Print Method: ${config.printMethod || 'Direct Thermal'}\n`;
-      
-      // Media type
-      esl += `. Media Type: ${config.mediaType || 'Media With Gaps'}\n`;
-      
-      // Media dimensions
-      if (config.mediaWidth || config.mediaLength) {
-        esl += `. Media Dimensions\n`;
-        if (config.mediaWidth) esl += `T${config.mediaWidth}\n`;
-        if (config.mediaLength) esl += `U${config.mediaLength}\n`;
-      }
-      
-      // Margins and adjustments
-      if (config.mediaMarginX) esl += `.X${config.mediaMarginX}\n`;
-      if (config.labelTopAdjust) esl += `.V${config.labelTopAdjust}\n`;
-      if (config.labelRestAdjust) esl += `.R${config.labelRestAdjust}\n`;
-      
-      // Calibration mode
-      if (config.calibrationMode) {
-        switch(config.calibrationMode) {
-          case 'Smart (Auto Calibration)':
-            esl += `FXA\n`; // Auto calibration
-            break;
-          case 'Fast':
-            esl += `FXF\n`; // Fast calibration
-            break;
-          case 'Slow':
-            esl += `FXS\n`; // Slow calibration
-            break;
-          case 'Slow With Retraction':
-            esl += `FXR\n`; // Slow with retraction
-            break;
-        }
-      }
-      
-      // Print mode
-      if (config.printMode) {
-        switch(config.printMode) {
-          case 'Peel Off':
-            esl += `FMP\n`;
-            break;
-          case 'Cutter':
-            esl += `FMC\n`;
-            break;
-          default:
-            esl += `FMT\n`; // Tear off (default)
-        }
-      }
-      
-      // Media sensitivity
-      if (config.mediaSensitivity) {
-        switch(config.mediaSensitivity) {
-          case 'Very Low':
-            esl += `SENS0\n`;
-            break;
-          case 'Low':
-            esl += `SENS1\n`;
-            break;
-          case 'High':
-            esl += `SENS3\n`;
-            break;
-          default:
-            esl += `SENS2\n`; // Medium (default)
-        }
-      }
-      
-      // Print speed (mm/sec)
-      if (config.printSpeed) esl += `S${config.printSpeed}\n`;
-      
-      // Darkness (0-100 for Honeywell)
-      if (config.darkness) esl += `D${config.darkness}\n`;
-      
-      return esl;
+    const lines = [];
+
+    // Start new session
+    lines.push('N');
+
+    // Label size with fallback defaults
+    const width = config.mediaWidth || 812;
+    const height = config.mediaLength || 1218;
+    const gap = 24;
+
+    lines.push(`q${width}`);
+    lines.push(`Q${height},${gap}`);
+
+    // Print Method
+    if (config.printMethod === 'Thermal Transfer') {
+      lines.push('D12'); // Thermal Transfer
+    } else {
+      lines.push('D11'); // Direct Thermal (default)
     }
-    
-    return ''; // Default empty if no brand
+
+    // Sensitivity mapping
+    const sensitivityMap = {
+      'Very Low': 'S0',
+      'Low': 'S1',
+      'Medium': 'S3',
+      'High': 'S5',
+    };
+    lines.push(sensitivityMap[config.mediaSensitivity] || 'S3');
+
+    // Print Mode
+    if (config.printMode === 'Peel Off') {
+      lines.push('ZP');
+    } else if (config.printMode === 'Cutter') {
+      lines.push('ZC');
+    } else {
+      lines.push('ZT'); // Tear Off (default)
+    }
+
+    // Darkness (0-100)
+    if (config.darkness) {
+      lines.push(`H${config.darkness}`);
+    }
+
+    // Print Speed (mm/sec)
+    if (config.printSpeed) {
+      lines.push(`P${config.printSpeed}`);
+    }
+
+    // Media calibration
+    if (config.calibrationMode === 'Fast') {
+      lines.push('CF');
+    } else if (config.calibrationMode === 'Slow') {
+      lines.push('CS');
+    } else if (config.calibrationMode === 'Slow With Retraction') {
+      lines.push('CR');
+    }
+
+    // Sample label content
+    lines.push(`A50,50,0,3,1,1,N,"${recipe.name || 'Demo Label'}"`);
+    lines.push(`A50,120,0,3,1,1,N,"Model: ${recipe.model || 'PX940'}"`);
+
+    // Sample barcode
+    lines.push('B50,200,0,1,2,4,100,N,"123456"');
+
+    // Print 1 label
+    lines.push('P1');
+
+    return lines.join('\n');
+  };
+
+  const generateZebraZPL = (recipe) => {
+    const config = recipe.config || {};
+    const lines = [];
+
+    // Start format
+    lines.push('^XA');
+
+    // Label size
+    const labelLength = config.labelLength || 1218;
+    const printWidth = config.printWidth || 812;
+
+    if (labelLength) lines.push(`^LL${labelLength}`);
+    if (printWidth) lines.push(`^PW${printWidth}`);
+
+    // Sensor method
+    if (config.sensorMethod === 'Reflective') {
+      lines.push('^MFR');
+    } else {
+      lines.push('^MFT'); // Transmissive (default)
+    }
+
+    // Media calibration
+    if (config.mediaCalibration === 'Manual') {
+      lines.push('^MM');
+    } else {
+      lines.push('^MC'); // Auto (default)
+    }
+
+    // Print mode
+    if (config.printMode === 'Peel Off') {
+      lines.push('^MPE');
+    } else if (config.printMode === 'Cutter') {
+      lines.push('^MCC');
+    } else {
+      lines.push('^MPN'); // Tear off (default)
+    }
+
+    // Print speed (IPS)
+    if (config.printSpeed) lines.push(`^PR${config.printSpeed}`);
+
+    // Darkness (0-30)
+    if (config.darkness) lines.push(`^MD${config.darkness}`);
+
+    // Media type
+    if (config.mediaType === 'Black Mark') {
+      lines.push('^MIB');
+    } else if (config.mediaType === 'Continuous') {
+      lines.push('^MIC');
+    }
+
+    // Sample label content
+    lines.push(`^FO50,50^A0N,25,25^FD${recipe.name || 'Sample Label'}^FS`);
+    lines.push(`^FO50,100^A0N,20,20^FDModel: ${recipe.model}^FS`);
+
+    // Sample barcode
+    lines.push('^FO50,150^BY2,3.0,100^BC^FD123456^FS');
+
+    // Print quantity
+    lines.push('^PQ1,0,1,Y');
+
+    // End format
+    lines.push('^XZ');
+
+    return lines.join('\n');
+  };
+
+  const generateScript = (recipe) => {
+    if (recipe.brand === 'Honeywell') {
+      return generateHoneywellDPL(recipe);
+    } else if (recipe.brand === 'Zebra') {
+      return generateZebraZPL(recipe);
+    }
+    return '';
   };
 
   const runPrinterAction = async (action) => {
@@ -684,11 +688,11 @@ export default function LabelRecipes() {
       {scriptModal.open ? (
         <div className="modal-bg show" onClick={(e) => { if (e.target === e.currentTarget) closeScriptModal(); }}>
           <div className="modal" style={{ maxWidth: '800px', maxHeight: '80vh', overflowY: 'auto' }}>
-            <div className="modal-title">{scriptModal.recipe?.brand} Script - {scriptModal.recipe?.model}</div>
+            <div className="modal-title">{scriptModal.recipe?.brand} {scriptModal.recipe?.brand === 'Honeywell' ? 'DPL' : 'ZPL'} Script</div>
             <button className="modal-close" onClick={closeScriptModal}>X</button>
 
             <div className="notice n-info" style={{ marginBottom: '16px' }}>
-              {scriptModal.recipe?.notes || 'No description available'}
+              {scriptModal.recipe?.brand} {scriptModal.recipe?.model} - {scriptModal.recipe?.name}
             </div>
 
             <div style={{ 
@@ -704,12 +708,12 @@ export default function LabelRecipes() {
               overflowY: 'auto',
               color: '#333'
             }}>
-              {generateZPL(scriptModal.recipe)}
+              {generateScript(scriptModal.recipe)}
             </div>
 
             <div className="recipe-builder-actions" style={{ marginTop: '16px' }}>
               <button className="btn btn-ghost" onClick={() => {
-                const scriptText = generateZPL(scriptModal.recipe);
+                const scriptText = generateScript(scriptModal.recipe);
                 navigator.clipboard.writeText(scriptText);
                 alert('Script copied to clipboard!');
               }}>📋 Copy to Clipboard</button>
