@@ -272,6 +272,19 @@ router.put('/:id/assign', async (req, res) => {
       
       if (userResult.rows.length > 0) {
         const user = userResult.rows[0];
+        
+        // Calculate time remaining
+        const now = new Date();
+        const deadline = new Date(issue.resolution_deadline || issue.created_at);
+        const ms = deadline - now;
+        let timeRemaining = 'Breached';
+        if (ms > 0) {
+          const days = Math.floor(ms / 86400000);
+          const hours = Math.floor((ms % 86400000) / 3600000);
+          if (days > 0) timeRemaining = `${days}d ${hours}h`;
+          else timeRemaining = `${hours}h`;
+        }
+        
         const issueDetails = {
           pmno: issue.pmno,
           serial: issue.serial,
@@ -281,6 +294,8 @@ router.put('/:id/assign', async (req, res) => {
           loc: issue.loc,
           category: issue.category,
           reportedBy: user_name || 'System',
+          assignedBy: user_name || 'System',
+          timeRemaining: timeRemaining,
         };
         
         await sendIssueAssignmentNotification(user.email, user.full_name, issueDetails);

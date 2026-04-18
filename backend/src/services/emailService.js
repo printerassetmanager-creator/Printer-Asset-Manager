@@ -131,38 +131,48 @@ const sendIssueAssignmentNotification = async (email, userName, issueDetails) =>
     const mailOptions = {
       from: process.env.EMAIL_USER || 'aniketbhosale1012@gmail.com',
       to: email,
-      subject: `Issue Assigned to You - Printer Asset Manager`,
+      subject: `🔴 Issue Assigned to You - "${issueDetails.title}" - Printer Asset Manager`,
       html: `
-        <h2>New Issue Assignment</h2>
-        <p>Hello ${userName},</p>
-        <p>A new issue has been assigned to you:</p>
-        <table style="border-collapse: collapse; width: 100%; margin: 20px 0;">
-          <tr style="border: 1px solid #ddd;">
-            <td style="padding: 10px; font-weight: bold; background: #f2f2f2; width: 30%;">Printer/Equipment:</td>
-            <td style="padding: 10px; border-left: 1px solid #ddd;">${issueDetails.pmno || issueDetails.serial || 'N/A'}</td>
+        <h2 style="color: #e05252;">New Issue Assignment</h2>
+        <p>Hello <strong>${userName}</strong>,</p>
+        <p>A new issue has been assigned to you that requires your immediate attention:</p>
+        <table style="border-collapse: collapse; width: 100%; margin: 20px 0; border: 1px solid #ddd;">
+          <tr style="border: 1px solid #ddd;background: #f9f9f9;">
+            <td style="padding: 12px; font-weight: bold; background: #f2f2f2; width: 25%;">Printer/Equipment:</td>
+            <td style="padding: 12px; border-left: 1px solid #ddd;"><strong>${issueDetails.pmno || issueDetails.serial || 'N/A'}</strong></td>
           </tr>
           <tr style="border: 1px solid #ddd;">
-            <td style="padding: 10px; font-weight: bold; background: #f2f2f2; width: 30%;">Issue Title:</td>
-            <td style="padding: 10px; border-left: 1px solid #ddd;">${issueDetails.title}</td>
+            <td style="padding: 12px; font-weight: bold; background: #f2f2f2; width: 25%;">Issue Title:</td>
+            <td style="padding: 12px; border-left: 1px solid #ddd;"><strong>${issueDetails.title}</strong></td>
           </tr>
           <tr style="border: 1px solid #ddd;">
-            <td style="padding: 10px; font-weight: bold; background: #f2f2f2; width: 30%;">Description:</td>
-            <td style="padding: 10px; border-left: 1px solid #ddd;">${issueDetails.desc}</td>
+            <td style="padding: 12px; font-weight: bold; background: #f2f2f2; width: 25%;">Description:</td>
+            <td style="padding: 12px; border-left: 1px solid #ddd;">${issueDetails.desc}</td>
           </tr>
           <tr style="border: 1px solid #ddd;">
-            <td style="padding: 10px; font-weight: bold; background: #f2f2f2; width: 30%;">Severity:</td>
-            <td style="padding: 10px; border-left: 1px solid #ddd;">${issueDetails.severity}</td>
+            <td style="padding: 12px; font-weight: bold; background: #f2f2f2; width: 25%;">Severity:</td>
+            <td style="padding: 12px; border-left: 1px solid #ddd;"><span style="color: ${issueDetails.severity === 'High' ? '#e05252' : issueDetails.severity === 'Medium' ? '#f59e0b' : '#10b981'}; font-weight: bold;">${issueDetails.severity}</span></td>
           </tr>
           <tr style="border: 1px solid #ddd;">
-            <td style="padding: 10px; font-weight: bold; background: #f2f2f2; width: 30%;">Location:</td>
-            <td style="padding: 10px; border-left: 1px solid #ddd;">${issueDetails.loc}</td>
+            <td style="padding: 12px; font-weight: bold; background: #f2f2f2; width: 25%;">Location:</td>
+            <td style="padding: 12px; border-left: 1px solid #ddd;">${issueDetails.loc}</td>
           </tr>
           <tr style="border: 1px solid #ddd;">
-            <td style="padding: 10px; font-weight: bold; background: #f2f2f2; width: 30%;">Assigned By:</td>
-            <td style="padding: 10px; border-left: 1px solid #ddd;">${issueDetails.reportedBy || 'System'}</td>
+            <td style="padding: 12px; font-weight: bold; background: #f2f2f2; width: 25%;">Category:</td>
+            <td style="padding: 12px; border-left: 1px solid #ddd;">${issueDetails.category}</td>
+          </tr>
+          <tr style="border: 1px solid #ddd;">
+            <td style="padding: 12px; font-weight: bold; background: #f2f2f2; width: 25%;">Time Remaining:</td>
+            <td style="padding: 12px; border-left: 1px solid #ddd;"><strong>${issueDetails.timeRemaining}</strong></td>
+          </tr>
+          <tr style="border: 1px solid #ddd;">
+            <td style="padding: 12px; font-weight: bold; background: #f2f2f2; width: 25%;">Assigned By:</td>
+            <td style="padding: 12px; border-left: 1px solid #ddd;">${issueDetails.assignedBy || 'System'}</td>
           </tr>
         </table>
-        <p>Please review and take necessary action.</p>
+        <p style="color: #666;">Please review this issue and take necessary action at your earliest convenience.</p>
+        <hr style="border: none; border-top: 1px solid #ddd; margin: 20px 0;">
+        <p style="font-size: 12px; color: #999;">This is an automated notification from Printer Asset Manager. Please do not reply to this email.</p>
       `,
     };
     await transporter.sendMail(mailOptions);
