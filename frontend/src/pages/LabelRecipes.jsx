@@ -337,10 +337,12 @@ export default function LabelRecipes() {
 
   const generateZPL = (recipe) => {
     const config = recipe.config || {};
-    let zpl = '^XA\n'; // Start format
     
     if (recipe.brand === 'Zebra') {
-      // Zebra ZPL commands
+      // Zebra ZPL - Only include explicitly set values, no defaults
+      let zpl = '^XA\n'; // Start format
+      
+      // Only add if explicitly set (not empty)
       if (config.labelLength) {
         zpl += `^LL${config.labelLength}\n`; // Label length in dots
       }
@@ -348,71 +350,132 @@ export default function LabelRecipes() {
         zpl += `^PW${config.printWidth}\n`; // Print width
       }
       
-      // Sensor method
+      // Sensor method - only if explicitly set to Reflective
       if (config.sensorMethod === 'Reflective') {
         zpl += '^MFR\n'; // Reflective sensor
-      } else {
-        zpl += '^MFT\n'; // Transmissive sensor
       }
       
-      // Media calibration
-      if (config.mediaCalibration === 'Auto') {
-        zpl += '^MC\n'; // Media calibration
+      // Media calibration - only if explicitly set to Manual
+      if (config.mediaCalibration === 'Manual') {
+        zpl += '^MM\n'; // Manual calibration
       }
       
-      // Print mode
-      if (config.printMode === 'Peel Off') {
-        zpl += '^MPE\n'; // Peel mode
-      } else if (config.printMode === 'Cutter') {
-        zpl += '^MCC\n'; // Cutter mode
-      } else {
-        zpl += '^MPN\n'; // Tear off
+      // Print mode - only add if not default (Tear Off)
+      if (config.printMode && config.printMode !== 'Tear Off') {
+        if (config.printMode === 'Peel Off') {
+          zpl += '^MPE\n'; // Peel mode
+        } else if (config.printMode === 'Cutter') {
+          zpl += '^MCC\n'; // Cutter mode
+        }
       }
       
-      // Print speed (in inches per second, range 2-14)
+      // Print speed (in inches per second, range 2-14) - only if set
       if (config.printSpeed) {
         zpl += `^PR${config.printSpeed}\n`;
       }
       
-      // Darkness (0-30 for Zebra)
+      // Darkness (0-30 for Zebra) - only if set
       if (config.darkness) {
         zpl += `^MD${config.darkness}\n`;
       }
       
-      // Media type
-      if (config.mediaType === 'Black Mark') {
-        zpl += '^MIB\n'; // Black mark detection
-      } else if (config.mediaType === 'Continuous') {
-        zpl += '^MIC\n'; // Continuous media
+      // Media type - only add non-default values
+      if (config.mediaType && config.mediaType !== 'Gap (Web)') {
+        if (config.mediaType === 'Black Mark') {
+          zpl += '^MIB\n'; // Black mark detection
+        } else if (config.mediaType === 'Continuous') {
+          zpl += '^MIC\n'; // Continuous media
+        }
       }
       
+      zpl += '^XZ'; // End format
+      return zpl;
+      
     } else if (recipe.brand === 'Honeywell') {
-      // Honeywell ESim language commands
-      if (config.printWidth) {
-        zpl += `. Set media width\nT ${config.printWidth}\n`;
+      // Honeywell ESim language - Include all settings with defaults
+      let esl = '';
+      
+      // Start with all configuration values
+      esl += `. Honeywell Label Printer Configuration\n`;
+      esl += `. ===================================\n\n`;
+      
+      // Print method
+      esl += `. Print Method: ${config.printMethod || 'Direct Thermal'}\n`;
+      
+      // Media type
+      esl += `. Media Type: ${config.mediaType || 'Media With Gaps'}\n`;
+      
+      // Media dimensions
+      if (config.mediaWidth || config.mediaLength) {
+        esl += `. Media Dimensions\n`;
+        if (config.mediaWidth) esl += `T${config.mediaWidth}\n`;
+        if (config.mediaLength) esl += `U${config.mediaLength}\n`;
       }
-      if (config.labelTop) {
-        zpl += `. Label top position\nV ${config.labelTop}\n`;
+      
+      // Margins and adjustments
+      if (config.mediaMarginX) esl += `.X${config.mediaMarginX}\n`;
+      if (config.labelTopAdjust) esl += `.V${config.labelTopAdjust}\n`;
+      if (config.labelRestAdjust) esl += `.R${config.labelRestAdjust}\n`;
+      
+      // Calibration mode
+      if (config.calibrationMode) {
+        switch(config.calibrationMode) {
+          case 'Smart (Auto Calibration)':
+            esl += `FXA\n`; // Auto calibration
+            break;
+          case 'Fast':
+            esl += `FXF\n`; // Fast calibration
+            break;
+          case 'Slow':
+            esl += `FXS\n`; // Slow calibration
+            break;
+          case 'Slow With Retraction':
+            esl += `FXR\n`; // Slow with retraction
+            break;
+        }
+      }
+      
+      // Print mode
+      if (config.printMode) {
+        switch(config.printMode) {
+          case 'Peel Off':
+            esl += `FMP\n`;
+            break;
+          case 'Cutter':
+            esl += `FMC\n`;
+            break;
+          default:
+            esl += `FMT\n`; // Tear off (default)
+        }
+      }
+      
+      // Media sensitivity
+      if (config.mediaSensitivity) {
+        switch(config.mediaSensitivity) {
+          case 'Very Low':
+            esl += `SENS0\n`;
+            break;
+          case 'Low':
+            esl += `SENS1\n`;
+            break;
+          case 'High':
+            esl += `SENS3\n`;
+            break;
+          default:
+            esl += `SENS2\n`; // Medium (default)
+        }
       }
       
       // Print speed (mm/sec)
-      if (config.printSpeed) {
-        zpl += `S${config.printSpeed}\n`;
-      }
+      if (config.printSpeed) esl += `S${config.printSpeed}\n`;
       
       // Darkness (0-100 for Honeywell)
-      if (config.darkness) {
-        zpl += `D${config.darkness}\n`;
-      }
+      if (config.darkness) esl += `D${config.darkness}\n`;
       
-      // Calibration mode
-      if (config.calibrationMode !== 'Off') {
-        zpl += `. Auto calibration enabled\nFXA\n`;
-      }
+      return esl;
     }
     
-    zpl += '^XZ'; // End format
-    return zpl;
+    return ''; // Default empty if no brand
   };
 
   const runPrinterAction = async (action) => {
