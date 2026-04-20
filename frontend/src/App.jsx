@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { AppProvider, useApp } from './context/AppContext';
 import Sidebar from './components/Sidebar';
 import Topbar from './components/Topbar';
+import useSessionTimeout from './hooks/useSessionTimeout';
 
 import Dashboard from './pages/Dashboard';
 import PrinterDashboard from './pages/PrinterDashboard';
@@ -41,6 +42,16 @@ function AppInner() {
     logout();
     closeUserProfile();
   };
+
+  // Handle session expiration (either due to inactivity or browser hidden)
+  const handleSessionExpire = (reason) => {
+    console.log(`Auto-logout triggered: ${reason}`);
+    logout();
+    closeUserProfile();
+  };
+
+  // Setup session timeout - 15 minutes of inactivity or 5 minutes if browser is hidden
+  useSessionTimeout(handleSessionExpire, 15, isAuthenticated);
 
   console.log('App rendering - isAuthenticated:', isAuthenticated, 'user:', user);
 
