@@ -1,0 +1,11 @@
+<svg viewBox="0 0 250 150" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background -->
+  <rect width="250" height="150" fill="#003D66"/>
+  
+  <!-- JABIL Text -->
+  <g transform="translate(125, 75)">
+    <text x="0" y="0" font-family="Arial, sans-serif" font-size="72" font-weight="bold" fill="white" text-anchor="middle" dominant-baseline="central">
+      JABIL
+    </text>
+  </g>
+</svg>

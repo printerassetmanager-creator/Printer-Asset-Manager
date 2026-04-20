@@ -102,6 +102,9 @@ export default function Register({ onBack }) {
     <div className="auth-container">
       <div className="auth-box">
         <div className="auth-header">
+          <div className="logo-container">
+            <img src="/jabil-logo.svg" alt="JABIL Logo" className="auth-logo" />
+          </div>
           <h1>Create Account</h1>
           <p>Verify your email before creating your account</p>
         </div>

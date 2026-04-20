@@ -65,7 +65,10 @@ export default function ForgotPassword({ onBack }) {
     <div className="auth-container">
       <div className="auth-box">
         <div className="auth-header">
-          <h1>🔐 Reset Password</h1>
+          <div className="logo-container">
+            <img src="/jabil-logo.svg" alt="JABIL Logo" className="auth-logo" />
+          </div>
+          <h1>Reset Password</h1>
           <p>{step === 1 ? 'Enter your email' : 'Enter OTP and new password'}</p>
         </div>
 

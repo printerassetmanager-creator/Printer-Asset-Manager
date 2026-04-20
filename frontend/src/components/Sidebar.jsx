@@ -26,6 +26,9 @@ export default function Sidebar() {
   return (
     <div className="sidebar">
       <div className="sb-brand">
+        <div style={{textAlign:'center', marginBottom:'12px'}}>
+          <img src="/jabil-logo.svg" alt="JABIL Logo" style={{height:'40px', width:'auto'}} />
+        </div>
         <div className="co">Jabil Circuit Pvt Ltd</div>
         <div className="ti">Printer Asset Manager</div>
       </div>

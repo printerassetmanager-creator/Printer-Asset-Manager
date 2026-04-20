@@ -1,0 +1,11 @@
+<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background -->
+  <rect width="64" height="64" fill="#003D66" rx="8"/>
+  
+  <!-- JABIL Letter J -->
+  <g transform="translate(32, 32)">
+    <text x="0" y="0" font-family="Arial, sans-serif" font-size="40" font-weight="bold" fill="white" text-anchor="middle" dominant-baseline="central">
+      J
+    </text>
+  </g>
+</svg>
