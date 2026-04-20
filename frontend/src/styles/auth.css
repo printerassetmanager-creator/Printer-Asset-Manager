@@ -26,13 +26,17 @@
 .logo-container {
   display: flex;
   justify-content: center;
-  margin-bottom: 20px;
+  align-items: center;
+  margin-bottom: 25px;
+  height: 90px;
 }
 
 .auth-logo {
-  height: 80px;
+  height: 70px;
   width: auto;
-  max-width: 100%;
+  max-width: 90%;
+  display: block;
+  object-fit: contain;
 }
 
 .auth-header h1 {
