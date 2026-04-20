@@ -29,7 +29,7 @@
   align-items: center;
   margin-bottom: 35px;
   margin-top: 10px;
-  height: 130px;
+  height: 110px;
   background: linear-gradient(135deg, rgba(102, 126, 234, 0.08) 0%, rgba(118, 75, 162, 0.08) 100%);
   border-radius: 16px;
   position: relative;
@@ -48,7 +48,7 @@
 }
 
 .auth-logo {
-  height: 90px;
+  height: 75px;
   width: auto;
   max-width: 95%;
   display: block;
