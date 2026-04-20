@@ -61,27 +61,51 @@ router.get('/', async (req, res) => {
 });
 
 router.post('/', async (req, res) => {
-  const { pmno, serial, model, loc, title, desc, severity, category, reporter, sapno, mesno, plant_location, user_name } = req.body;
+  const { pmno, serial, model, loc, title, desc, severity, category, reporter, sapno, mesno, plant_location, user_name, user_email, assigned_to, assignment_note } = req.body;
+  
+  // For Medium/Low severity issues, assignment is mandatory during creation
+  if ((severity === 'Medium' || severity === 'Low')) {
+    if (!assigned_to || !assigned_to.trim()) {
+      return res.status(400).json({ error: 'Assignment is required for Medium/Low severity issues' });
+    }
+    if (!user_email || !user_email.trim()) {
+      return res.status(400).json({ error: 'Current user email is required for assignment' });
+    }
+  }
+  
   try {
     const deadline = getResolutionDeadline(severity);
     const { rows } = await pool.query(
-      `INSERT INTO issues (pmno,serial,model,loc,title,"desc",severity,category,reporter,sapno,mesno,plant_location,resolution_deadline,status_changed_at,last_activity_user)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,NOW(),$14) RETURNING *`,
-      [pmno, serial, model, loc, title, desc, severity||'Medium', category||'Other', reporter, sapno, mesno, plant_location||'B26', deadline, user_name||'system']
+      `INSERT INTO issues (pmno,serial,model,loc,title,"desc",severity,category,reporter,sapno,mesno,plant_location,resolution_deadline,status_changed_at,last_activity_user,assigned_to)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,NOW(),$14,$15) RETURNING *`,
+      [pmno, serial, model, loc, title, desc, severity||'Medium', category||'Other', reporter, sapno, mesno, plant_location||'B26', deadline, user_name||'system', assigned_to || null]
     );
-    const issue = rows[0];
+    let issue = rows[0];
+    
+    // Generate unique issue ID
+    try {
+      const uniqueId = 'ISU' + String(issue.id).padStart(6, '0');
+      const { rows: updatedRows } = await pool.query(
+        `UPDATE issues SET issue_unique_id = $1 WHERE id = $2 RETURNING *`,
+        [uniqueId, issue.id]
+      );
+      issue = updatedRows[0];
+    } catch (idError) {
+      console.error('Error setting issue_unique_id:', idError);
+      // Continue without unique ID - it's not critical
+    }
     
     // Log create activity
     await pool.query(
-      `INSERT INTO issue_activity_log (issue_id, activity_type, new_severity, severity_at_time, user_name)
-       VALUES ($1, $2, $3, $4, $5)`,
-      [issue.id, 'created', severity||'Medium', severity||'Medium', user_name||'system']
+      `INSERT INTO issue_activity_log (issue_id, activity_type, new_severity, severity_at_time, user_name, assigned_to, reason)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+      [issue.id, 'created', severity||'Medium', severity||'Medium', user_name||'system', assigned_to || null, assignment_note || '']
     );
     
-    // Send notification if high severity
+    // Handle notifications based on severity
     if (severity === 'High') {
+      // Send notification to all users for high severity
       try {
-        // Get all active users' emails
         const usersResult = await pool.query('SELECT email, full_name FROM users WHERE status = $1', ['active']);
         const emails = usersResult.rows.map(u => u.email);
         
@@ -103,10 +127,53 @@ router.post('/', async (req, res) => {
         console.error('Error sending high severity alert:', emailError);
         // Don't fail the request if email fails
       }
+    } else if ((severity === 'Medium' || severity === 'Low') && assigned_to) {
+      // Send assignment notification for Medium/Low severity
+      try {
+        const userResult = await pool.query(
+          'SELECT email, full_name FROM users WHERE email = $1 OR full_name = $1',
+          [assigned_to]
+        );
+
+        if (userResult.rows.length > 0) {
+          const user = userResult.rows[0];
+          const now = new Date();
+          const deadline = new Date(issue.resolution_deadline || issue.created_at);
+          const ms = deadline - now;
+          let timeRemaining = 'Breached';
+          if (ms > 0) {
+            const days = Math.floor(ms / 86400000);
+            const hours = Math.floor((ms % 86400000) / 3600000);
+            if (days > 0) timeRemaining = `${days}d ${hours}h`;
+            else timeRemaining = `${hours}h`;
+          }
+
+          const issueDetails = {
+            pmno: issue.pmno,
+            serial: issue.serial,
+            title: issue.title,
+            desc: issue.desc,
+            severity: issue.severity,
+            loc: issue.loc,
+            category: issue.category,
+            reportedBy: user_name || 'System',
+            assignedBy: user_name || 'System',
+            timeRemaining: timeRemaining,
+          };
+
+          await sendIssueAssignmentNotification(user.email, user.full_name, issueDetails);
+        }
+      } catch (emailError) {
+        console.error('Error sending assignment notification:', emailError);
+        // Don't fail the request if email fails
+      }
     }
     
     res.status(201).json(issue);
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  } catch (e) { 
+    console.error('Issue creation error:', e);
+    res.status(500).json({ error: e.message }); 
+  }
 });
 
 router.put('/:id', async (req, res) => {
@@ -156,7 +223,10 @@ router.put('/:id/resolve', async (req, res) => {
     );
     
     res.json(rows[0]);
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  } catch (e) { 
+    console.error('Issue resolve error:', e);
+    res.status(500).json({ error: e.message });
+  }
 });
 
 // Downgrade severity - reason is mandatory
@@ -171,7 +241,19 @@ router.put('/:id/downgrade', async (req, res) => {
     if (!issues.length) return res.status(404).json({ error: 'Issue not found' });
     
     const issue = issues[0];
-    const oldSeverity = issue.severity;
+    const currentSeverity = issue.severity;
+    const oldSeverity = currentSeverity;
+    const allowedDowngrades = currentSeverity === 'High' ? ['Medium', 'Low'] : currentSeverity === 'Medium' ? ['Low'] : [];
+
+    if (new_severity === currentSeverity) {
+      return res.status(400).json({ error: `Issue is already ${currentSeverity}.` });
+    }
+    if (!allowedDowngrades.includes(new_severity)) {
+      if (allowedDowngrades.length === 0) {
+        return res.status(400).json({ error: 'Low severity issues cannot be downgraded.' });
+      }
+      return res.status(400).json({ error: `Can only downgrade ${currentSeverity} issues to: ${allowedDowngrades.join(' or ')}.` });
+    }
     
     // Restart countdown from original creation time when downgrading
     const days = new_severity === 'High' ? 1 : new_severity === 'Medium' ? 3 : 7;
@@ -205,7 +287,20 @@ router.put('/:id/upgrade', async (req, res) => {
     if (!issues.length) return res.status(404).json({ error: 'Issue not found' });
     
     const issue = issues[0];
-    const oldSeverity = issue.severity;
+    const currentSeverity = issue.severity;
+    const oldSeverity = currentSeverity;
+    const allowedUpgrades = currentSeverity === 'Low' ? ['Medium', 'High'] : currentSeverity === 'Medium' ? ['High'] : [];
+
+    if (new_severity === currentSeverity) {
+      return res.status(400).json({ error: `Issue is already ${currentSeverity}.` });
+    }
+    if (!allowedUpgrades.includes(new_severity)) {
+      if (allowedUpgrades.length === 0) {
+        return res.status(400).json({ error: 'High severity issues cannot be upgraded.' });
+      }
+      return res.status(400).json({ error: `Can only upgrade ${currentSeverity} issues to: ${allowedUpgrades.join(' or ')}.` });
+    }
+    
     const deadline = getResolutionDeadline(new_severity);
     
     // Restart countdown from now when upgrading
@@ -240,40 +335,81 @@ router.get('/users/list', async (req, res) => {
 
 // Assign issue to user
 router.put('/:id/assign', async (req, res) => {
-  const { assigned_to, user_name } = req.body;
+  const { assigned_to, user_name, user_email, assignment_note } = req.body;
   if (!assigned_to || !assigned_to.trim()) {
     return res.status(400).json({ error: 'Please select a user to assign to' });
   }
-  
+  if (!user_name || !user_name.trim() || !user_email || !user_email.trim()) {
+    return res.status(400).json({ error: 'Current user information is required to assign the issue' });
+  }
+
+  const requestedAssignee = assigned_to.trim();
+  const currentUserName = user_name.trim();
+  const currentUserEmail = user_email.trim();
+  const noteText = assignment_note && assignment_note.trim() ? assignment_note.trim() : '';
+
   try {
     const { rows: issues } = await pool.query('SELECT * FROM issues WHERE id=$1', [req.params.id]);
     if (!issues.length) return res.status(404).json({ error: 'Issue not found' });
-    
+
     const issue = issues[0];
+    const currentAssignee = issue.assigned_to ? issue.assigned_to.trim() : '';
+
+    let allowAssign = false;
+    let restrictionMessage = '';
+
+    // SIMPLE LOGIC:
+    // 1. If issue is unassigned: only self-assign allowed
+    // 2. If issue is assigned to you (in your bucket): can assign to anyone else (not yourself)
+    // 3. If issue is assigned to someone else (not your bucket): can claim by assigning to yourself, cannot assign to others
+    
+    if (!currentAssignee) {
+      // Unassigned issue: only allow self-assign
+      if (requestedAssignee === currentUserEmail) {
+        allowAssign = true;
+      } else {
+        restrictionMessage = 'Unassigned issues can only be assigned to yourself first.';
+      }
+    } else if (currentAssignee === currentUserEmail) {
+      // Issue is in your bucket: can assign to anyone else (but not yourself)
+      if (requestedAssignee === currentUserEmail) {
+        restrictionMessage = 'Issue is already assigned to you.';
+      } else {
+        allowAssign = true;
+      }
+    } else if (requestedAssignee !== currentUserEmail) {
+      // Not in your bucket AND trying to assign to someone other than yourself
+      restrictionMessage = 'Only the current assignee can assign. You can claim it by assigning to yourself.';
+    } else {
+      // Issue not in your bucket but trying to claim by assigning to yourself
+      allowAssign = true;
+    }
+
+    if (!allowAssign) {
+      return res.status(403).json({ error: restrictionMessage });
+    }
+
     const { rows } = await pool.query(
       `UPDATE issues SET assigned_to=$1, last_activity_user=$2 WHERE id=$3 RETURNING *`,
-      [assigned_to, user_name||'system', req.params.id]
+      [requestedAssignee, currentUserName, req.params.id]
     );
-    
+
     // Log assignment activity
     await pool.query(
-      `INSERT INTO issue_activity_log (issue_id, activity_type, assigned_to, user_name)
-       VALUES ($1, $2, $3, $4)`,
-      [req.params.id, 'assigned', assigned_to, user_name||'system']
+      `INSERT INTO issue_activity_log (issue_id, activity_type, assigned_to, user_name, reason)
+       VALUES ($1, $2, $3, $4, $5)`,
+      [req.params.id, 'assigned', requestedAssignee, currentUserName, noteText]
     );
-    
+
     // Send notification to assigned user
     try {
-      // Get user email using the assigned_to value (could be email or name)
       const userResult = await pool.query(
         'SELECT email, full_name FROM users WHERE email = $1 OR full_name = $1',
-        [assigned_to]
+        [requestedAssignee]
       );
-      
+
       if (userResult.rows.length > 0) {
         const user = userResult.rows[0];
-        
-        // Calculate time remaining
         const now = new Date();
         const deadline = new Date(issue.resolution_deadline || issue.created_at);
         const ms = deadline - now;
@@ -284,7 +420,7 @@ router.put('/:id/assign', async (req, res) => {
           if (days > 0) timeRemaining = `${days}d ${hours}h`;
           else timeRemaining = `${hours}h`;
         }
-        
+
         const issueDetails = {
           pmno: issue.pmno,
           serial: issue.serial,
@@ -293,18 +429,17 @@ router.put('/:id/assign', async (req, res) => {
           severity: issue.severity,
           loc: issue.loc,
           category: issue.category,
-          reportedBy: user_name || 'System',
-          assignedBy: user_name || 'System',
+          reportedBy: currentUserName,
+          assignedBy: currentUserName,
           timeRemaining: timeRemaining,
         };
-        
+
         await sendIssueAssignmentNotification(user.email, user.full_name, issueDetails);
       }
     } catch (emailError) {
       console.error('Error sending assignment notification:', emailError);
-      // Don't fail the request if email fails
     }
-    
+
     res.json(rows[0]);
   } catch (e) { res.status(500).json({ error: e.message }); }
 });

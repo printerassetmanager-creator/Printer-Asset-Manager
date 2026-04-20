@@ -4,7 +4,7 @@ import { useApp, CURRENT_USER, PLANT_LOCATIONS } from '../context/AppContext';
 import { toSentenceCase } from '../utils/textFormat';
 
 const displayName = (u) => u.split('.').map(s=>s[0].toUpperCase()+s.slice(1)).join(' ');
-const empty = {pmno:'',serial:'',model:'',loc:'',sapno:'',mesno:'',title:'',desc:'',action:'',severity:'Medium',category:'Other',reporter:displayName(CURRENT_USER),plant_location:'B26'};
+const empty = {pmno:'',serial:'',model:'',loc:'',sapno:'',mesno:'',title:'',desc:'',action:'',severity:'Medium',category:'Other',reporter:displayName(CURRENT_USER),plant_location:'B26',assigned_to:'',assignment_note:''};
 
 export default function IssuesTracker() {
   const { refreshIssueCount, selectedPlants } = useApp();
@@ -23,11 +23,13 @@ export default function IssuesTracker() {
   const [showHistory, setShowHistory] = useState(false);
   const [upgradingId, setUpgradingId] = useState(null);
   const [upgradeReason, setUpgradeReason] = useState('');
+  const [upgradeTo, setUpgradeTo] = useState('Medium');
   const [downgradingId, setDowngradingId] = useState(null);
   const [downgradeReason, setDowngradeReason] = useState('');
   const [downgradeTo, setDowngradeTo] = useState('Medium');
   const [assigningId, setAssigningId] = useState(null);
   const [assignTo, setAssignTo] = useState('');
+  const [assignmentNote, setAssignmentNote] = useState('');
   const [users, setUsers] = useState([]);
   const fld = (k,v) => setForm(f=>({...f,[k]:v}));
 
@@ -66,18 +68,32 @@ export default function IssuesTracker() {
 
   const save = async () => {
     if (!form.title || !form.desc) { setMsg('Title and Description required'); return; }
+    
+    // For Medium/Low severity issues, assignment is mandatory during creation
+    if (!editId && (form.severity === 'Medium' || form.severity === 'Low')) {
+      if (!form.assigned_to || !form.assigned_to.trim()) {
+        setMsg('Assignment is required for Medium/Low severity issues'); 
+        return;
+      }
+    }
+    
     try {
       const formatted = {
         ...form,
         title: toSentenceCase(form.title),
         desc: toSentenceCase(form.desc),
         action: form.action ? toSentenceCase(form.action) : '',
-        user_name: displayName(CURRENT_USER)
+        user_name: displayName(CURRENT_USER),
+        user_email: CURRENT_USER
       };
       if (editId) await issuesAPI.update(editId, formatted);
       else await issuesAPI.create(formatted);
       load(); clear(); setOpen(false); setMsg('Saved'); setTimeout(()=>setMsg(''),2000);
-    } catch { setMsg('Error saving'); }
+    } catch (e) { 
+      const errorMsg = e.response?.data?.error || e.message || 'Error saving';
+      setMsg(errorMsg);
+      console.error('Save error:', e);
+    }
   };
 
   const doResolve = async () => {
@@ -86,7 +102,11 @@ export default function IssuesTracker() {
     try {
       await issuesAPI.resolve(editId, { action_taken: actionTaken, user_name: displayName(CURRENT_USER) });
       load(); clear(); setOpen(false); setMsg('Issue resolved'); setTimeout(()=>setMsg(''),2000);
-    } catch (e) { setMsg(e.response?.data?.error || 'Error resolving'); }
+    } catch (e) { 
+      const errorMsg = e.response?.data?.error || e.message || 'Error resolving issue';
+      setMsg(errorMsg);
+      console.error('Resolve error:', e);
+    }
   };
 
   const doDowngrade = async () => {
@@ -105,15 +125,11 @@ export default function IssuesTracker() {
     if (!upgradeReason || !upgradeReason.trim()) { setMsg('Reason is required'); return; }
     if (!upgradingId) return;
     try {
-      const issue = data.find(i => i.id === upgradingId);
-      const severities = ['Low', 'Medium', 'High'];
-      const currentIdx = severities.indexOf(issue.severity);
-      const newSeverity = currentIdx < 2 ? severities[currentIdx + 1] : 'High';
-      
-      await issuesAPI.upgrade(upgradingId, { new_severity: newSeverity, reason: upgradeReason, user_name: displayName(CURRENT_USER) });
+      await issuesAPI.upgrade(upgradingId, { new_severity: upgradeTo, reason: upgradeReason, user_name: displayName(CURRENT_USER) });
       setMsg('Severity upgraded'); setTimeout(()=>setMsg(''),2000);
       setUpgradingId(null);
       setUpgradeReason('');
+      setUpgradeTo('Medium');
       load();
     } catch (e) { setMsg(e.response?.data?.error || 'Error upgrading'); }
   };
@@ -121,13 +137,49 @@ export default function IssuesTracker() {
   const doAssign = async () => {
     if (!assignTo || !assignTo.trim()) { setMsg('Please select a user'); return; }
     if (!assigningId) return;
+
+    const assigningIssue = data.find(i => i.id === assigningId);
+    if (!assigningIssue) { setMsg('Issue not found'); return; }
+
+    const currentUserEmail = CURRENT_USER;
+    const currentAssignee = assigningIssue.assigned_to || '';
+
+    // SIMPLE LOGIC:
+    // 1. If unassigned: only self-assign allowed
+    // 2. If assigned to you: can assign to anyone else (not yourself)
+    // 3. If assigned to someone else: can claim by assigning to yourself, cannot assign to others
+    
+    if (!currentAssignee) {
+      // Unassigned: only self-assign allowed
+      if (assignTo !== currentUserEmail) {
+        setMsg('Unassigned issues can only be assigned to yourself first.');
+        return;
+      }
+    } else if (currentAssignee === currentUserEmail) {
+      // In your bucket: can assign to anyone else (but not yourself)
+      if (assignTo === currentUserEmail) {
+        setMsg('Issue is already assigned to you.');
+        return;
+      }
+      // Require note when assigning to someone else
+      if (!assignmentNote || !assignmentNote.trim()) {
+        setMsg('Note is required when assigning to someone else.');
+        return;
+      }
+    } else if (assignTo !== currentUserEmail) {
+      // Not in your bucket AND trying to assign to someone other than yourself
+      setMsg('Only the current assignee can assign. You can claim it by assigning to yourself.');
+      return;
+      // If assignTo === currentUserEmail, allow it (claiming the issue)
+    }
+
     try {
-      const assigningIssue = data.find(i => i.id === assigningId);
-      await issuesAPI.assign(assigningId, { assigned_to: assignTo, user_name: displayName(CURRENT_USER) });
+      await issuesAPI.assign(assigningId, { assigned_to: assignTo, user_name: displayName(CURRENT_USER), user_email: CURRENT_USER, assignment_note: assignmentNote || '' });
       setMsg(`Issue assigned to ${assignTo} - notification email sent`);
       setTimeout(()=>setMsg(''),3000);
       setAssigningId(null);
       setAssignTo('');
+      setAssignmentNote('');
       load();
     } catch (e) { 
       console.error('Assignment error:', e);
@@ -137,7 +189,7 @@ export default function IssuesTracker() {
 
   const edit = (issue) => {
     setEditId(issue.id);
-    setForm({pmno:issue.pmno||'',serial:issue.serial||'',model:issue.model||'',loc:issue.loc||'',sapno:issue.sapno||'',mesno:issue.mesno||'',title:issue.title||'',desc:issue.desc||'',action:issue.action||'',severity:issue.severity||'Medium',category:issue.category||'Other',reporter:issue.reporter||'',plant_location:issue.plant_location||'B26',status:issue.status||'open'});
+    setForm({pmno:issue.pmno||'',serial:issue.serial||'',model:issue.model||'',loc:issue.loc||'',sapno:issue.sapno||'',mesno:issue.mesno||'',title:issue.title||'',desc:issue.desc||'',action:issue.action||'',severity:issue.severity||'Medium',category:issue.category||'Other',reporter:issue.reporter||'',plant_location:issue.plant_location||'B26',status:issue.status||'open',assigned_to:'',assignment_note:''});
     setOpen(true);
     setIsResolving(false);
     setActionTaken('');
@@ -163,8 +215,9 @@ export default function IssuesTracker() {
     if (!q) return (!sevF||i.severity===sevF) && (!statF||i.status===statF);
     const pmno = String(i.pmno || '').toLowerCase();
     const serial = String(i.serial || '').toLowerCase();
-    if (q === pmno || q === serial) return (!sevF||i.severity===sevF) && (!statF||i.status===statF);
-    const fuzzyFields = [i.title, i.model, i.loc, i.desc, i.category, i.action, i.reporter];
+    const uniqueId = String(i.issue_unique_id || '').toLowerCase();
+    if (q === pmno || q === serial || q === uniqueId) return (!sevF||i.severity===sevF) && (!statF||i.status===statF);
+    const fuzzyFields = [i.title, i.model, i.loc, i.desc, i.category, i.action, i.reporter, i.issue_unique_id];
     const fuzzyMatch = fuzzyFields.some(f => String(f || '').toLowerCase().includes(q));
     return fuzzyMatch && (!sevF||i.severity===sevF) && (!statF||i.status===statF);
   }).sort((a,b)=>{
@@ -201,7 +254,7 @@ export default function IssuesTracker() {
 
       <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'14px',gap:'10px',flexWrap:'wrap'}}>
         <div className="issues-filter-row" style={{marginBottom:0,flex:1}}>
-          <input placeholder="Search by PM No, serial, model, description..." value={search} onChange={e=>setSearch(e.target.value)}/>
+          <input placeholder="Search by Issue ID (ISU001), PM No, serial, model, description..." value={search} onChange={e=>setSearch(e.target.value)}/>
           <select value={sevF} onChange={e=>setSevF(e.target.value)} style={{background:'var(--bg)',border:'1px solid var(--border)',borderRadius:'var(--r)',padding:'8px 11px',fontSize:'13px',color:'var(--text)',fontFamily:'Inter,sans-serif',outline:'none'}}>
             <option value="">All Severity</option><option>High</option><option>Medium</option><option>Low</option>
           </select>
@@ -237,6 +290,20 @@ export default function IssuesTracker() {
               <option value="Low">Low — Minor</option>
             </select>
           </div>
+          {!editId && (form.severity === 'Medium' || form.severity === 'Low') && (
+            <div className="field"><label>Assign To * <span style={{color:'var(--red)',fontSize:'12px'}}>Required for {form.severity} severity</span></label>
+              <select value={form.assigned_to} onChange={e=>fld('assigned_to',e.target.value)} required>
+                <option value="">-- Select User --</option>
+                {users && users.length > 0 ? (
+                  users.map((u, idx) => (
+                    <option key={idx} value={u}>{u}</option>
+                  ))
+                ) : (
+                  <option disabled>No users available</option>
+                )}
+              </select>
+            </div>
+          )}
           <div className="field"><label>Category</label>
             <select disabled={editId && !isResolving} value={form.category} onChange={e=>fld('category',e.target.value)}>
               <option>Print Head</option><option>Media / Ribbon</option><option>Connectivity</option>
@@ -275,7 +342,7 @@ export default function IssuesTracker() {
               <button className="btn btn-success btn-sm" onClick={()=>setIsResolving(true)}>✓ Resolve</button>
               {form.severity !== 'Low' && <button className="btn btn-ghost btn-sm" onClick={() => { setDowngradingId(editId); setDowngradeTo(form.severity === 'High' ? 'Medium' : 'Low'); setDowngradeReason(''); }}>↓ Downgrade</button>}
               {form.severity !== 'High' && <button className="btn btn-ghost btn-sm" onClick={() => { setUpgradingId(editId); setUpgradeReason(''); }}>↑ Upgrade</button>}
-              <button className="btn btn-info btn-sm" onClick={() => { setAssigningId(editId); setAssignTo(data.find(i=>i.id===editId)?.assigned_to || ''); }}>👤 Assign</button>
+              <button className="btn btn-info btn-sm" onClick={() => { setAssigningId(editId); setAssignTo(data.find(i=>i.id===editId)?.assigned_to || ''); setAssignmentNote(''); }}>👤 Assign</button>
               <button className="btn btn-ghost btn-sm" onClick={() => loadHistory(editId)}>📋 History</button>
               {msg && <span style={{fontSize:'12px',color:msg.startsWith('Error')?'var(--red)':'var(--green)',marginLeft:'8px'}}>{msg}</span>}
             </>
@@ -321,11 +388,25 @@ export default function IssuesTracker() {
             </div>
             <p style={{fontSize:'13px',color:'var(--text2)',marginBottom:'15px'}}>Severity will be upgraded to next level. Countdown will restart from now.</p>
             <div className="field" style={{marginBottom:'15px'}}>
+              <label style={{display:'block',marginBottom:'6px',fontSize:'13px',fontWeight:600,color:'var(--text)'}}>Upgrade To</label>
+              <select value={upgradeTo} onChange={e=>setUpgradeTo(e.target.value)} style={{width:'100%',padding:'8px',borderRadius:'4px',border:'1px solid var(--border)',background:'var(--bg)',color:'var(--text)',fontSize:'13px'}}>
+                {i.severity === 'Low' && (
+                  <>
+                    <option value="Medium">Medium</option>
+                    <option value="High">High</option>
+                  </>
+                )}
+                {i.severity === 'Medium' && (
+                  <option value="High">High</option>
+                )}
+              </select>
+            </div>
+            <div className="field" style={{marginBottom:'15px'}}>
               <label>Reason *</label>
               <textarea value={upgradeReason} onChange={e=>setUpgradeReason(e.target.value)} placeholder="Why are you upgrading this issue?" style={{width:'100%',padding:'8px',borderRadius:'4px',border:'1px solid var(--border)',background:'var(--bg)',color:'var(--text)',minHeight:'80px',boxSizing:'border-box'}}/>
             </div>
             <div style={{display:'flex',gap:'8px',justifyContent:'flex-end'}}>
-              <button className="btn btn-ghost btn-sm" onClick={()=>setUpgradingId(null)}>Cancel</button>
+              <button className="btn btn-ghost btn-sm" onClick={()=>{setUpgradingId(null);setUpgradeTo('Medium');}}>Cancel</button>
               <button className="btn btn-danger" onClick={doUpgrade}>Confirm Upgrade</button>
             </div>
           </div>
@@ -334,11 +415,11 @@ export default function IssuesTracker() {
 
       {/* Assignment Modal */}
       {assigningId && (
-        <div style={{position:'fixed',top:0,left:0,right:0,bottom:0,background:'rgba(0,0,0,.5)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:1000}} onClick={(e)=>{if(e.target===e.currentTarget)setAssigningId(null);}}>
+        <div style={{position:'fixed',top:0,left:0,right:0,bottom:0,background:'rgba(0,0,0,.5)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:1000}} onClick={(e)=>{if(e.target===e.currentTarget){setAssigningId(null);setAssignmentNote();}}}>
           <div style={{background:'var(--bg)',borderRadius:'8px',padding:'20px',minWidth:'400px',border:'1px solid var(--border)',boxShadow:'0 10px 30px rgba(0,0,0,.3)'}}>
             <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'15px'}}>
               <h3 style={{margin:0,color:'var(--text)'}}>Assign Issue to User</h3>
-              <button className="btn btn-ghost btn-sm" onClick={()=>{setAssigningId(null);setAssignTo('');}} style={{cursor:'pointer'}}>✕</button>
+              <button className="btn btn-ghost btn-sm" onClick={()=>{setAssigningId(null);setAssignTo('');setAssignmentNote('');}} style={{cursor:'pointer'}}>✕</button>
             </div>
             <div className="field" style={{marginBottom:'15px'}}>
               <label style={{display:'block',marginBottom:'6px',fontSize:'13px',fontWeight:600,color:'var(--text)'}}>Select User *</label>
@@ -360,9 +441,21 @@ export default function IssuesTracker() {
                 <div style={{fontSize:'11px',color:'var(--amber)',marginTop:'4px'}}>⚠ Loading users...</div>
               )}
             </div>
+            {assignTo && assignTo !== CURRENT_USER && (
+              <div className="field" style={{marginBottom:'15px'}}>
+                <label style={{display:'block',marginBottom:'6px',fontSize:'13px',fontWeight:600,color:'var(--text)'}}>Assignment Note * <span style={{fontSize:'11px',color:'var(--amber)'}}>Required</span></label>
+                <textarea 
+                  placeholder="Explain why you are assigning this issue..."
+                  value={assignmentNote} 
+                  onChange={e=>setAssignmentNote(e.target.value)} 
+                  style={{width:'100%',padding:'8px',borderRadius:'4px',border:'1px solid var(--border)',background:'var(--bg)',color:'var(--text)',fontSize:'13px',fontFamily:'inherit',minHeight:'80px',resize:'none'}}
+                />
+                <div style={{fontSize:'11px',color:'var(--text3)',marginTop:'4px'}}>{assignmentNote.length}/200</div>
+              </div>
+            )}
             <div style={{display:'flex',gap:'8px',justifyContent:'flex-end',marginTop:'20px'}}>
-              <button className="btn btn-ghost btn-sm" onClick={()=>{setAssigningId(null);setAssignTo('');}}>Cancel</button>
-              <button className="btn btn-primary" onClick={doAssign} disabled={!assignTo} style={{opacity: assignTo ? 1 : 0.5}}>Assign & Notify</button>
+              <button className="btn btn-ghost btn-sm" onClick={()=>{setAssigningId(null);setAssignTo('');setAssignmentNote('');}}>Cancel</button>
+              <button className="btn btn-primary" onClick={doAssign} disabled={!assignTo || (assignTo && assignTo !== CURRENT_USER && !assignmentNote.trim())} style={{opacity: (assignTo && (assignTo === CURRENT_USER || assignmentNote.trim())) ? 1 : 0.5}}>Assign & Notify</button>
             </div>
             {msg && <div style={{fontSize:'12px',color: msg.includes('Error') ? 'var(--red)' : 'var(--green)',marginTop:'10px',textAlign:'center'}}>{msg}</div>}
           </div>
@@ -487,7 +580,10 @@ export default function IssuesTracker() {
               <div key={issue.id} className={`issue-card ${sevCls}`} onClick={()=>edit(issue)}>
                 <div className="issue-header">
                   <div>
-                    <div className="issue-title">{issue.title}</div>
+                    <div className="issue-title">
+                      {issue.issue_unique_id && <span style={{color:'var(--blue)',fontWeight:'700',marginRight:'8px'}}>[{issue.issue_unique_id}]</span>}
+                      {issue.title}
+                    </div>
                     <div className="issue-meta">
                       <span>📋 {issue.pmno}</span>
                       <span>🔧 {issue.serial||'—'}</span>
@@ -524,12 +620,12 @@ export default function IssuesTracker() {
                     {issue.assigned_to && <span style={{fontSize:'9px',color:'var(--blue)',padding:'2px 7px',borderRadius:'10px',background:'rgba(59,130,246,.1)'}}>👤 {issue.assigned_to}</span>}
                   </div>
                 </div>
-                {isBreached && issue.status === 'open' && (
-                  <div style={{display:'flex',gap:'6px',marginTop:'10px',padding:'10px',background:'rgba(239,68,68,.08)',borderRadius:'4px',borderTop:'2px solid var(--red)',flexWrap:'wrap'}}>
-                    <button className="btn btn-success btn-sm" onClick={(e)=>{e.stopPropagation();setIsResolving(true);setEditId(issue.id);setForm({pmno:issue.pmno||'',serial:issue.serial||'',model:issue.model||'',loc:issue.loc||'',sapno:issue.sapno||'',mesno:issue.mesno||'',title:issue.title||'',desc:issue.desc||'',action:issue.action||'',severity:issue.severity||'Medium',category:issue.category||'Other',reporter:issue.reporter||'',plant_location:issue.plant_location||'B26',status:issue.status||'open'});}}>✓ Resolve</button>
-                    {issue.severity !== 'Low' && <button className="btn btn-ghost btn-sm" onClick={(e)=>{e.stopPropagation();setDowngradingId(issue.id);setDowngradeTo(issue.severity === 'High' ? 'Medium' : 'Low');setDowngradeReason('');}}>↓ Downgrade</button>}
-                    {issue.severity !== 'High' && <button className="btn btn-ghost btn-sm" onClick={(e)=>{e.stopPropagation();setUpgradingId(issue.id);setUpgradeReason('');}}>↑ Upgrade</button>}
-                    <button className="btn btn-info btn-sm" onClick={(e)=>{e.stopPropagation();setAssigningId(issue.id);setAssignTo('');}}>👤 Assign</button>
+                {issue.status === 'open' && (
+                  <div style={{display:'flex',gap:'6px',marginTop:'10px',padding:'10px',background:isBreached ? 'rgba(239,68,68,.08)' : 'rgba(47,51,69,.12)',borderRadius:'4px',borderTop:`2px solid ${isBreached ? 'var(--red)' : 'transparent'}`,flexWrap:'wrap'}}>
+                    <button className="btn btn-success btn-sm" disabled={issue.assigned_to && issue.assigned_to !== CURRENT_USER} onClick={(e)=>{e.stopPropagation();setIsResolving(true);setEditId(issue.id);setForm({pmno:issue.pmno||'',serial:issue.serial||'',model:issue.model||'',loc:issue.loc||'',sapno:issue.sapno||'',mesno:issue.mesno||'',title:issue.title||'',desc:issue.desc||'',action:issue.action||'',severity:issue.severity||'Medium',category:issue.category||'Other',reporter:issue.reporter||'',plant_location:issue.plant_location||'B26',status:issue.status||'open'});setOpen(true);setActionTaken('');setTimeout(() => {if(formRef.current){formRef.current.scrollIntoView({behavior:'smooth',block:'start'})}}, 100);}}>✓ Resolve</button>
+                    {issue.severity !== 'Low' && <button className="btn btn-ghost btn-sm" disabled={issue.assigned_to && issue.assigned_to !== CURRENT_USER} onClick={(e)=>{e.stopPropagation();setDowngradingId(issue.id);setDowngradeTo(issue.severity === 'High' ? 'Medium' : 'Low');setDowngradeReason('');}}>↓ Downgrade</button>}
+                    {issue.severity !== 'High' && <button className="btn btn-ghost btn-sm" disabled={issue.assigned_to && issue.assigned_to !== CURRENT_USER} onClick={(e)=>{e.stopPropagation();setUpgradingId(issue.id);setUpgradeReason('');setUpgradeTo(issue.severity === 'Low' ? 'Medium' : 'High');}}>↑ Upgrade</button>}
+                    <button className="btn btn-info btn-sm" onClick={(e)=>{e.stopPropagation();setAssigningId(issue.id);setAssignTo('');setAssignmentNote('');}}>👤 Assign</button>
                   </div>
                 )}
               </div>

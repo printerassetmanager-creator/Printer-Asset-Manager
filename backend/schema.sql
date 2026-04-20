@@ -194,6 +194,7 @@ CREATE TABLE IF NOT EXISTS recipes (
 -- ═══ ISSUES TRACKER ═══
 CREATE TABLE IF NOT EXISTS issues (
   id SERIAL PRIMARY KEY,
+  issue_unique_id VARCHAR(20) UNIQUE,
   pmno VARCHAR(20),
   serial VARCHAR(50),
   model VARCHAR(50),
@@ -236,6 +237,7 @@ CREATE TABLE IF NOT EXISTS issue_activity_log (
 
 CREATE INDEX IF NOT EXISTS idx_issue_activity_issue_id ON issue_activity_log(issue_id);
 CREATE INDEX IF NOT EXISTS idx_issue_status ON issues(status);
+CREATE INDEX IF NOT EXISTS idx_issue_unique_id ON issues(issue_unique_id);
 
 -- ═══ HEALTH CHECKUPS ═══
 CREATE TABLE IF NOT EXISTS health_checkups (

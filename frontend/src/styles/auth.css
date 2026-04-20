@@ -29,8 +29,8 @@
   align-items: center;
   margin-bottom: 35px;
   margin-top: 10px;
-  height: 110px;
-  background: linear-gradient(135deg, rgba(102, 126, 234, 0.08) 0%, rgba(118, 75, 162, 0.08) 100%);
+  padding: 18px 0 12px;
+  background: transparent;
   border-radius: 16px;
   position: relative;
   overflow: hidden;
@@ -43,12 +43,12 @@
   left: 0;
   right: 0;
   bottom: 0;
-  background: radial-gradient(circle at 30% 30%, rgba(255, 255, 255, 0.3), transparent);
+  background: none;
   pointer-events: none;
 }
 
 .auth-logo {
-  height: 75px;
+  height: 65px;
   width: auto;
   max-width: 95%;
   display: block;
