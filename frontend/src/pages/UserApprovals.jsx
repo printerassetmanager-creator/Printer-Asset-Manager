@@ -25,7 +25,7 @@ const formatDate = (dateString) => {
 };
 
 export default function UserApprovals() {
-  const { user: currentUser } = useApp();
+  const { user: currentUser, authToken, logout } = useApp();
   const [pendingUsers, setPendingUsers] = useState([]);
   const [allUsers, setAllUsers] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -50,20 +50,27 @@ export default function UserApprovals() {
 
   const fetchData = async ({ silent = false } = {}) => {
     try {
+      if (!authToken) {
+        logout();
+        return;
+      }
+
       if (silent) setRefreshing(true);
       else setLoading(true);
       setError('');
 
-      const token = localStorage.getItem('authToken');
       const [pendingRes, allUsersRes] = await Promise.all([
-        adminAPI.getPendingApprovals(token),
-        adminAPI.getAllUsers(token),
+        adminAPI.getPendingApprovals(authToken),
+        adminAPI.getAllUsers(authToken),
       ]);
 
       setPendingUsers(Array.isArray(pendingRes) ? pendingRes : []);
       setAllUsers(Array.isArray(allUsersRes) ? allUsersRes : []);
       setLastUpdated(new Date().toLocaleTimeString('en-GB'));
     } catch (err) {
+      if (err.response?.data?.error === 'Invalid token') {
+        logout();
+      }
       setError(err.response?.data?.error || 'Failed to fetch user approval data');
     } finally {
       if (silent) setRefreshing(false);
@@ -76,8 +83,11 @@ export default function UserApprovals() {
     if (!window.confirm('Approve this user request?')) return;
 
     try {
-      const token = localStorage.getItem('authToken');
-      const response = await adminAPI.approveUser(userId, selectedRole, token);
+      if (!authToken) {
+        logout();
+        return;
+      }
+      const response = await adminAPI.approveUser(userId, selectedRole, authToken);
       setNotice(response.data?.message || 'User approved successfully');
       setError('');
       setApprovalRole((prev) => {
@@ -87,6 +97,9 @@ export default function UserApprovals() {
       });
       await fetchData();
     } catch (err) {
+      if (err.response?.data?.error === 'Invalid token') {
+        logout();
+      }
       setError(err.response?.data?.error || 'Failed to approve user');
     }
   };
@@ -107,25 +120,37 @@ export default function UserApprovals() {
     if (!window.confirm('Reject this user request?')) return;
 
     try {
-      const token = localStorage.getItem('authToken');
-      const response = await adminAPI.rejectUser(userId, reason, token);
+      if (!authToken) {
+        logout();
+        return;
+      }
+      const response = await adminAPI.rejectUser(userId, reason, authToken);
       setNotice(response.data?.message || 'User rejected successfully');
       setError('');
       closeRejectForm(userId);
       await fetchData();
     } catch (err) {
+      if (err.response?.data?.error === 'Invalid token') {
+        logout();
+      }
       setError(err.response?.data?.error || 'Failed to reject user');
     }
   };
 
   const handleChangeRole = async (userId, newRole) => {
     try {
-      const token = localStorage.getItem('authToken');
-      const response = await adminAPI.changeUserRole(userId, newRole, token);
+      if (!authToken) {
+        logout();
+        return;
+      }
+      const response = await adminAPI.changeUserRole(userId, newRole, authToken);
       setNotice(response.data?.message || 'User role updated successfully');
       setError('');
       await fetchData();
     } catch (err) {
+      if (err.response?.data?.error === 'Invalid token') {
+        logout();
+      }
       setError(err.response?.data?.error || 'Failed to change user role');
     }
   };
@@ -134,12 +159,18 @@ export default function UserApprovals() {
     if (!window.confirm('Delete this user account?')) return;
 
     try {
-      const token = localStorage.getItem('authToken');
-      const response = await adminAPI.deleteUser(userId, token);
+      if (!authToken) {
+        logout();
+        return;
+      }
+      const response = await adminAPI.deleteUser(userId, authToken);
       setNotice(response.data?.message || 'User deleted successfully');
       setError('');
       await fetchData();
     } catch (err) {
+      if (err.response?.data?.error === 'Invalid token') {
+        logout();
+      }
       setError(err.response?.data?.error || 'Failed to delete user');
     }
   };

@@ -47,7 +47,28 @@ export function AppProvider({ children }) {
       return null;
     }
   });
-  const [isAuthenticated, setIsAuthenticated] = useState(!!user);
+  const [authToken, setAuthToken] = useState(() => {
+    try {
+      return localStorage.getItem('authToken');
+    } catch (e) {
+      console.warn('authToken parsing error:', e);
+      return null;
+    }
+  });
+  const [isAuthenticated, setIsAuthenticated] = useState(!!user && !!authToken);
+
+  useEffect(() => {
+    if (user && !authToken) {
+      console.warn('User data exists without a valid auth token, clearing stale session.');
+      try {
+        localStorage.removeItem('user');
+      } catch (e) {
+        console.warn('localStorage error:', e);
+      }
+      setUser(null);
+      setIsAuthenticated(false);
+    }
+  }, [user, authToken]);
 
   // Persist selected plants to localStorage
   useEffect(() => {
@@ -88,6 +109,7 @@ export function AppProvider({ children }) {
       console.warn('localStorage error:', e);
     }
     setUser(null);
+    setAuthToken(null);
     setIsAuthenticated(false);
   };
 
@@ -99,7 +121,8 @@ export function AppProvider({ children }) {
       console.warn('localStorage error:', e);
     }
     setUser(userData);
-    setIsAuthenticated(true);
+    setAuthToken(token);
+    setIsAuthenticated(!!userData && !!token);
   };
 
   useEffect(() => { refreshIssueCount(); }, []);
@@ -115,7 +138,9 @@ export function AppProvider({ children }) {
       togglePlant,
       selectAllPlants,
       user,
+      authToken,
       setUser,
+      setAuthToken,
       isAuthenticated,
       setIsAuthenticated,
       logout,

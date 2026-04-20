@@ -50,8 +50,8 @@ function AppInner() {
     closeUserProfile();
   };
 
-  // Setup session timeout - 15 minutes of inactivity or 5 minutes if browser is hidden
-  useSessionTimeout(handleSessionExpire, 15, isAuthenticated);
+  // Auto log out after 10 minutes without web activity.
+  useSessionTimeout(handleSessionExpire, 10, isAuthenticated);
 
   console.log('App rendering - isAuthenticated:', isAuthenticated, 'user:', user);
 

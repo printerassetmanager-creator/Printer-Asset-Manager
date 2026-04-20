@@ -1,0 +1,22 @@
+<svg viewBox="0 0 600 140" xmlns="http://www.w3.org/2000/svg" fill="none">
+  <defs>
+    <style>
+      .jabil-text { font-family: 'Arial Black', 'Arial', sans-serif; font-weight: 900; letter-spacing: -3px; }
+      .tagline-text { font-family: 'Arial', sans-serif; font-weight: 400; letter-spacing: 0.5px; }
+      .tagline-bold { font-family: 'Arial', sans-serif; font-weight: 700; letter-spacing: 0.5px; }
+    </style>
+  </defs>
+  
+  <!-- JABIL Text - Main Logo -->
+  <text x="20" y="95" class="jabil-text" font-size="85" fill="#FFFFFF">JABIL</text>
+  
+  <!-- Green accent triangle under A -->
+  <polygon fill="#1da447" points="115,62 152,62 133,85 98,85" />
+  
+  <!-- Vertical Separator Line -->
+  <line x1="285" y1="30" x2="285" y2="110" stroke="#FFFFFF" stroke-width="3" opacity="0.7"/>
+  
+  <!-- Tagline - Right side -->
+  <text x="310" y="65" class="tagline-text" font-size="15" fill="#FFFFFF" font-weight="400">MADE POSSIBLE.</text>
+  <text x="310" y="90" class="tagline-bold" font-size="15" fill="#FFFFFF" font-weight="700">MADE BETTER.</text>
+</svg>
