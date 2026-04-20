@@ -24,11 +24,13 @@ html,body,#root{height:100%;overflow:hidden;font-family:'Inter',system-ui,sans-s
 
 /* SIDEBAR */
 .sidebar{width:230px;min-width:230px;background:var(--bg2);border-right:1px solid var(--border);display:flex;flex-direction:column;flex-shrink:0;overflow:hidden}
-.sb-brand{padding:18px 16px 14px;border-bottom:1px solid var(--border)}
-.sb-logo-container{display:flex;justify-content:center;align-items:center;margin-bottom:12px;height:50px}
-.sb-logo{height:35px;width:auto;max-width:100%;display:block;object-fit:contain}
-.sb-brand .co{font-size:10px;color:var(--text3);letter-spacing:.07em;text-transform:uppercase;font-weight:500}
-.sb-brand .ti{font-size:15px;color:var(--text);font-weight:600;margin-top:4px;letter-spacing:-.01em}
+.sb-brand{padding:16px 10px 12px;border-bottom:1px solid var(--border);background:linear-gradient(180deg, rgba(74,127,212,.05), transparent)}
+.sb-logo-container{display:flex;justify-content:center;align-items:center;margin-bottom:14px;margin-top:8px;height:70px;border-radius:10px;background:rgba(74,127,212,.08);position:relative;transition:all .3s ease}
+.sb-logo-container:hover{background:rgba(74,127,212,.12);box-shadow:0 4px 12px rgba(74,127,212,.15)}
+.sb-logo{height:48px;width:auto;max-width:90%;display:block;object-fit:contain;filter:drop-shadow(0 2px 4px rgba(0,0,0,.15));transition:transform .3s ease;position:relative;z-index:1}
+.sb-logo-container:hover .sb-logo{transform:scale(1.08)}
+.sb-brand .co{font-size:10px;color:var(--text3);letter-spacing:.07em;text-transform:uppercase;font-weight:600;margin-top:6px}
+.sb-brand .ti{font-size:14px;color:var(--text);font-weight:700;margin-top:5px;letter-spacing:-.01em}
 .sb-user{padding:12px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px}
 .av{width:34px;height:34px;border-radius:50%;background:#1e3a6e;display:flex;align-items:center;justify-content:center;font-size:13px;color:#a8d5ff;font-weight:700;flex-shrink:0;letter-spacing:.05em}
 .sb-user-info .un{font-size:13px;color:var(--text);font-weight:600}
