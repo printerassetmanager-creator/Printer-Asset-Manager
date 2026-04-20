@@ -18,13 +18,31 @@ router.get('/usage-log', async (req, res) => {
 
 router.post('/', async (req, res) => {
   const { model, dn, type, compat, stock, min, yield: yld, loc } = req.body;
+  
+  // Validate that DN is provided and model is provided
+  if (!dn || !dn.trim()) {
+    return res.status(400).json({ error: 'DN (Distributor Number) is required for each cartridge' });
+  }
+  if (!model || !model.trim()) {
+    return res.status(400).json({ error: 'Model is required' });
+  }
+
   try {
     const { rows } = await pool.query(
       `INSERT INTO cartridges (model,dn,type,compat,stock,min,yield,loc) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
-      [model, dn, type, compat, stock||0, min||2, yld, loc]
+      [model.trim(), dn.trim(), type, compat, stock||0, min||2, yld, loc]
     );
     res.status(201).json(rows[0]);
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  } catch (e) { 
+    // Handle unique constraint violations
+    if (e.constraint === 'cartridges_dn_unique' || e.message.includes('duplicate key')) {
+      return res.status(400).json({ error: `Cartridge with DN "${dn}" already exists` });
+    }
+    if (e.constraint === 'cartridges_model_key' || e.message.includes('model')) {
+      return res.status(400).json({ error: `Cartridge model "${model}" already exists` });
+    }
+    res.status(500).json({ error: e.message }); 
+  }
 });
 
 router.post('/use', async (req, res) => {
@@ -83,13 +101,34 @@ router.post('/use', async (req, res) => {
 
 router.put('/:id', async (req, res) => {
   const { model, dn, type, compat, stock, min, yield: yld, loc } = req.body;
+  
+  // Validate required fields
+  if (!dn || !dn.trim()) {
+    return res.status(400).json({ error: 'DN (Distributor Number) is required' });
+  }
+  if (!model || !model.trim()) {
+    return res.status(400).json({ error: 'Model is required' });
+  }
+
   try {
     const { rows } = await pool.query(
       `UPDATE cartridges SET model=$1,dn=$2,type=$3,compat=$4,stock=$5,min=$6,yield=$7,loc=$8,updated_at=NOW() WHERE id=$9 RETURNING *`,
-      [model, dn, type, compat, stock, min, yld, loc, req.params.id]
+      [model.trim(), dn.trim(), type, compat, stock, min, yld, loc, req.params.id]
     );
+    if (rows.length === 0) {
+      return res.status(404).json({ error: 'Cartridge not found' });
+    }
     res.json(rows[0]);
-  } catch (e) { res.status(500).json({ error: e.message }); }
+  } catch (e) { 
+    // Handle unique constraint violations
+    if (e.constraint === 'cartridges_dn_unique' || e.message.includes('duplicate key')) {
+      return res.status(400).json({ error: `DN "${dn}" is already assigned to another cartridge` });
+    }
+    if (e.constraint === 'cartridges_model_key' || e.message.includes('model')) {
+      return res.status(400).json({ error: `Model "${model}" is already assigned to another cartridge` });
+    }
+    res.status(500).json({ error: e.message }); 
+  }
 });
 
 router.delete('/:id', async (req, res) => {

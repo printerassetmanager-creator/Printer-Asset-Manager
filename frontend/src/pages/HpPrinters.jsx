@@ -218,6 +218,19 @@ export default function HpPrinters() {
     setCOpen(true);
   };
 
+  const [showModelDNs, setShowModelDNs] = useState(false);
+  const [selectedModel, setSelectedModel] = useState('');
+  const [selectedModelDNs, setSelectedModelDNs] = useState([]);
+
+  const showDNsForModel = (model) => {
+    const modelValue = String(model || '').trim();
+    if (!modelValue) return;
+    const matches = carts.filter((cart) => String(cart.model || '').trim().toLowerCase() === modelValue.toLowerCase());
+    setSelectedModel(modelValue);
+    setSelectedModelDNs(matches);
+    setShowModelDNs(true);
+  };
+
   const resetUseCartForm = () => {
     setUseCartForm({ dn: '', model: '', qty: 1, wc: '', ip: '', printer_location: '', printer_tag: '', used_by: loggedInUser });
     setPrinterInfo(null);
@@ -406,8 +419,6 @@ export default function HpPrinters() {
                 <div className="field"><label>Type</label><select value={cForm.type} onChange={(e) => cfld('type', e.target.value)}><option>Black</option><option>Cyan</option><option>Magenta</option><option>Yellow</option><option>Color Set</option></select></div>
                 <div className="field"><label>Compatible HP Models</label><input value={cForm.compat} onChange={(e) => cfld('compat', e.target.value)} placeholder="M404, M406, M428..." /></div>
                 <div className="field"><label>Stock Available</label><input type="number" value={cForm.stock} onChange={(e) => cfld('stock', parseInt(e.target.value, 10) || 0)} min="0" /></div>
-                <div className="field"><label>Min Stock Level</label><input type="number" value={cForm.min} onChange={(e) => cfld('min', parseInt(e.target.value, 10) || 0)} min="0" /></div>
-                <div className="field"><label>Yield</label><input value={cForm.yield} onChange={(e) => cfld('yield', e.target.value)} placeholder="e.g. 3100 pages" /></div>
                 <div className="field"><label>Storage Location</label><input value={cForm.loc} onChange={(e) => cfld('loc', e.target.value)} placeholder="Rack B - Shelf 2" /></div>
               </div>
               <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
@@ -420,17 +431,32 @@ export default function HpPrinters() {
 
           <div className="tbl-wrap">
             <table className="tbl">
-              <thead><tr><th>Cartridge Model</th><th>DN / Part No</th><th>Type</th><th>Compatible Models</th><th>Stock</th><th>Min Stock</th><th>Yield</th><th>Location</th><th>Status</th><th>Edit</th></tr></thead>
+              <thead><tr><th>Cartridge Model</th><th>Type</th><th>Compatible Models</th><th>Stock</th><th>Location</th><th>Status</th><th>Edit</th></tr></thead>
               <tbody>
                 {carts.map((cart) => (
                   <tr key={cart.id}>
-                    <td className="em">{cart.model}</td>
-                    <td className="mono">{cart.dn}</td>
+                    <td className="em">
+                      <button
+                        type="button"
+                        onClick={() => showDNsForModel(cart.model)}
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          padding: 0,
+                          margin: 0,
+                          color: 'var(--blue)',
+                          textDecoration: 'underline',
+                          cursor: 'pointer',
+                          fontSize: 'inherit',
+                          fontFamily: 'inherit',
+                        }}
+                      >
+                        {cart.model}
+                      </button>
+                    </td>
                     <td>{cart.type}</td>
                     <td style={{ fontSize: '11px' }}>{cart.compat}</td>
                     <td className={cart.stock === 0 ? 'red' : cart.stock <= cart.min ? 'amber' : 'green'} style={{ fontWeight: 600 }}>{cart.stock}</td>
-                    <td style={{ color: 'var(--text3)' }}>{cart.min}</td>
-                    <td style={{ fontSize: '11px' }}>{cart.yield || '—'}</td>
                     <td style={{ fontSize: '11px' }}>{cart.loc}</td>
                     <td><span className={`badge ${cart.stock === 0 ? 'b-out' : cart.stock <= cart.min ? 'b-low' : 'b-instock'}`}>{cart.stock === 0 ? 'Out' : cart.stock <= cart.min ? 'Low Stock' : 'In Stock'}</span></td>
                     <td><button className="btn btn-ghost btn-sm" onClick={() => editCart(cart)}>Edit</button></td>
@@ -439,6 +465,33 @@ export default function HpPrinters() {
               </tbody>
             </table>
           </div>
+
+          {showModelDNs && (
+            <div className="modal-bg show" onClick={(e) => { if (e.target === e.currentTarget) setShowModelDNs(false); }}>
+              <div className="modal" style={{ minWidth: '420px', maxWidth: '640px' }}>
+                <div className="modal-title">Available DN / Part Numbers for {selectedModel}</div>
+                <button className="modal-close" onClick={() => setShowModelDNs(false)}>X</button>
+                <div style={{ marginBottom: '12px', fontSize: '12px', color: 'var(--text3)' }}>
+                  Showing {selectedModelDNs.length} DN{selectedModelDNs.length === 1 ? '' : 's'} for this model.
+                </div>
+                <div className="tbl-wrap">
+                  <table className="tbl">
+                    <thead><tr><th>DN / Part No</th><th>Type</th><th>Stock</th><th>Location</th></tr></thead>
+                    <tbody>
+                      {selectedModelDNs.map((cart) => (
+                        <tr key={cart.id}>
+                          <td className="mono">{cart.dn || '—'}</td>
+                          <td>{cart.type}</td>
+                          <td>{cart.stock}</td>
+                          <td style={{ fontSize: '11px' }}>{cart.loc || '—'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          )}
 
           <div className="card" style={{ padding: '14px', marginTop: '14px' }}>
             <div className="card-title" style={{ marginBottom: '12px' }}>Cartridge Usage Log</div>
@@ -477,7 +530,7 @@ export default function HpPrinters() {
                   <div style={{ fontSize: '11px', color: 'var(--text)', fontWeight: 600, marginBottom: '3px', wordBreak: 'break-all' }}>{cart.model}</div>
                   <div style={{ fontSize: '10px', color: 'var(--text3)', marginBottom: '8px' }}>{cart.dn} · {cart.type}</div>
                   <div style={{ fontSize: '24px', fontWeight: 600, color: cart.stock === 0 ? 'var(--red)' : cart.stock <= cart.min ? 'var(--amber)' : 'var(--green)', marginBottom: '4px' }}>{cart.stock}</div>
-                  <div style={{ fontSize: '10px', color: 'var(--text3)' }}>min: {cart.min} · {cart.yield || 'No yield set'}</div>
+                  <div style={{ fontSize: '10px', color: 'var(--text3)' }}>Stock level only</div>
                   <div style={{ marginTop: '8px' }}><span className={`badge ${cart.stock === 0 ? 'b-out' : cart.stock <= cart.min ? 'b-low' : 'b-instock'}`}>{cart.stock === 0 ? 'Out of Stock' : cart.stock <= cart.min ? 'Low Stock' : 'In Stock'}</span></div>
                 </div>
               ))}

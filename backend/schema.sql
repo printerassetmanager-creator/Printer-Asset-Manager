@@ -100,6 +100,8 @@ CREATE TABLE IF NOT EXISTS spare_parts (
   serial VARCHAR(50),
   condition VARCHAR(20) DEFAULT 'New',
   plant_location VARCHAR(50) DEFAULT 'B26',
+  printer_model VARCHAR(100),
+  category VARCHAR(100),
   created_at TIMESTAMP DEFAULT NOW(),
   updated_at TIMESTAMP DEFAULT NOW()
 );
@@ -139,7 +141,7 @@ CREATE TABLE IF NOT EXISTS hp_printers (
 CREATE TABLE IF NOT EXISTS cartridges (
   id SERIAL PRIMARY KEY,
   model VARCHAR(100) UNIQUE NOT NULL,
-  dn VARCHAR(50),
+  dn VARCHAR(50) UNIQUE NOT NULL,
   type VARCHAR(20),
   compat TEXT,
   stock INTEGER DEFAULT 0,
@@ -257,6 +259,7 @@ CREATE TABLE IF NOT EXISTS health_checkups (
   health VARCHAR(10) DEFAULT 'ok',
   issue_desc TEXT,
   req_parts TEXT,
+  damaged_parts JSONB DEFAULT '[]'::jsonb,
   is_repeat BOOLEAN DEFAULT FALSE,
   engineer VARCHAR(100),
   checked_at TIMESTAMP DEFAULT NOW()

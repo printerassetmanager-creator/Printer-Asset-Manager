@@ -58,7 +58,7 @@ router.get('/activity-log', async (req, res) => {
 });
 
 router.post('/', async (req, res) => {
-  const { pmno,serial,model,make,sapno,mesno,dpi,firmware,km,loftware,ip,mac,loc,stage,bay,wc,health,issue_desc,req_parts,is_repeat,engineer } = req.body;
+  const { pmno,serial,model,make,sapno,mesno,dpi,firmware,km,loftware,ip,mac,loc,stage,bay,wc,health,issue_desc,req_parts,damaged_parts,is_repeat,engineer } = req.body;
   const client = await pool.connect();
   try {
     await activityLogInitPromise;
@@ -66,9 +66,9 @@ router.post('/', async (req, res) => {
     await cleanupOldActivityLogs(client);
 
     const { rows } = await client.query(
-      `INSERT INTO health_checkups (pmno,serial,model,make,sapno,mesno,dpi,firmware,km,loftware,ip,mac,loc,stage,bay,wc,health,issue_desc,req_parts,is_repeat,engineer)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21) RETURNING *`,
-      [pmno,serial,model,make,sapno,mesno,dpi,firmware,km,loftware,ip,mac,loc,stage,bay,wc,health||'ok',issue_desc,req_parts,is_repeat||false,engineer]
+      `INSERT INTO health_checkups (pmno,serial,model,make,sapno,mesno,dpi,firmware,km,loftware,ip,mac,loc,stage,bay,wc,health,issue_desc,req_parts,damaged_parts,is_repeat,engineer)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22) RETURNING *`,
+      [pmno,serial,model,make,sapno,mesno,dpi,firmware,km,loftware,ip,mac,loc,stage,bay,wc,health||'ok',issue_desc,req_parts,JSON.stringify(damaged_parts||[]),is_repeat||false,engineer]
     );
 
     const savedCheckup = rows[0];

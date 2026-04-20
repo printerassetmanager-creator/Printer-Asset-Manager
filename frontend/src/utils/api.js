@@ -67,6 +67,7 @@ export const vlanAPI = {
 export const sparePartsAPI = {
   getAll: (plants) => api.get('/spare-parts', { params: plants ? { plants: plants.join(',') } : {} }),
   getUsageLog: () => api.get('/spare-parts/usage-log'),
+  getRequirements: () => api.get('/spare-parts/requirements'),
   create: (data) => api.post('/spare-parts', data),
   update: (id, data) => api.put(`/spare-parts/${id}`, data),
   delete: (id) => api.delete(`/spare-parts/${id}`),

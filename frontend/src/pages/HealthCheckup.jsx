@@ -163,6 +163,7 @@ export default function HealthCheckup() {
         engineer: toSentenceCase(form.engineer),
         issue_desc: toSentenceCase(form.issue_desc),
         req_parts: toSentenceCase(form.req_parts),
+        damaged_parts: dmgParts,
         loftware: buildLoftwareValue(form.loftware, allowTwoLoftware ? secondaryLoftware : ''),
         logged_at: nowStr(),
         vlan: vlanInfo
