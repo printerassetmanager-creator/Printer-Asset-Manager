@@ -16,7 +16,7 @@ const screenTitles = {
   dueoverdue: 'PM Due / Overdue',
   ilearn: 'i Learn',
   printermaster: 'Printer Master',
-  userapprovals: 'User Approvals',
+  userapprovals: 'User Management',
 };
 
 const screenMeta = {
@@ -34,7 +34,7 @@ const screenMeta = {
   dueoverdue: 'PM due and overdue tracker',
   ilearn: 'Learning platform - search issues and follow step-by-step guides with images',
   printermaster: 'Admin - add / edit / delete printers from master database',
-  userapprovals: 'Super admin - approve, reject and manage user roles',
+  userapprovals: 'Super admin - approve, reject, delete and manage user accounts',
 };
 
 export default function Topbar() {

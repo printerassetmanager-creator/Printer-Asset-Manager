@@ -156,7 +156,10 @@ export default function UserApprovals() {
   };
 
   const handleDeleteUser = async (userId) => {
-    if (!window.confirm('Delete this user account?')) return;
+    const selectedUser = [...pendingUsers, ...allUsers].find((entry) => String(entry.user_id || entry.id) === String(userId));
+    const userLabel = selectedUser ? `${getDisplayName(selectedUser)} (${selectedUser.email || '-'})` : `user ID ${userId}`;
+
+    if (!window.confirm(`Delete ${userLabel}? This cannot be undone.`)) return;
 
     try {
       if (!authToken) {
@@ -244,6 +247,12 @@ export default function UserApprovals() {
                         onClick={() => openRejectForm(user.user_id)}
                       >
                         Reject
+                      </button>
+                      <button
+                        className="btn btn-danger btn-sm"
+                        onClick={() => handleDeleteUser(user.user_id)}
+                      >
+                        Delete User
                       </button>
                     </div>
 
@@ -340,13 +349,18 @@ export default function UserApprovals() {
                   </td>
                   <td>{formatDate(user.created_at)}</td>
                   <td>
-                    <button
-                      className="btn btn-danger btn-sm"
-                      disabled={isOwnAccount}
-                      onClick={() => handleDeleteUser(user.id)}
-                    >
-                      {isOwnAccount ? 'Protected' : 'Delete'}
-                    </button>
+                    <div className="approvals-actions">
+                      <button
+                        className="btn btn-danger btn-sm"
+                        disabled={isOwnAccount}
+                        onClick={() => handleDeleteUser(user.id)}
+                      >
+                        {isOwnAccount ? 'Protected' : 'Delete User'}
+                      </button>
+                      {isOwnAccount ? (
+                        <div className="approvals-inline-note">You cannot delete your own account.</div>
+                      ) : null}
+                    </div>
                   </td>
                 </tr>
               );

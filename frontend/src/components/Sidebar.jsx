@@ -175,7 +175,7 @@ export default function Sidebar() {
           <div className="adm-lbl">Super Admin Only</div>
           <div className={`ni adm-ni${currentScreen === 'userapprovals' ? ' active' : ''}`} onClick={() => setCurrentScreen('userapprovals')}>
             <svg className="ni-icon" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="5" r="2.5" stroke="#e8a020" strokeWidth="1.2"/><path d="M2 13.5c0-2 2.5-3.5 6-3.5s6 1.5 6 3.5" stroke="#e8a020" strokeWidth="1.2" strokeLinecap="round"/></svg>
-            <span className="ni-label">User Approvals</span>
+            <span className="ni-label">User Management</span>
           </div>
         </div>
       )}
