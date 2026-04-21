@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const pool = require('../db/pool');
+const { adminMiddleware } = require('../middleware/auth');
 
 router.get('/', async (req, res) => {
   try {
@@ -16,7 +17,7 @@ router.get('/usage-log', async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-router.post('/', async (req, res) => {
+router.post('/', adminMiddleware, async (req, res) => {
   const { model, dn, type, compat, stock, min, yield: yld, loc } = req.body;
   
   // Validate that DN is provided and model is provided
@@ -45,7 +46,7 @@ router.post('/', async (req, res) => {
   }
 });
 
-router.post('/use', async (req, res) => {
+router.post('/use', adminMiddleware, async (req, res) => {
   const { dn, model, qty, wc, ip, used_by, printer_location, printer_tag } = req.body;
   const client = await pool.connect();
   try {
@@ -99,7 +100,7 @@ router.post('/use', async (req, res) => {
   } finally { client.release(); }
 });
 
-router.put('/:id', async (req, res) => {
+router.put('/:id', adminMiddleware, async (req, res) => {
   const { model, dn, type, compat, stock, min, yield: yld, loc } = req.body;
   
   // Validate required fields
@@ -131,7 +132,7 @@ router.put('/:id', async (req, res) => {
   }
 });
 
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', adminMiddleware, async (req, res) => {
   try {
     await pool.query('DELETE FROM cartridges WHERE id=$1', [req.params.id]);
     res.json({ success: true });

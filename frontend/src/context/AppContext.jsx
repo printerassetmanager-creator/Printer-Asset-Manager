@@ -26,8 +26,18 @@ export const displayName = (user) => String(user || '')
   .map((part) => part[0].toUpperCase() + part.slice(1))
   .join(' ');
 
+const getInitialScreen = () => {
+  try {
+    const params = new URLSearchParams(window.location.search);
+    return params.get('screen') === 'issues' ? 'issues' : 'dashboard';
+  } catch (e) {
+    console.warn('URL parsing error:', e);
+    return 'dashboard';
+  }
+};
+
 export function AppProvider({ children }) {
-  const [currentScreen, setCurrentScreen] = useState('dashboard');
+  const [currentScreen, setCurrentScreen] = useState(getInitialScreen);
   const [openIssues, setOpenIssues] = useState(0);
   const [selectedPlants, setSelectedPlants] = useState(() => {
     try {

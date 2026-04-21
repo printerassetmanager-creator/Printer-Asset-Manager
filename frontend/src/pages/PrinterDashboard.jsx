@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { printersAPI, vlanAPI } from '../utils/api';
 import { useApp } from '../context/AppContext';
-import { fetchPrinterData, formatHoneywellSerial } from '../utils/printerFetcher';
 
 function includesText(value, query) {
   return String(value || '').toLowerCase().includes(String(query || '').toLowerCase());
@@ -157,13 +156,9 @@ export default function PrinterDashboard() {
         // Fetch data from all printers in parallel
         await Promise.all(
           rows.map(async (printer) => {
-            if (printer.ip && printer.serial) {
+            if (printer.pmno && printer.serial) {
               try {
-                // Use PX940V- prefix for Honeywell printers
-                const formattedSerial = String(printer.serial).toUpperCase().includes('PX940') ? 
-                  (!String(printer.serial).startsWith('PX940V-') ? `PX940V-${printer.serial}` : printer.serial) : 
-                  printer.serial;
-                const data = await fetchPrinterData(printer.ip, formattedSerial);
+                const { data } = await printersAPI.getLiveWebData(printer.pmno);
                 setPrinterWebData((prev) => ({
                   ...prev,
                   [printer.id]: data,
@@ -343,7 +338,7 @@ export default function PrinterDashboard() {
                       <td style={{ fontSize: '11px' }}>
                         {webData && !webData.error ? (webData.headRunKm !== null && webData.headRunKm !== undefined ? `${webData.headRunKm} km` : '-') : (p.printer_km ? `${p.printer_km} km` : '-')}
                       </td>
-                      <td className="mono">{p.ip || '-'}</td>
+                      <td className="mono">{webData?.ip || p.ip || '-'}</td>
                       <td style={{ fontSize: '11px' }}>
                         {(() => {
                           const locData = getLocationData(p);

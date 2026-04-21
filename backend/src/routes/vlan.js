@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const pool = require('../db/pool');
+const { adminMiddleware } = require('../middleware/auth');
 
 router.get('/', async (req, res) => {
   try {
@@ -27,7 +28,7 @@ router.get('/by-ip/:ip', async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-router.post('/', async (req, res) => {
+router.post('/', adminMiddleware, async (req, res) => {
   const { port, ip, mac, sw, loc, stage, bay, wc, plant_location } = req.body;
   try {
     const { rows } = await pool.query(
@@ -38,7 +39,7 @@ router.post('/', async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-router.put('/:id', async (req, res) => {
+router.put('/:id', adminMiddleware, async (req, res) => {
   const { port, ip, mac, sw, loc, stage, bay, wc, plant_location } = req.body;
   try {
     const { rows } = await pool.query(
@@ -49,7 +50,7 @@ router.put('/:id', async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', adminMiddleware, async (req, res) => {
   try {
     await pool.query('DELETE FROM vlan WHERE id=$1', [req.params.id]);
     res.json({ success: true });

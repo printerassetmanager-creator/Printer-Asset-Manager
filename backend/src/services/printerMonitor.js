@@ -179,9 +179,118 @@ function parseHtmlTitle(bodyText) {
   return match ? match[1].trim() : '';
 }
 
+function normalizeStatusText(value) {
+  return String(value || '')
+    .replace(/&nbsp;|&#160;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function stripStatusPrefix(value) {
+  return normalizeStatusText(value).replace(/^(?:status|warning|error condition)\s*:?\s*/i, '').trim();
+}
+
+function roundToTwo(value) {
+  return Math.round(value * 100) / 100;
+}
+
+function parseHoneywellPrinterState(bodyText) {
+  const body = String(bodyText || '');
+  const match = body.match(/<div[^>]*class="printer_status"[^>]*>.*?<span[^>]*>([^<]*)<\/span>/is);
+  const status = match ? normalizeStatusText(match[1]) : null;
+
+  if (!status) {
+    return null;
+  }
+
+  if (status.toUpperCase() === 'READY') {
+    return {
+      condition_status: 'ready',
+      error_reason: null,
+      main_status: status,
+    };
+  }
+
+  return {
+    condition_status: 'error',
+    error_reason: status,
+    main_status: status,
+  };
+}
+
+function parseHoneywellFirmwareVersion(bodyText) {
+  const body = String(bodyText || '');
+  const regexes = [
+    /Firmware\s+Version\s*<\/[^>]+>\s*<[^>]*>\s*([A-Za-z0-9._-]+)\s*</i,
+    /Firmware\s+Version[\s\S]{0,100}?([A-Za-z0-9._-]{5,})/i,
+    /"Firmware Version"\s*:\s*"([^"]+)"/i,
+  ];
+
+  for (const rx of regexes) {
+    const match = body.match(rx);
+    if (match?.[1]) {
+      const firmware = normalizeStatusText(match[1]);
+      if (firmware) return firmware;
+    }
+  }
+
+  return null;
+}
+
+function parseHoneywellMetersToKm(bodyText) {
+  const body = String(bodyText || '');
+  const regexes = [
+    /Total\s+Distance\s+Printed\s*\(Printhead\)[\s\S]{0,80}?(\d+(?:\.\d+)?)\s*m(?![a-z])/i,
+    /Printhead\s+Distance[\s\S]{0,40}?(\d+(?:\.\d+)?)\s*m(?![a-z])/i,
+    /(?:Printhead|Head).*?Distance[\s:]*(\d+(?:\.\d+)?)\s*m(?![a-z])/i,
+    /(\d+(?:\.\d+)?)\s*m(?![a-z])/i,
+  ];
+
+  for (const rx of regexes) {
+    const match = body.match(rx);
+    const meters = Number(match?.[1]);
+    if (!Number.isNaN(meters)) {
+      return roundToTwo(meters / 1000);
+    }
+  }
+
+  return null;
+}
+
+function parseExplicitPrinterState(bodyText) {
+  const body = String(bodyText || '');
+  const statusMatch = body.match(/Status\s*:\s*<font[^>]*>(.*?)<\/font>/is);
+  const warningMatch = body.match(/<font[^>]*>\s*(?:WARNING|ERROR\s+CONDITION)\s*:?\s*([^<]*)<\/font>/is);
+
+  const status = statusMatch ? stripStatusPrefix(statusMatch[1]) : null;
+  const warning = warningMatch ? stripStatusPrefix(warningMatch[1]) : null;
+
+  if (!status) {
+    return null;
+  }
+
+  if (status.toUpperCase() === 'READY') {
+    return {
+      condition_status: 'ready',
+      error_reason: null,
+      main_status: status,
+      warning,
+    };
+  }
+
+  return {
+    condition_status: 'error',
+    error_reason: [status, warning].filter(Boolean).join(' - '),
+    main_status: status,
+    warning,
+  };
+}
+
 function parseErrorReasonFromBody(bodyText) {
   const body = String(bodyText || '').toLowerCase();
   const signatures = [
+    ['ribbon in', 'Ribbon In'],
     ['ribbon out', 'Ribbon Out'],
     ['head open', 'Head Open'],
     ['head fault', 'Head Fault'],
@@ -201,6 +310,23 @@ function parseConditionFromBody(bodyText) {
   const body = String(bodyText || '');
   const lowerBody = body.toLowerCase();
   const title = parseHtmlTitle(body).toLowerCase();
+  const honeywellState = parseHoneywellPrinterState(body);
+  const explicitState = parseExplicitPrinterState(body);
+
+  if (honeywellState) {
+    return {
+      condition_status: honeywellState.condition_status,
+      error_reason: honeywellState.error_reason,
+    };
+  }
+
+  if (explicitState) {
+    return {
+      condition_status: explicitState.condition_status,
+      error_reason: explicitState.error_reason,
+    };
+  }
+
   const reason = parseErrorReasonFromBody(body);
 
   if (reason) {
@@ -250,22 +376,54 @@ function parseConditionFromBody(bodyText) {
   };
 }
 
-function parseFirmwareFromBody(bodyText) {
+function parseFirmwareFromBody(bodyText, make) {
   const body = String(bodyText || '');
+  const isHoneywell = String(make || '').toLowerCase().includes('honeywell');
+  const isZebra = String(make || '').toLowerCase().includes('zebra');
+
+  if (isHoneywell) {
+    const firmware = parseHoneywellFirmwareVersion(body);
+    if (firmware) return firmware;
+  }
+
   const regexes = [
+    ...(isZebra ? [/([A-Z0-9.]+)\s+<-\s*.*?FIRMWARE/i] : []),
     /firmware(?:\s*version)?\s*[:=]\s*([A-Za-z0-9._-]{2,})/i,
     /fw(?:\s*version)?\s*[:=]\s*([A-Za-z0-9._-]{2,})/i,
     /"firmware"\s*:\s*"([^"]+)"/i,
   ];
   for (const rx of regexes) {
     const m = body.match(rx);
-    if (m && m[1]) return m[1].trim();
+    if (m && m[1]) return normalizeStatusText(m[1]);
   }
   return null;
 }
 
-function parseKmFromBody(bodyText) {
+function parseKmFromBody(bodyText, make) {
   const body = String(bodyText || '');
+  const makeText = String(make || '').toLowerCase();
+
+  if (makeText.includes('zebra')) {
+    const zebraRegexes = [
+      /([\d,]+)\s*CM\s+NONRESET\s+CNTR/i,
+      /NONRESET\s+CNTR[\s\S]{0,40}?([\d,]+)\s*CM/i,
+      /(\d+(?:,\d{3})+|\d+)\s*cm(?![a-z])/i,
+    ];
+
+    for (const rx of zebraRegexes) {
+      const match = body.match(rx);
+      const raw = match?.[1];
+      if (!raw) continue;
+      const cm = Number(raw.replace(/,/g, ''));
+      if (!Number.isNaN(cm)) return roundToTwo(cm / 100000);
+    }
+  }
+
+  if (makeText.includes('honeywell')) {
+    const km = parseHoneywellMetersToKm(body);
+    if (km !== null) return km;
+  }
+
   const regexes = [
     /(?:label\s*count|print\s*count|counter|km)\s*[:=]\s*([0-9,.\s]{1,30})/i,
     /"print_count"\s*:\s*"?(?<v>[0-9,.\s]{1,30})"?/i,
@@ -274,7 +432,7 @@ function parseKmFromBody(bodyText) {
     const m = body.match(rx);
     if (m) {
       const val = m.groups?.v || m[1];
-      if (val) return val.trim();
+      if (val) return normalizeStatusText(val);
     }
   }
   return null;
@@ -302,7 +460,7 @@ function needsAuthenticatedRetry(status, bodyText) {
   );
 }
 
-async function fetchPrinterPage(ip, authHeader) {
+async function fetchPrinterPage(ip, authHeader, path = '/') {
   const protocols = ['http', 'https'];
   let lastError = null;
 
@@ -311,7 +469,8 @@ async function fetchPrinterPage(ip, authHeader) {
     const timer = setTimeout(() => controller.abort(), 3500);
     try {
       const headers = authHeader ? { Authorization: authHeader } : undefined;
-      const res = await fetch(`${protocol}://${ip}`, { signal: controller.signal, headers });
+      const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+      const res = await fetch(`${protocol}://${ip}${normalizedPath}`, { signal: controller.signal, headers });
       const body = await res.text();
       return { res, body, protocol };
     } catch (error) {
@@ -346,19 +505,55 @@ async function readPrinterWebDetails(ip, make) {
   }
 
   const creds = getWebCredentialsByMake(make);
+  const isHoneywell = String(make || '').toLowerCase().includes('honeywell');
+  const isZebra = String(make || '').toLowerCase().includes('zebra');
   try {
-    let { res, body } = await fetchPrinterPage(ip, null);
+    let { res, body } = await fetchPrinterPage(ip, null, '/');
 
     if (creds && needsAuthenticatedRetry(res.status, body)) {
       const authHeader = `Basic ${Buffer.from(`${creds.username}:${creds.password}`).toString('base64')}`;
-      const authResponse = await fetchPrinterPage(ip, authHeader);
+      const authResponse = await fetchPrinterPage(ip, authHeader, '/');
       res = authResponse.res;
       body = authResponse.body;
     }
 
     const condition = parseConditionFromBody(body, make);
-    const firmware = parseFirmwareFromBody(body);
-    const km = parseKmFromBody(body);
+    let firmware = parseFirmwareFromBody(body, make);
+    let km = parseKmFromBody(body, make);
+
+    if (isZebra) {
+      try {
+        let configResponse = await fetchPrinterPage(ip, null, '/config.html');
+        if (creds && needsAuthenticatedRetry(configResponse.res.status, configResponse.body)) {
+          const authHeader = `Basic ${Buffer.from(`${creds.username}:${creds.password}`).toString('base64')}`;
+          configResponse = await fetchPrinterPage(ip, authHeader, '/config.html');
+        }
+
+        if (configResponse.res.ok) {
+          firmware = parseFirmwareFromBody(configResponse.body, make) || firmware;
+          km = parseKmFromBody(configResponse.body, make) ?? km;
+        }
+      } catch {
+        // Keep root-page values if config fetch fails.
+      }
+    }
+
+    if (isHoneywell) {
+      try {
+        let statsResponse = await fetchPrinterPage(ip, null, '/statistics/displaydata.lua');
+        if (creds && needsAuthenticatedRetry(statsResponse.res.status, statsResponse.body)) {
+          const authHeader = `Basic ${Buffer.from(`${creds.username}:${creds.password}`).toString('base64')}`;
+          statsResponse = await fetchPrinterPage(ip, authHeader, '/statistics/displaydata.lua');
+        }
+
+        if (statsResponse.res.ok) {
+          firmware = parseFirmwareFromBody(statsResponse.body, make) || firmware;
+          km = parseKmFromBody(statsResponse.body, make) ?? km;
+        }
+      } catch {
+        // Keep home-page values if Honeywell statistics fetch fails.
+      }
+    }
 
     if (!res.ok) {
       return {
@@ -367,6 +562,7 @@ async function readPrinterWebDetails(ip, make) {
         error_reason: condition.error_reason || `HTTP ${res.status}`,
         firmware_version: firmware,
         printer_km: km,
+        printer_type: isHoneywell ? 'Honeywell' : (isZebra ? 'Zebra' : null),
       };
     }
 
@@ -376,6 +572,7 @@ async function readPrinterWebDetails(ip, make) {
       error_reason: condition.error_reason || (condition.condition_status ? null : 'Printer web page reachable but status not detected'),
       firmware_version: firmware,
       printer_km: km,
+      printer_type: isHoneywell ? 'Honeywell' : (isZebra ? 'Zebra' : null),
     };
   } catch {
     return {
@@ -384,6 +581,7 @@ async function readPrinterWebDetails(ip, make) {
       error_reason: 'Web UI unreachable',
       firmware_version: null,
       printer_km: null,
+      printer_type: isHoneywell ? 'Honeywell' : (isZebra ? 'Zebra' : null),
     };
   }
 }
@@ -665,6 +863,8 @@ function startPrinterMonitor() {
 module.exports = {
   ensurePrinterMonitorTables,
   cleanupOldPrinterLogs,
+  pingPrinterForIp,
+  readPrinterWebDetails,
   runPrinterMonitorCycle,
   startPrinterMonitor,
 };

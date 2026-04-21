@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const pool = require('../db/pool');
+const { adminMiddleware } = require('../middleware/auth');
 
 router.get('/', async (req, res) => {
   try {
@@ -40,7 +41,7 @@ router.get('/requirements', async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-router.post('/', async (req, res) => {
+router.post('/', adminMiddleware, async (req, res) => {
   const { code, name, compat, loc, serial, condition, plant_location, printer_model, category } = req.body;
   const quantity = 1;
   const plant = plant_location || 'B26';
@@ -119,7 +120,7 @@ router.post('/', async (req, res) => {
   }
 });
 
-router.post('/use', async (req, res) => {
+router.post('/use', adminMiddleware, async (req, res) => {
   const { code, name, model, printer_model, qty, pmno, serial, wc, used_by } = req.body;
   if ((!code && !name) || !pmno) {
     return res.status(400).json({ error: 'Part code or part name plus PM number are required' });

@@ -8,15 +8,15 @@
   </defs>
   
   <!-- JABIL Text - Main Logo -->
-  <text x="20" y="95" class="jabil-text" font-size="85" fill="#FFFFFF">JABIL</text>
+  <text x="20" y="95" class="jabil-text" font-size="85" fill="#0D4B87">JABIL</text>
   
-  <!-- Green accent triangle under A -->
-  <polygon fill="#1da447" points="115,62 152,62 133,85 98,85" />
+  <!-- Blue accent triangle under A -->
+  <polygon fill="#18A9E1" points="115,62 152,62 133,85 98,85" />
   
-  <!-- Vertical Separator Line -->
-  <line x1="285" y1="30" x2="285" y2="110" stroke="#FFFFFF" stroke-width="3" opacity="0.7"/>
-  
-  <!-- Tagline - Right side -->
-  <text x="310" y="65" class="tagline-text" font-size="15" fill="#FFFFFF" font-weight="400">MADE POSSIBLE.</text>
-  <text x="310" y="90" class="tagline-bold" font-size="15" fill="#FFFFFF" font-weight="700">MADE BETTER.</text>
+  <!-- Tagline -->
+  <text x="10" y="128" class="tagline-text" font-size="23" fill="#0D4B87" font-weight="400">MADE</text>
+  <text x="87" y="128" class="tagline-bold" font-size="23" fill="#0D4B87" font-weight="700">POSSIBLE.</text>
+  <text x="265" y="128" class="tagline-text" font-size="23" fill="#0D4B87" font-weight="400">MADE</text>
+  <text x="343" y="128" class="tagline-bold" font-size="23" fill="#0D4B87" font-weight="700">BETTER.</text>
+
 </svg>

@@ -3,6 +3,7 @@ const router = express.Router();
 const http = require('http');
 const https = require('https');
 const pool = require('../db/pool');
+const { adminMiddleware } = require('../middleware/auth');
 
 // Fetch cartridge data from HP printer web interface
 router.get('/cartridge-info/:ip', async (req, res) => {
@@ -118,7 +119,7 @@ router.get('/', async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-router.post('/', async (req, res) => {
+router.post('/', adminMiddleware, async (req, res) => {
   const { tag, model, ip, loc, stage, bay, wc, cartmodel, black_pct, color_pct, online, plant_location } = req.body;
   try {
     const { rows } = await pool.query(
@@ -130,7 +131,7 @@ router.post('/', async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-router.put('/:id', async (req, res) => {
+router.put('/:id', adminMiddleware, async (req, res) => {
   const { tag, model, ip, loc, stage, bay, wc, cartmodel, black_pct, color_pct, online, plant_location } = req.body;
   try {
     const { rows } = await pool.query(
@@ -142,7 +143,7 @@ router.put('/:id', async (req, res) => {
 });
 
 // Sync cartridge data from HP printer IP
-router.post('/sync/:id', async (req, res) => {
+router.post('/sync/:id', adminMiddleware, async (req, res) => {
   const id = req.params.id;
   try {
     // Get printer from DB

@@ -1,9 +1,12 @@
 const express = require('express');
 const router = express.Router();
 const pool = require('../db/pool');
+const { authMiddleware, adminMiddleware } = require('../middleware/auth');
 const {
   ensurePrinterMonitorTables,
   cleanupOldPrinterLogs,
+  pingPrinterForIp,
+  readPrinterWebDetails,
   runPrinterMonitorCycle,
 } = require('../services/printerMonitor');
 
@@ -128,6 +131,76 @@ router.get('/status-logs/:pmno', async (req, res) => {
   }
 });
 
+router.get('/:pmno/live-web', async (req, res) => {
+  try {
+    const pmno = String(req.params.pmno || '').toUpperCase();
+    const { rows } = await pool.query(
+      'SELECT id, pmno, serial, make, model FROM printers WHERE pmno=$1',
+      [pmno]
+    );
+
+    if (!rows.length) {
+      return res.status(404).json({ error: 'Printer not found' });
+    }
+
+    const printer = rows[0];
+    if (!printer.serial) {
+      return res.json({
+        pmno,
+        ip: null,
+        type: printer.make || null,
+        online_status: 'offline',
+        status: 'DATA NOT AVAILABLE',
+        printerCondition: null,
+        firmwareVersion: null,
+        headRunKm: null,
+        error: 'No serial number',
+      });
+    }
+
+    const ip = await pingPrinterForIp(printer.make, printer.serial);
+    if (!ip) {
+      return res.json({
+        pmno,
+        ip: null,
+        type: printer.make || null,
+        online_status: 'offline',
+        status: 'PRINTER OFFLINE',
+        printerCondition: null,
+        firmwareVersion: null,
+        headRunKm: null,
+        error: 'Printer offline',
+      });
+    }
+
+    const web = await readPrinterWebDetails(ip, printer.make);
+    const printerType = web.printer_type || printer.make || null;
+    const printerCondition = web.condition_status === 'ready'
+      ? 'READY'
+      : (web.error_reason || (web.condition_status === 'unknown' ? 'Unknown' : 'Error'));
+    const dataAvailable = Boolean(web.firmware_version) || web.printer_km !== null;
+    const status = !web.web_reachable
+      ? 'WEB SERVICES OFF'
+      : (!dataAvailable ? 'DATA NOT AVAILABLE' : printerCondition);
+
+    res.json({
+      pmno,
+      ip,
+      type: printerType,
+      online_status: 'online',
+      status,
+      printerCondition,
+      firmwareVersion: web.firmware_version || null,
+      headRunKm: web.printer_km ?? null,
+      error: web.web_reachable
+        ? (!dataAvailable ? 'DATA NOT AVAILABLE' : null)
+        : 'WEB SERVICES OFF',
+    });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 router.get('/:pmno', async (req, res) => {
   try {
     const { rows } = await pool.query('SELECT * FROM printers WHERE pmno=$1', [req.params.pmno.toUpperCase()]);
@@ -138,7 +211,7 @@ router.get('/:pmno', async (req, res) => {
   }
 });
 
-router.post('/', async (req, res) => {
+router.post('/', adminMiddleware, async (req, res) => {
   const { pmno, serial, make, model, dpi, ip, wc, loc, stage, bay, status, pmdate, sapno, mesno, firmware, loftware, buyoff, remarks, maintenance_type, plant_location } = req.body;
   try {
     const { rows } = await pool.query(
@@ -153,7 +226,7 @@ router.post('/', async (req, res) => {
   }
 });
 
-router.put('/:id', async (req, res) => {
+router.put('/:id', adminMiddleware, async (req, res) => {
   const { serial, make, model, dpi, ip, wc, loc, stage, bay, status, pmdate, sapno, mesno, firmware, loftware, buyoff, remarks, maintenance_type, plant_location } = req.body;
   try {
     const { rows } = await pool.query(
@@ -167,7 +240,7 @@ router.put('/:id', async (req, res) => {
   }
 });
 
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', adminMiddleware, async (req, res) => {
   try {
     await pool.query('DELETE FROM printers WHERE id=$1', [req.params.id]);
     res.json({ success: true });

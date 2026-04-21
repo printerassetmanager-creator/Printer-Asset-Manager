@@ -50,6 +50,7 @@ export const printersAPI = {
   getDashboardLive: (plants) => api.get('/printers/dashboard-live', { params: plants ? { plants: plants.join(',') } : {} }),
   refreshDashboardLive: () => api.post('/printers/dashboard-live/refresh'),
   getStatusLogs: (pmno) => api.get(`/printers/status-logs/${encodeURIComponent(pmno)}`),
+  getLiveWebData: (pmno) => api.get(`/printers/${encodeURIComponent(pmno)}/live-web`),
   getOne: (pmno) => api.get(`/printers/${pmno}`),
   create: (data) => api.post('/printers', data),
   update: (id, data) => api.put(`/printers/${id}`, data),

@@ -6,11 +6,11 @@
 // Credentials for printer authentication
 const PRINTER_CREDENTIALS = {
   Honeywell: {
-    username: 'Itadmin',
-    password: 'Pass',
+    username: 'itadmin',
+    password: 'pass',
   },
   Zebra: {
-    username: 'Admin',
+    username: 'admin',
     password: '1234',
   },
 };
@@ -67,6 +67,100 @@ function detectPrinterType(serial, htmlContent) {
   return null;
 }
 
+function normalizePrinterText(value) {
+  return String(value || '')
+    .replace(/&nbsp;|&#160;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function stripStatusPrefix(value) {
+  return normalizePrinterText(value).replace(/^(?:status|warning|error condition)\s*:?\s*/i, '').trim();
+}
+
+function roundToTwo(value) {
+  return Math.round(value * 100) / 100;
+}
+
+function parseZebraFirmwareVersion(htmlContent) {
+  const body = String(htmlContent || '');
+  const regexes = [
+    /([A-Z0-9.]+)\s+<-\s*.*?FIRMWARE/i,
+    /(?:Firmware\s+Version|ZPL\s+Version)\s*:\s*([^\n<]*)/i,
+  ];
+
+  for (const rx of regexes) {
+    const match = body.match(rx);
+    if (match?.[1]) {
+      const firmware = normalizePrinterText(match[1]);
+      if (firmware) return firmware;
+    }
+  }
+
+  return null;
+}
+
+function parseZebraCmToKm(htmlContent) {
+  const body = String(htmlContent || '');
+  const regexes = [
+    /([\d,]+)\s*CM\s+NONRESET\s+CNTR/i,
+    /NONRESET\s+CNTR[\s\S]{0,40}?([\d,]+)\s*CM/i,
+    /(\d+(?:,\d{3})+|\d+)\s*cm(?![a-z])/i,
+  ];
+
+  for (const rx of regexes) {
+    const match = body.match(rx);
+    const raw = match?.[1];
+    if (!raw) continue;
+
+    const cm = Number(raw.replace(/,/g, ''));
+    if (!Number.isNaN(cm)) {
+      return roundToTwo(cm / 100000);
+    }
+  }
+
+  return null;
+}
+
+function parseHoneywellFirmwareVersion(htmlContent) {
+  const body = String(htmlContent || '');
+  const regexes = [
+    /Firmware\s+Version\s*<\/[^>]+>\s*<[^>]*>\s*([A-Za-z0-9._-]+)\s*</i,
+    /Firmware\s+Version[\s\S]{0,100}?([A-Za-z0-9._-]{5,})/i,
+  ];
+
+  for (const rx of regexes) {
+    const match = body.match(rx);
+    if (match?.[1]) {
+      const firmware = normalizePrinterText(match[1]);
+      if (firmware) return firmware;
+    }
+  }
+
+  return null;
+}
+
+function parseHoneywellMetersToKm(htmlContent) {
+  const body = String(htmlContent || '');
+  const regexes = [
+    /Total\s+Distance\s+Printed\s*\(Printhead\)[\s\S]{0,80}?(\d+(?:\.\d+)?)\s*m(?![a-z])/i,
+    /Printhead\s+Distance[\s\S]{0,40}?(\d+(?:\.\d+)?)\s*m(?![a-z])/i,
+    /(?:Printhead|Head).*?Distance[\s:]*(\d+(?:\.\d+)?)\s*m(?![a-z])/i,
+    /(\d+(?:\.\d+)?)\s*m(?![a-z])/i,
+  ];
+
+  for (const rx of regexes) {
+    const match = body.match(rx);
+    const meters = Number(match?.[1]);
+    if (!Number.isNaN(meters)) {
+      return roundToTwo(meters / 1000);
+    }
+  }
+
+  return null;
+}
+
 /**
  * Parse Honeywell printer data from home page
  * Looks for: <div class="printer_status"><span>Printhead lifted</span></div>
@@ -95,13 +189,7 @@ function parseHoneywellData(htmlContent) {
 
     // Extract Firmware Version
     // Pattern: <div class="home_concent_title">Firmware Version</div><div class="home_concent">H10.22.040778</div>
-    const fwMatch = htmlContent.match(/<div[^>]*class="home_concent_title"[^>]*>\s*Firmware Version\s*<\/div>\s*<div[^>]*class="home_concent"[^>]*>([^<]*)<\/div>/i);
-    if (fwMatch) {
-      let firmware = fwMatch[1].trim();
-      if (firmware) {
-        result.firmwareVersion = firmware;
-      }
-    }
+    result.firmwareVersion = parseHoneywellFirmwareVersion(htmlContent);
 
     return result;
   } catch (e) {
@@ -118,25 +206,7 @@ function parseHoneywellHeadRun(htmlContent) {
   try {
     if (!htmlContent) return null;
 
-    // Look for patterns: "Printhead Distance: 12345 m" or similar
-    const meterMatch = htmlContent.match(/(?:Printhead|Head).*?Distance[\s:]*(\d+(?:\.\d+)?)\s*m(?![a-z])/i);
-    if (meterMatch) {
-      const meters = parseFloat(meterMatch[1]);
-      if (!isNaN(meters)) {
-        return Math.round((meters / 1000) * 100) / 100; // Convert to KM, 2 decimals
-      }
-    }
-
-    // Fallback: generic meter value search
-    const genericMeterMatch = htmlContent.match(/(\d+(?:\.\d+)?)\s*m(?![a-z])/i);
-    if (genericMeterMatch) {
-      const meters = parseFloat(genericMeterMatch[1]);
-      if (!isNaN(meters)) {
-        return Math.round((meters / 1000) * 100) / 100;
-      }
-    }
-
-    return null;
+    return parseHoneywellMetersToKm(htmlContent);
   } catch (e) {
     console.error('Error parsing Honeywell head run:', e.message);
     return null;
@@ -151,26 +221,40 @@ function parseZebraData(htmlContent) {
   try {
     const result = {
       printerCondition: null,
+      mainStatus: null,
+      warning: null,
       firmwareVersion: null,
     };
 
     if (!htmlContent) return result;
 
-    // Extract Printer Condition from Status: <font>VALUE</font>
-    // Matches: <h3>Status: <font color="GREEN">READY</font></h3>
-    const statusMatch = htmlContent.match(/Status\s*:\s*<font[^>]*>([^<]*)<\/font>/i);
+    // Extract main status from: <h3>Status: <font color="GREEN">READY</font></h3>
+    const statusMatch = htmlContent.match(/Status\s*:\s*<font[^>]*>(.*?)<\/font>/is);
     if (statusMatch) {
-      let condition = statusMatch[1].trim();
-      result.printerCondition = condition || null;
+      const status = stripStatusPrefix(statusMatch[1]);
+      result.mainStatus = status || null;
+    }
+
+    // Extract warnings like:
+    // <font color="RED">WARNING RIBBON IN</font>
+    // <font color="RED">ERROR CONDITION: PAPER OUT</font>
+    const warningMatch = htmlContent.match(
+      /<font[^>]*>\s*(?:WARNING|ERROR\s+CONDITION)\s*:?\s*([^<]*)<\/font>/is
+    );
+    if (warningMatch) {
+      const warning = stripStatusPrefix(warningMatch[1]);
+      result.warning = warning || null;
+    }
+
+    if (result.mainStatus) {
+      result.printerCondition = result.mainStatus.toUpperCase() === 'READY'
+        ? result.mainStatus
+        : [result.mainStatus, result.warning].filter(Boolean).join(' - ');
     }
 
     // Firmware might be in HTML or in config
     // Looks for: "Firmware Version: V75.20.14Z" or "ZPL Version: ..."
-    const fwMatch = htmlContent.match(/(?:Firmware\s+Version|ZPL\s+Version)\s*:\s*([^\n<]*)/i);
-    if (fwMatch) {
-      let firmware = fwMatch[1].trim();
-      result.firmwareVersion = firmware || null;
-    }
+    result.firmwareVersion = parseZebraFirmwareVersion(htmlContent);
 
     return result;
   } catch (e) {
@@ -187,25 +271,7 @@ function parseZebraHeadRun(htmlContent) {
   try {
     if (!htmlContent) return null;
 
-    // Look for patterns: "Head Distance: 123456 cm" or "Printhead Distance: 123456 cm"
-    const cmMatch = htmlContent.match(/(?:Head|Printhead)\s+Distance[\s:]*(\d+(?:\.\d+)?)\s*cm(?![a-z])/i);
-    if (cmMatch) {
-      const cm = parseFloat(cmMatch[1]);
-      if (!isNaN(cm)) {
-        return Math.round((cm / 100000) * 100) / 100; // Convert to KM, 2 decimals
-      }
-    }
-
-    // Fallback: generic cm value search
-    const genericCmMatch = htmlContent.match(/(\d+(?:\.\d+)?)\s*cm(?![a-z])/i);
-    if (genericCmMatch) {
-      const cm = parseFloat(genericCmMatch[1]);
-      if (!isNaN(cm)) {
-        return Math.round((cm / 100000) * 100) / 100;
-      }
-    }
-
-    return null;
+    return parseZebraCmToKm(htmlContent);
   } catch (e) {
     console.error('Error parsing Zebra head run:', e.message);
     return null;
@@ -268,6 +334,7 @@ export async function fetchPrinterData(ip, serial) {
     headers = createFetchHeaders(printerType);
 
     let result = {
+      ip,
       printerType,
       printerCondition: null,
       firmwareVersion: null,
@@ -280,21 +347,22 @@ export async function fetchPrinterData(ip, serial) {
       result.printerCondition = homeData.printerCondition;
       result.firmwareVersion = homeData.firmwareVersion;
 
-      // Fetch head run from tphInfo.lua
+      // Fetch Honeywell statistics page for firmware and head run
       try {
-        const headResponse = await fetch(`${baseUrl}/statistics/tphInfo.lua`, {
+        const statsResponse = await fetch(`${baseUrl}/statistics/displaydata.lua`, {
           method: 'GET',
           mode: 'cors',
           headers: headers,
           timeout: 5000,
         });
 
-        if (headResponse.ok) {
-          const headContent = await headResponse.text();
-          result.headRunKm = parseHoneywellHeadRun(headContent);
+        if (statsResponse.ok) {
+          const statsContent = await statsResponse.text();
+          result.firmwareVersion = parseHoneywellFirmwareVersion(statsContent) || result.firmwareVersion;
+          result.headRunKm = parseHoneywellHeadRun(statsContent);
         }
       } catch (e) {
-        console.warn('Could not fetch Honeywell head run:', e.message);
+        console.warn('Could not fetch Honeywell statistics:', e.message);
       }
     } else if (printerType === 'Zebra') {
       // Parse home page for condition
@@ -326,6 +394,10 @@ export async function fetchPrinterData(ip, serial) {
       } catch (e) {
         console.warn('Could not fetch Zebra config:', e.message);
       }
+    }
+
+    if (!result.printerCondition && !result.firmwareVersion && result.headRunKm === null) {
+      return { ...result, error: 'DATA NOT AVAILABLE' };
     }
 
     return result;

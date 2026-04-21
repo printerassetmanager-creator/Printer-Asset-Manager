@@ -1,16 +1,86 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { issuesAPI, printersAPI } from '../utils/api';
 import { useApp, CURRENT_USER, PLANT_LOCATIONS } from '../context/AppContext';
 import { toSentenceCase } from '../utils/textFormat';
 
-const displayName = (u) => u.split('.').map(s=>s[0].toUpperCase()+s.slice(1)).join(' ');
-const empty = {pmno:'',serial:'',model:'',loc:'',sapno:'',mesno:'',title:'',desc:'',action:'',severity:'Medium',category:'Other',reporter:displayName(CURRENT_USER),plant_location:'B26',assigned_to:'',assignment_note:''};
+const displayName = (value) =>
+  String(value || '')
+    .split('.')
+    .filter(Boolean)
+    .map((part) => part[0].toUpperCase() + part.slice(1))
+    .join(' ');
+
+const normalizeUserId = (value) => String(value || '').trim().toLowerCase();
+
+const getIssueSearchParam = () => {
+  try {
+    return new URLSearchParams(window.location.search).get('issue') || '';
+  } catch {
+    return '';
+  }
+};
+
+const createUserOption = (user) => {
+  if (!user) return null;
+  if (typeof user === 'string') {
+    const email = user.trim();
+    return email ? { value: email, label: email } : null;
+  }
+
+  const email = String(user.email || user.value || '').trim();
+  if (!email) return null;
+
+  return {
+    value: email,
+    label: String(user.name || user.full_name || email).trim(),
+  };
+};
+
+const buildIssueFormState = (issue) => ({
+  pmno: issue.pmno || '',
+  serial: issue.serial || '',
+  model: issue.model || '',
+  loc: issue.loc || '',
+  sapno: issue.sapno || '',
+  mesno: issue.mesno || '',
+  title: issue.title || '',
+  desc: issue.desc || '',
+  action: issue.action || '',
+  severity: issue.severity || 'Medium',
+  category: issue.category || 'Other',
+  reporter: issue.reporter || '',
+  plant_location: issue.plant_location || 'B26',
+  status: issue.status || 'open',
+  assigned_to: '',
+  assignment_note: '',
+});
+
+const getIssueNumber = (issue) => issue?.issue_unique_id || (issue?.id ? `#${issue.id}` : '');
+
+const EMPTY_FORM = {
+  pmno: '',
+  serial: '',
+  model: '',
+  loc: '',
+  sapno: '',
+  mesno: '',
+  title: '',
+  desc: '',
+  action: '',
+  severity: 'Medium',
+  category: 'Other',
+  reporter: displayName(CURRENT_USER),
+  plant_location: 'B26',
+  assigned_to: '',
+  assignment_note: '',
+};
 
 export default function IssuesTracker() {
-  const { refreshIssueCount, selectedPlants } = useApp();
+  const { refreshIssueCount, selectedPlants, user } = useApp();
   const formRef = useRef(null);
+  const handledLinkedIssueRef = useRef('');
   const [data, setData] = useState([]);
-  const [form, setForm] = useState(empty);
+  const [form, setForm] = useState(EMPTY_FORM);
   const [editId, setEditId] = useState(null);
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
@@ -31,165 +101,87 @@ export default function IssuesTracker() {
   const [assignTo, setAssignTo] = useState('');
   const [assignmentNote, setAssignmentNote] = useState('');
   const [users, setUsers] = useState([]);
-  const fld = (k,v) => setForm(f=>({...f,[k]:v}));
+
+  const currentUserEmail = user?.email || CURRENT_USER;
+  const currentUserName = user?.full_name || user?.fullName || displayName(currentUserEmail);
+
+  const setField = (key, value) => {
+    setForm((previous) => ({ ...previous, [key]: value }));
+  };
+
+  const getIssueById = (issueId) => data.find((issue) => String(issue.id) === String(issueId));
+  const isIssueInMyBucket = (issue) =>
+    !!issue && normalizeUserId(issue.assigned_to) === normalizeUserId(currentUserEmail);
+  const getCurrentUserOption = () =>
+    users.find((entry) => normalizeUserId(entry.value) === normalizeUserId(currentUserEmail)) ||
+    createUserOption({ email: currentUserEmail, name: currentUserName });
+  const getAssignableUsers = (issue) => {
+    if (!issue || !isIssueInMyBucket(issue)) {
+      return [getCurrentUserOption()];
+    }
+
+    const otherUsers = users.filter(
+      (entry) => normalizeUserId(entry.value) !== normalizeUserId(currentUserEmail)
+    );
+    return otherUsers.length ? otherUsers : [getCurrentUserOption()];
+  };
 
   const load = async () => {
-    const { data: issues } = await issuesAPI.getAll(selectedPlants).catch(()=>({data:[]}));
-    setData(issues);
+    const linkedIssue = getIssueSearchParam();
+    const { data: issues } = await issuesAPI
+      .getAll(linkedIssue ? undefined : selectedPlants)
+      .catch(() => ({ data: [] }));
+    setData(Array.isArray(issues) ? issues : []);
     refreshIssueCount();
   };
 
   const loadUsers = async () => {
     try {
       const { data: userList } = await issuesAPI.getUsers();
-      // Normalize user format - backend returns {email, name, value}
-      const normalized = userList && Array.isArray(userList) 
-        ? userList.map(u => typeof u === 'string' ? u : (u.email || u.value || u))
+      const normalized = Array.isArray(userList)
+        ? userList.map(createUserOption).filter(Boolean)
         : [];
       setUsers(normalized);
-    } catch (e) {
-      console.error('Error loading users:', e);
+    } catch (error) {
+      console.error('Error loading users:', error);
       setUsers([]);
     }
   };
 
-  useEffect(()=>{ load(); loadUsers(); },[selectedPlants]);
+  useEffect(() => {
+    load();
+    loadUsers();
+  }, [selectedPlants]);
 
   const autoFill = async (pmno) => {
-    fld('pmno', pmno);
-    if (pmno.length >= 4) {
-      try {
-        const { data: p } = await printersAPI.getOne(pmno.trim().toUpperCase());
-        const fullLoc = [p.wc, p.loc].filter(Boolean).join(' / ') || p.loc || '';
-        setForm(f=>({...f,serial:p.serial||'',model:p.model||'',loc:fullLoc,sapno:p.sapno||'',mesno:p.mesno||''}));
-      } catch {}
-    }
-  };
-
-  const save = async () => {
-    if (!form.title || !form.desc) { setMsg('Title and Description required'); return; }
-    
-    // For Medium/Low severity issues, assignment is mandatory during creation
-    if (!editId && (form.severity === 'Medium' || form.severity === 'Low')) {
-      if (!form.assigned_to || !form.assigned_to.trim()) {
-        setMsg('Assignment is required for Medium/Low severity issues'); 
-        return;
-      }
-    }
-    
-    try {
-      const formatted = {
-        ...form,
-        title: toSentenceCase(form.title),
-        desc: toSentenceCase(form.desc),
-        action: form.action ? toSentenceCase(form.action) : '',
-        user_name: displayName(CURRENT_USER),
-        user_email: CURRENT_USER
-      };
-      if (editId) await issuesAPI.update(editId, formatted);
-      else await issuesAPI.create(formatted);
-      load(); clear(); setOpen(false); setMsg('Saved'); setTimeout(()=>setMsg(''),2000);
-    } catch (e) { 
-      const errorMsg = e.response?.data?.error || e.message || 'Error saving';
-      setMsg(errorMsg);
-      console.error('Save error:', e);
-    }
-  };
-
-  const doResolve = async () => {
-    if (!actionTaken || !actionTaken.trim()) { setMsg('Action Taken is required'); return; }
-    if (!editId) return;
-    try {
-      await issuesAPI.resolve(editId, { action_taken: actionTaken, user_name: displayName(CURRENT_USER) });
-      load(); clear(); setOpen(false); setMsg('Issue resolved'); setTimeout(()=>setMsg(''),2000);
-    } catch (e) { 
-      const errorMsg = e.response?.data?.error || e.message || 'Error resolving issue';
-      setMsg(errorMsg);
-      console.error('Resolve error:', e);
-    }
-  };
-
-  const doDowngrade = async () => {
-    if (!downgradeReason || !downgradeReason.trim()) { setMsg('Reason is required'); return; }
-    if (!downgradingId) return;
-    try {
-      await issuesAPI.downgrade(downgradingId, { new_severity: downgradeTo, reason: downgradeReason, user_name: displayName(CURRENT_USER) });
-      setMsg('Severity downgraded'); setTimeout(()=>setMsg(''),2000);
-      setDowngradingId(null);
-      setDowngradeReason('');
-      load();
-    } catch (e) { setMsg(e.response?.data?.error || 'Error downgrading'); }
-  };
-
-  const doUpgrade = async () => {
-    if (!upgradeReason || !upgradeReason.trim()) { setMsg('Reason is required'); return; }
-    if (!upgradingId) return;
-    try {
-      await issuesAPI.upgrade(upgradingId, { new_severity: upgradeTo, reason: upgradeReason, user_name: displayName(CURRENT_USER) });
-      setMsg('Severity upgraded'); setTimeout(()=>setMsg(''),2000);
-      setUpgradingId(null);
-      setUpgradeReason('');
-      setUpgradeTo('Medium');
-      load();
-    } catch (e) { setMsg(e.response?.data?.error || 'Error upgrading'); }
-  };
-
-  const doAssign = async () => {
-    if (!assignTo || !assignTo.trim()) { setMsg('Please select a user'); return; }
-    if (!assigningId) return;
-
-    const assigningIssue = data.find(i => i.id === assigningId);
-    if (!assigningIssue) { setMsg('Issue not found'); return; }
-
-    const currentUserEmail = CURRENT_USER;
-    const currentAssignee = assigningIssue.assigned_to || '';
-
-    // SIMPLE LOGIC:
-    // 1. If unassigned: only self-assign allowed
-    // 2. If assigned to you: can assign to anyone else (not yourself)
-    // 3. If assigned to someone else: can claim by assigning to yourself, cannot assign to others
-    
-    if (!currentAssignee) {
-      // Unassigned: only self-assign allowed
-      if (assignTo !== currentUserEmail) {
-        setMsg('Unassigned issues can only be assigned to yourself first.');
-        return;
-      }
-    } else if (currentAssignee === currentUserEmail) {
-      // In your bucket: can assign to anyone else (but not yourself)
-      if (assignTo === currentUserEmail) {
-        setMsg('Issue is already assigned to you.');
-        return;
-      }
-      // Require note when assigning to someone else
-      if (!assignmentNote || !assignmentNote.trim()) {
-        setMsg('Note is required when assigning to someone else.');
-        return;
-      }
-    } else if (assignTo !== currentUserEmail) {
-      // Not in your bucket AND trying to assign to someone other than yourself
-      setMsg('Only the current assignee can assign. You can claim it by assigning to yourself.');
-      return;
-      // If assignTo === currentUserEmail, allow it (claiming the issue)
-    }
+    setField('pmno', pmno);
+    if (pmno.length < 4) return;
 
     try {
-      await issuesAPI.assign(assigningId, { assigned_to: assignTo, user_name: displayName(CURRENT_USER), user_email: CURRENT_USER, assignment_note: assignmentNote || '' });
-      setMsg(`Issue assigned to ${assignTo} - notification email sent`);
-      setTimeout(()=>setMsg(''),3000);
-      setAssigningId(null);
-      setAssignTo('');
-      setAssignmentNote('');
-      load();
-    } catch (e) { 
-      console.error('Assignment error:', e);
-      setMsg(e.response?.data?.error || 'Error assigning issue'); 
-    }
+      const { data: printer } = await printersAPI.getOne(pmno.trim().toUpperCase());
+      const fullLoc = [printer.wc, printer.loc].filter(Boolean).join(' / ') || printer.loc || '';
+      setForm((previous) => ({
+        ...previous,
+        serial: printer.serial || '',
+        model: printer.model || '',
+        loc: fullLoc,
+        sapno: printer.sapno || '',
+        mesno: printer.mesno || '',
+      }));
+    } catch {}
   };
 
-  const edit = (issue) => {
+  const clear = () => {
+    setEditId(null);
+    setForm(EMPTY_FORM);
+    setMsg('');
+    setIsResolving(false);
+    setActionTaken('');
+  };
+
+  const openIssueEditor = (issue) => {
     setEditId(issue.id);
-    setForm({pmno:issue.pmno||'',serial:issue.serial||'',model:issue.model||'',loc:issue.loc||'',sapno:issue.sapno||'',mesno:issue.mesno||'',title:issue.title||'',desc:issue.desc||'',action:issue.action||'',severity:issue.severity||'Medium',category:issue.category||'Other',reporter:issue.reporter||'',plant_location:issue.plant_location||'B26',status:issue.status||'open',assigned_to:'',assignment_note:''});
+    setForm(buildIssueFormState(issue));
     setOpen(true);
     setIsResolving(false);
     setActionTaken('');
@@ -200,438 +192,543 @@ export default function IssuesTracker() {
     }, 100);
   };
 
-  const loadHistory = async (id) => {
+  const startResolve = (issue) => {
+    setEditId(issue.id);
+    setForm(buildIssueFormState(issue));
+    setOpen(true);
+    setIsResolving(true);
+    setActionTaken('');
+    setTimeout(() => {
+      if (formRef.current) {
+        formRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    }, 100);
+  };
+
+  const save = async () => {
+    if (!form.title || !form.desc) {
+      setMsg('Title and Description required');
+      return;
+    }
+
+    if (
+      !editId &&
+      (form.severity === 'Medium' || form.severity === 'Low') &&
+      !form.assigned_to.trim()
+    ) {
+      setMsg('Assignment is required for Medium/Low severity issues');
+      return;
+    }
+
     try {
-      const { data: hist } = await issuesAPI.getHistory(id);
-      setHistory(hist);
+      const formatted = {
+        ...form,
+        title: toSentenceCase(form.title),
+        desc: toSentenceCase(form.desc),
+        action: form.action ? toSentenceCase(form.action) : '',
+        user_name: currentUserName,
+        user_email: currentUserEmail,
+      };
+
+      if (editId) await issuesAPI.update(editId, formatted);
+      else await issuesAPI.create(formatted);
+
+      await load();
+      clear();
+      setOpen(false);
+      setMsg('Saved');
+      setTimeout(() => setMsg(''), 2000);
+    } catch (error) {
+      const errorMsg = error.response?.data?.error || error.message || 'Error saving';
+      setMsg(errorMsg);
+      console.error('Save error:', error);
+    }
+  };
+
+  const doResolve = async () => {
+    if (!editId) return;
+    if (!actionTaken.trim()) {
+      setMsg('Action Taken is required');
+      return;
+    }
+
+    try {
+      await issuesAPI.resolve(editId, {
+        action_taken: actionTaken,
+        user_name: currentUserName,
+        user_email: currentUserEmail,
+      });
+      await load();
+      clear();
+      setOpen(false);
+      setMsg('Issue resolved');
+      setTimeout(() => setMsg(''), 2000);
+    } catch (error) {
+      const errorMsg = error.response?.data?.error || error.message || 'Error resolving issue';
+      setMsg(errorMsg);
+      console.error('Resolve error:', error);
+    }
+  };
+
+  const doDowngrade = async () => {
+    if (!downgradingId) return;
+    if (!downgradeReason.trim()) {
+      setMsg('Reason is required');
+      return;
+    }
+
+    try {
+      await issuesAPI.downgrade(downgradingId, {
+        new_severity: downgradeTo,
+        reason: downgradeReason,
+        user_name: currentUserName,
+        user_email: currentUserEmail,
+      });
+      setMsg('Severity downgraded');
+      setTimeout(() => setMsg(''), 2000);
+      setDowngradingId(null);
+      setDowngradeReason('');
+      await load();
+    } catch (error) {
+      setMsg(error.response?.data?.error || 'Error downgrading');
+    }
+  };
+
+  const doUpgrade = async () => {
+    if (!upgradingId) return;
+    if (!upgradeReason.trim()) {
+      setMsg('Reason is required');
+      return;
+    }
+
+    try {
+      await issuesAPI.upgrade(upgradingId, {
+        new_severity: upgradeTo,
+        reason: upgradeReason,
+        user_name: currentUserName,
+        user_email: currentUserEmail,
+      });
+      setMsg('Severity upgraded');
+      setTimeout(() => setMsg(''), 2000);
+      setUpgradingId(null);
+      setUpgradeReason('');
+      setUpgradeTo('Medium');
+      await load();
+    } catch (error) {
+      setMsg(error.response?.data?.error || 'Error upgrading');
+    }
+  };
+
+  const openAssignModal = (issueId) => {
+    const issue = getIssueById(issueId);
+    const availableUsers = getAssignableUsers(issue);
+    setAssigningId(issueId);
+    setAssignTo(availableUsers.length === 1 ? availableUsers[0].value : '');
+    setAssignmentNote('');
+  };
+
+  const doAssign = async () => {
+    if (!assigningId) return;
+    if (!assignTo.trim()) {
+      setMsg('Please select a user');
+      return;
+    }
+
+    const issue = getIssueById(assigningId);
+    if (!issue) {
+      setMsg('Issue not found');
+      return;
+    }
+
+    const currentAssignee = normalizeUserId(issue.assigned_to);
+    const currentUser = normalizeUserId(currentUserEmail);
+    const requestedUser = normalizeUserId(assignTo);
+
+    if (!currentAssignee) {
+      if (requestedUser !== currentUser) {
+        setMsg('Unassigned issues can only be assigned to yourself first.');
+        return;
+      }
+    } else if (currentAssignee === currentUser) {
+      if (requestedUser === currentUser) {
+        setMsg('Issue is already assigned to you.');
+        return;
+      }
+
+      if (!assignmentNote.trim()) {
+        setMsg('Note is required when assigning to someone else.');
+        return;
+      }
+    } else if (requestedUser !== currentUser) {
+      setMsg('Only the current assignee can assign. You can claim it by assigning to yourself.');
+      return;
+    }
+
+    try {
+      await issuesAPI.assign(assigningId, {
+        assigned_to: assignTo,
+        user_name: currentUserName,
+        user_email: currentUserEmail,
+        assignment_note: assignmentNote || '',
+      });
+      setMsg(`Issue assigned to ${assignTo} - notification email sent`);
+      setTimeout(() => setMsg(''), 3000);
+      setAssigningId(null);
+      setAssignTo('');
+      setAssignmentNote('');
+      await load();
+    } catch (error) {
+      console.error('Assignment error:', error);
+      setMsg(error.response?.data?.error || 'Error assigning issue');
+    }
+  };
+
+  const loadHistory = async (issueId) => {
+    try {
+      const { data: historyItems } = await issuesAPI.getHistory(issueId);
+      setHistory(Array.isArray(historyItems) ? historyItems : []);
       setShowHistory(true);
     } catch {}
   };
 
-  const clear = () => { setEditId(null); setForm(empty); setMsg(''); setIsResolving(false); setActionTaken(''); };
+  const selectedIssue = getIssueById(editId);
+  const selectedIssueNumber = getIssueNumber(selectedIssue);
+  const selectedIssueInMyBucket = isIssueInMyBucket(selectedIssue);
+  const assigningIssue = getIssueById(assigningId);
+  const assigningIssueInMyBucket = isIssueInMyBucket(assigningIssue);
+  const assignableUsers = getAssignableUsers(assigningIssue);
+  const upgradeBaseSeverity = selectedIssue?.severity || form.severity;
 
-  const filtered = data.filter(i => {
-    const q = search.trim().toLowerCase();
-    if (!q) return (!sevF||i.severity===sevF) && (!statF||i.status===statF);
-    const pmno = String(i.pmno || '').toLowerCase();
-    const serial = String(i.serial || '').toLowerCase();
-    const uniqueId = String(i.issue_unique_id || '').toLowerCase();
-    if (q === pmno || q === serial || q === uniqueId) return (!sevF||i.severity===sevF) && (!statF||i.status===statF);
-    const fuzzyFields = [i.title, i.model, i.loc, i.desc, i.category, i.action, i.reporter, i.issue_unique_id];
-    const fuzzyMatch = fuzzyFields.some(f => String(f || '').toLowerCase().includes(q));
-    return fuzzyMatch && (!sevF||i.severity===sevF) && (!statF||i.status===statF);
-  }).sort((a,b)=>{
-    if (a.status!==b.status) return a.status==='open'?-1:1;
-    const s={High:0,Medium:1,Low:2};
-    if (a.severity!==b.severity) return (s[a.severity]||1)-(s[b.severity]||1);
-    return new Date(b.created_at)-new Date(a.created_at);
-  });
+  useEffect(() => {
+    const linkedIssue = getIssueSearchParam().trim();
+    if (!linkedIssue || !data.length || handledLinkedIssueRef.current === linkedIssue) {
+      return;
+    }
 
-  const open_c = data.filter(i=>i.status==='open').length;
-  const high_c = data.filter(i=>i.status==='open'&&i.severity==='High').length;
-  const resolved_c = data.filter(i=>i.status==='resolved').length;
-  const breached_c = data.filter(i=>{
-    const created = new Date(i.created_at);
+    const matchedIssue = data.find(
+      (issue) =>
+        normalizeUserId(issue.issue_unique_id) === normalizeUserId(linkedIssue) ||
+        String(issue.id) === linkedIssue
+    );
+
+    if (!matchedIssue) {
+      return;
+    }
+
+    handledLinkedIssueRef.current = linkedIssue;
+    setSearch(matchedIssue.issue_unique_id || linkedIssue);
+    openIssueEditor(matchedIssue);
+  }, [data]);
+
+  const filtered = data
+    .filter((issue) => {
+      const query = search.trim().toLowerCase();
+      const matchesFilters = (!sevF || issue.severity === sevF) && (!statF || issue.status === statF);
+      if (!query) return matchesFilters;
+
+      const fields = [
+        issue.pmno,
+        issue.serial,
+        issue.issue_unique_id,
+        issue.title,
+        issue.model,
+        issue.loc,
+        issue.desc,
+        issue.category,
+        issue.action,
+        issue.reporter,
+      ];
+
+      return fields.some((field) => String(field || '').toLowerCase().includes(query)) && matchesFilters;
+    })
+    .sort((a, b) => {
+      if (a.status !== b.status) return a.status === 'open' ? -1 : 1;
+      const severityOrder = { High: 0, Medium: 1, Low: 2 };
+      if (a.severity !== b.severity) return (severityOrder[a.severity] || 1) - (severityOrder[b.severity] || 1);
+      return new Date(b.created_at) - new Date(a.created_at);
+    });
+
+  const openCount = data.filter((issue) => issue.status === 'open').length;
+  const highCount = data.filter((issue) => issue.status === 'open' && issue.severity === 'High').length;
+  const resolvedCount = data.filter((issue) => issue.status === 'resolved').length;
+  const breachedCount = data.filter((issue) => {
+    const created = new Date(issue.created_at);
     const severityDays = { High: 1, Medium: 3, Low: 7 };
-    const days = severityDays[i.severity] || 3;
     const deadline = new Date(created);
-    deadline.setDate(deadline.getDate() + days);
-    return deadline < Date.now() && i.status === 'open';
+    deadline.setDate(deadline.getDate() + (severityDays[issue.severity] || 3));
+    return deadline < Date.now() && issue.status === 'open';
   }).length;
 
   return (
     <div className="screen">
       <div className="notice n-warn">
-        ⚠ High severity issues are stored permanently for audit trail. Other issues are automatically deleted after 10 days of resolution.
+        High severity issues are stored permanently for audit trail. Other issues are automatically deleted after 10 days of resolution.
       </div>
 
       <div className="issues-stat-row">
-        <div className="kpi" style={{borderColor:'rgba(224,82,82,.3)'}}><div className="kpi-lbl">Open Issues</div><div className="kpi-val" style={{color:'var(--red)'}}>{open_c}</div><div className="kpi-sub">Active on printers</div></div>
-        <div className="kpi" style={{borderColor:'rgba(232,160,32,.3)'}}><div className="kpi-lbl">High Severity</div><div className="kpi-val" style={{color:'var(--amber)'}}>{high_c}</div><div className="kpi-sub">Urgent action needed</div></div>
-        <div className="kpi"><div className="kpi-lbl">Resolved</div><div className="kpi-val" style={{color:'var(--green)'}}>{resolved_c}</div><div className="kpi-sub">Closed total</div></div>
-        <div className="kpi" style={{borderColor:'rgba(239,68,68,.3)'}}><div className="kpi-lbl">Breached Issues</div><div className="kpi-val" style={{color:'var(--red)'}}>{breached_c}</div><div className="kpi-sub">Deadline exceeded</div></div>
+        <div className="kpi" style={{ borderColor: 'rgba(224,82,82,.3)' }}>
+          <div className="kpi-lbl">Open Issues</div>
+          <div className="kpi-val" style={{ color: 'var(--red)' }}>{openCount}</div>
+          <div className="kpi-sub">Active on printers</div>
+        </div>
+        <div className="kpi" style={{ borderColor: 'rgba(232,160,32,.3)' }}>
+          <div className="kpi-lbl">High Severity</div>
+          <div className="kpi-val" style={{ color: 'var(--amber)' }}>{highCount}</div>
+          <div className="kpi-sub">Urgent action needed</div>
+        </div>
+        <div className="kpi">
+          <div className="kpi-lbl">Resolved</div>
+          <div className="kpi-val" style={{ color: 'var(--green)' }}>{resolvedCount}</div>
+          <div className="kpi-sub">Closed total</div>
+        </div>
+        <div className="kpi" style={{ borderColor: 'rgba(239,68,68,.3)' }}>
+          <div className="kpi-lbl">Breached Issues</div>
+          <div className="kpi-val" style={{ color: 'var(--red)' }}>{breachedCount}</div>
+          <div className="kpi-sub">Deadline exceeded</div>
+        </div>
       </div>
 
-      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:'14px',gap:'10px',flexWrap:'wrap'}}>
-        <div className="issues-filter-row" style={{marginBottom:0,flex:1}}>
-          <input placeholder="Search by Issue ID (ISU001), PM No, serial, model, description..." value={search} onChange={e=>setSearch(e.target.value)}/>
-          <select value={sevF} onChange={e=>setSevF(e.target.value)} style={{background:'var(--bg)',border:'1px solid var(--border)',borderRadius:'var(--r)',padding:'8px 11px',fontSize:'13px',color:'var(--text)',fontFamily:'Inter,sans-serif',outline:'none'}}>
-            <option value="">All Severity</option><option>High</option><option>Medium</option><option>Low</option>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '14px', gap: '10px', flexWrap: 'wrap' }}>
+        <div className="issues-filter-row" style={{ marginBottom: 0, flex: 1 }}>
+          <input
+            placeholder="Search by Issue ID, PM No, serial, model, description..."
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+          />
+          <select value={sevF} onChange={(event) => setSevF(event.target.value)} style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--r)', padding: '8px 11px', fontSize: '13px', color: 'var(--text)', fontFamily: 'Inter,sans-serif', outline: 'none' }}>
+            <option value="">All Severity</option>
+            <option>High</option>
+            <option>Medium</option>
+            <option>Low</option>
           </select>
-          <select value={statF} onChange={e=>setStatF(e.target.value)} style={{background:'var(--bg)',border:'1px solid var(--border)',borderRadius:'var(--r)',padding:'8px 11px',fontSize:'13px',color:'var(--text)',fontFamily:'Inter,sans-serif',outline:'none'}}>
-            <option value="">All Status</option><option value="open">Open</option><option value="resolved">Resolved</option>
+          <select value={statF} onChange={(event) => setStatF(event.target.value)} style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--r)', padding: '8px 11px', fontSize: '13px', color: 'var(--text)', fontFamily: 'Inter,sans-serif', outline: 'none' }}>
+            <option value="">All Status</option>
+            <option value="open">Open</option>
+            <option value="resolved">Resolved</option>
           </select>
         </div>
-        <button className="btn btn-primary" onClick={()=>{clear();setOpen(o=>!o);}}>+ Log Issue</button>
+        <button className="btn btn-primary" onClick={() => { clear(); setOpen((previous) => !previous); }}>+ Log Issue</button>
       </div>
 
-      <div ref={formRef} className={`collapse-form${open?' open':''}`}>
+      <div ref={formRef} className={`collapse-form${open ? ' open' : ''}`}>
         <div className="cf-header">
-          <div className="cf-title">{editId ? 'Edit Issue — '+form.pmno : 'Log New Issue'}</div>
-          <button className="btn btn-ghost btn-sm" onClick={()=>{setOpen(false);clear();}}>Cancel</button>
+          <div className="cf-title">{editId ? `Edit Issue - ${selectedIssueNumber || form.pmno}` : 'Log New Issue'}</div>
+          {selectedIssueNumber && <div style={{ fontSize: '12px', color: 'var(--blue)', fontWeight: 600 }}>Issue Number: {selectedIssueNumber}</div>}
+          <button className="btn btn-ghost btn-sm" onClick={() => { setOpen(false); clear(); }}>Cancel</button>
         </div>
-        <div className="fgrid fg4" style={{marginBottom:'12px'}}>
-          <div className="field"><label>PM No *</label><input disabled={editId && !isResolving} value={form.pmno} onChange={e=>autoFill(e.target.value)} placeholder="e.g. 1256"/></div>
-          <div className="field"><label>Serial No <span className="tag-a">Auto</span></label><input className="af" disabled={editId && !isResolving} readOnly value={form.serial} placeholder="—"/></div>
-          <div className="field"><label>Printer Model <span className="tag-a">Auto</span></label><input className="af" disabled={editId && !isResolving} readOnly value={form.model} placeholder="—"/></div>
-          <div className="field"><label>Location <span className="tag-a">Auto</span></label><input className="af" disabled={editId && !isResolving} readOnly value={form.loc} placeholder="—"/></div>
-          <div className="field"><label>SAP Printer No <span className="tag-a">Auto</span></label><input disabled={editId && !isResolving} value={form.sapno} onChange={e=>fld('sapno',e.target.value)} placeholder="—"/></div>
-          <div className="field"><label>MES Printer No <span className="tag-a">Auto</span></label><input disabled={editId && !isResolving} value={form.mesno} onChange={e=>fld('mesno',e.target.value)} placeholder="—"/></div>
-          <div className="field"><label>Plant Location</label>
-            <select disabled={editId && !isResolving} value={form.plant_location} onChange={e=>fld('plant_location',e.target.value)}>
-              {PLANT_LOCATIONS.map(pl => <option key={pl} value={pl}>{pl}</option>)}
+        <div className="fgrid fg4" style={{ marginBottom: '12px' }}>
+          <div className="field"><label>PM No *</label><input disabled={editId && !isResolving} value={form.pmno} onChange={(event) => autoFill(event.target.value)} placeholder="e.g. 1256" /></div>
+          <div className="field"><label>Serial No <span className="tag-a">Auto</span></label><input className="af" disabled={editId && !isResolving} readOnly value={form.serial} placeholder="-" /></div>
+          <div className="field"><label>Printer Model <span className="tag-a">Auto</span></label><input className="af" disabled={editId && !isResolving} readOnly value={form.model} placeholder="-" /></div>
+          <div className="field"><label>Location <span className="tag-a">Auto</span></label><input className="af" disabled={editId && !isResolving} readOnly value={form.loc} placeholder="-" /></div>
+          <div className="field"><label>SAP Printer No <span className="tag-a">Auto</span></label><input disabled={editId && !isResolving} value={form.sapno} onChange={(event) => setField('sapno', event.target.value)} placeholder="-" /></div>
+          <div className="field"><label>MES Printer No <span className="tag-a">Auto</span></label><input disabled={editId && !isResolving} value={form.mesno} onChange={(event) => setField('mesno', event.target.value)} placeholder="-" /></div>
+          <div className="field">
+            <label>Plant Location</label>
+            <select disabled={editId && !isResolving} value={form.plant_location} onChange={(event) => setField('plant_location', event.target.value)}>
+              {PLANT_LOCATIONS.map((plant) => <option key={plant} value={plant}>{plant}</option>)}
             </select>
           </div>
-          <div className="field"><label>Issue Title *</label><input disabled={editId && !isResolving} value={form.title} onChange={e=>fld('title',e.target.value)} placeholder="Brief title of the issue"/></div>
-          <div className="field"><label>Severity</label>
-            <select disabled={editId && !isResolving} value={form.severity} onChange={e=>fld('severity',e.target.value)}>
-              <option value="High">High — Printer Down</option>
-              <option value="Medium">Medium — Degraded</option>
-              <option value="Low">Low — Minor</option>
+          <div className="field"><label>Issue Title *</label><input disabled={editId && !isResolving} value={form.title} onChange={(event) => setField('title', event.target.value)} placeholder="Brief title of the issue" /></div>
+          <div className="field">
+            <label>Severity</label>
+            <select disabled={editId && !isResolving} value={form.severity} onChange={(event) => setField('severity', event.target.value)}>
+              <option value="High">High - Printer Down</option>
+              <option value="Medium">Medium - Degraded</option>
+              <option value="Low">Low - Minor</option>
             </select>
           </div>
           {!editId && (form.severity === 'Medium' || form.severity === 'Low') && (
-            <div className="field"><label>Assign To * <span style={{color:'var(--red)',fontSize:'12px'}}>Required for {form.severity} severity</span></label>
-              <select value={form.assigned_to} onChange={e=>fld('assigned_to',e.target.value)} required>
+            <div className="field">
+              <label>Assign To * <span style={{ color: 'var(--red)', fontSize: '12px' }}>Required for {form.severity} severity</span></label>
+              <select value={form.assigned_to} onChange={(event) => setField('assigned_to', event.target.value)} required>
                 <option value="">-- Select User --</option>
-                {users && users.length > 0 ? (
-                  users.map((u, idx) => (
-                    <option key={idx} value={u}>{u}</option>
-                  ))
-                ) : (
-                  <option disabled>No users available</option>
-                )}
+                {users.length > 0 ? users.map((entry) => (
+                  <option key={entry.value} value={entry.value}>{entry.label}{entry.label !== entry.value ? ` (${entry.value})` : ''}</option>
+                )) : <option disabled>No users available</option>}
               </select>
             </div>
           )}
-          <div className="field"><label>Category</label>
-            <select disabled={editId && !isResolving} value={form.category} onChange={e=>fld('category',e.target.value)}>
-              <option>Print Head</option><option>Media / Ribbon</option><option>Connectivity</option>
-              <option>Firmware</option><option>Mechanical</option><option>Label Quality</option><option>Other</option>
+          <div className="field">
+            <label>Category</label>
+            <select disabled={editId && !isResolving} value={form.category} onChange={(event) => setField('category', event.target.value)}>
+              <option>Print Head</option>
+              <option>Media / Ribbon</option>
+              <option>Connectivity</option>
+              <option>Firmware</option>
+              <option>Mechanical</option>
+              <option>Label Quality</option>
+              <option>Other</option>
             </select>
           </div>
-          <div className="field"><label>Reported By</label><input disabled={editId && !isResolving} value={form.reporter} onChange={e=>fld('reporter',e.target.value)} placeholder="Your name"/></div>
-          <div className="field full"><label>Issue Description *</label><textarea disabled={editId && !isResolving} value={form.desc} onChange={e=>fld('desc',e.target.value)} placeholder="Describe the issue in detail..." style={{minHeight:'70px'}}/></div>
-          {!editId || isResolving ? null : <div className="field full"><label>Action Taken</label><textarea value={form.action} onChange={e=>fld('action',e.target.value)} placeholder="What was tried or done to resolve this..." style={{minHeight:'50px'}}/></div>}
-          
-          {editId && isResolving && (
-            <div className="field full"><label>Action Taken *</label><textarea value={actionTaken} onChange={e=>setActionTaken(e.target.value)} placeholder="Describe what action you took to resolve this issue..." style={{minHeight:'70px',borderColor:'var(--green)',backgroundColor:'rgba(74,222,128,.05)'}}/></div>
-          )}
+          <div className="field"><label>Reported By</label><input disabled={editId && !isResolving} value={form.reporter} onChange={(event) => setField('reporter', event.target.value)} placeholder="Your name" /></div>
+          <div className="field full"><label>Issue Description *</label><textarea disabled={editId && !isResolving} value={form.desc} onChange={(event) => setField('desc', event.target.value)} placeholder="Describe the issue in detail..." style={{ minHeight: '70px' }} /></div>
+          {!editId || isResolving ? null : <div className="field full"><label>Action Taken</label><textarea value={form.action} onChange={(event) => setField('action', event.target.value)} placeholder="What was tried or done to resolve this..." style={{ minHeight: '50px' }} /></div>}
+          {editId && isResolving && <div className="field full"><label>Action Taken *</label><textarea value={actionTaken} onChange={(event) => setActionTaken(event.target.value)} placeholder="Describe what action you took to resolve this issue..." style={{ minHeight: '70px', borderColor: 'var(--green)', backgroundColor: 'rgba(74,222,128,.05)' }} /></div>}
         </div>
-        
-        <div style={{display:'flex',gap:'8px',alignItems:'center',flexWrap:'wrap'}}>
+
+        <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
           {!editId ? (
             <>
               <button className="btn btn-success" onClick={save}>Save Issue</button>
-              {msg && <span style={{fontSize:'12px',color:'var(--green)',marginLeft:'8px'}}>{msg}</span>}
+              {msg && <span style={{ fontSize: '12px', color: 'var(--green)', marginLeft: '8px' }}>{msg}</span>}
             </>
           ) : isResolving ? (
             <>
-              <button className="btn btn-success" onClick={doResolve}>✓ Resolve Issue</button>
-              <button className="btn btn-ghost btn-sm" onClick={()=>setIsResolving(false)}>Cancel Resolve</button>
-              {msg && <span style={{fontSize:'12px',color:msg.startsWith('Error')?'var(--red)':'var(--green)',marginLeft:'8px'}}>{msg}</span>}
+              <button className="btn btn-success" onClick={doResolve}>Resolve Issue</button>
+              <button className="btn btn-ghost btn-sm" onClick={() => setIsResolving(false)}>Cancel Resolve</button>
+              {msg && <span style={{ fontSize: '12px', color: msg.startsWith('Error') ? 'var(--red)' : 'var(--green)', marginLeft: '8px' }}>{msg}</span>}
             </>
           ) : form.status === 'resolved' ? (
             <>
-              <span style={{fontSize:'12px',color:'var(--green)',fontWeight:'600'}}>✓ Issue Resolved</span>
-              <button className="btn btn-ghost btn-sm" onClick={() => loadHistory(editId)} style={{marginLeft:'12px'}}>📋 History</button>
-              {msg && <span style={{fontSize:'12px',color:msg.startsWith('Error')?'var(--red)':'var(--green)',marginLeft:'8px'}}>{msg}</span>}
+              <span style={{ fontSize: '12px', color: 'var(--green)', fontWeight: 600 }}>Issue Resolved</span>
+              <button className="btn btn-ghost btn-sm" onClick={() => loadHistory(editId)} style={{ marginLeft: '12px' }}>History</button>
+              {msg && <span style={{ fontSize: '12px', color: msg.startsWith('Error') ? 'var(--red)' : 'var(--green)', marginLeft: '8px' }}>{msg}</span>}
             </>
           ) : (
             <>
-              <button className="btn btn-success btn-sm" onClick={()=>setIsResolving(true)}>✓ Resolve</button>
-              {form.severity !== 'Low' && <button className="btn btn-ghost btn-sm" onClick={() => { setDowngradingId(editId); setDowngradeTo(form.severity === 'High' ? 'Medium' : 'Low'); setDowngradeReason(''); }}>↓ Downgrade</button>}
-              {form.severity !== 'High' && <button className="btn btn-ghost btn-sm" onClick={() => { setUpgradingId(editId); setUpgradeReason(''); }}>↑ Upgrade</button>}
-              <button className="btn btn-info btn-sm" onClick={() => { setAssigningId(editId); setAssignTo(data.find(i=>i.id===editId)?.assigned_to || ''); setAssignmentNote(''); }}>👤 Assign</button>
-              <button className="btn btn-ghost btn-sm" onClick={() => loadHistory(editId)}>📋 History</button>
-              {msg && <span style={{fontSize:'12px',color:msg.startsWith('Error')?'var(--red)':'var(--green)',marginLeft:'8px'}}>{msg}</span>}
+              {selectedIssueInMyBucket && <button className="btn btn-success btn-sm" onClick={() => setIsResolving(true)}>Resolve</button>}
+              {selectedIssueInMyBucket && form.severity !== 'Low' && <button className="btn btn-ghost btn-sm" onClick={() => { setDowngradingId(editId); setDowngradeTo(form.severity === 'High' ? 'Medium' : 'Low'); setDowngradeReason(''); }}>Downgrade</button>}
+              {selectedIssueInMyBucket && form.severity !== 'High' && <button className="btn btn-ghost btn-sm" onClick={() => { setUpgradingId(editId); setUpgradeReason(''); setUpgradeTo(form.severity === 'Low' ? 'Medium' : 'High'); }}>Upgrade</button>}
+              <button className="btn btn-info btn-sm" onClick={() => openAssignModal(editId)}>Assign</button>
+              <button className="btn btn-ghost btn-sm" onClick={() => loadHistory(editId)}>History</button>
+              {!selectedIssueInMyBucket && <span style={{ fontSize: '12px', color: 'var(--green)', marginLeft: '8px' }}>This issue is not in your bucket. You can only claim it by assigning it to yourself.</span>}
+              {msg && <span style={{ fontSize: '12px', color: msg.startsWith('Error') ? 'var(--red)' : 'var(--green)', marginLeft: '8px' }}>{msg}</span>}
             </>
           )}
         </div>
       </div>
 
-      {/* Downgrade Modal */}
       {downgradingId && (
-        <div style={{position:'fixed',top:0,left:0,right:0,bottom:0,background:'rgba(0,0,0,.5)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:1000}}>
-          <div style={{background:'var(--bg)',borderRadius:'8px',padding:'20px',minWidth:'350px',border:'1px solid var(--border)'}}>
-            <h3 style={{marginTop:0,marginBottom:'15px',color:'var(--text)'}}>Downgrade Severity</h3>
-            <div className="field" style={{marginBottom:'12px'}}>
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+          <div style={{ background: 'var(--bg)', borderRadius: '8px', padding: '20px', minWidth: '350px', border: '1px solid var(--border)' }}>
+            <h3 style={{ marginTop: 0, marginBottom: '15px', color: 'var(--text)' }}>Downgrade Severity</h3>
+            <div className="field" style={{ marginBottom: '12px' }}>
               <label>Downgrade to:</label>
-              <select value={downgradeTo} onChange={e=>setDowngradeTo(e.target.value)} style={{width:'100%',padding:'8px',borderRadius:'4px',border:'1px solid var(--border)',background:'var(--bg)',color:'var(--text)'}}>
-                {form.severity === 'High' && <><option value="Medium">Medium</option><option value="Low">Low</option></> }
+              <select value={downgradeTo} onChange={(event) => setDowngradeTo(event.target.value)} style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--text)' }}>
+                {form.severity === 'High' && (<><option value="Medium">Medium</option><option value="Low">Low</option></>)}
                 {form.severity === 'Medium' && <option value="Low">Low</option>}
               </select>
             </div>
-            <div className="field" style={{marginBottom:'15px'}}>
+            <div className="field" style={{ marginBottom: '15px' }}>
               <label>Reason *</label>
-              <textarea value={downgradeReason} onChange={e=>setDowngradeReason(e.target.value)} placeholder="Why are you downgrading this issue?" style={{width:'100%',padding:'8px',borderRadius:'4px',border:'1px solid var(--border)',background:'var(--bg)',color:'var(--text)',minHeight:'80px',boxSizing:'border-box'}}/>
+              <textarea value={downgradeReason} onChange={(event) => setDowngradeReason(event.target.value)} placeholder="Why are you downgrading this issue?" style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--text)', minHeight: '80px', boxSizing: 'border-box' }} />
             </div>
-            <div style={{display:'flex',gap:'8px',justifyContent:'flex-end'}}>
-              <button className="btn btn-ghost btn-sm" onClick={()=>setDowngradingId(null)}>Cancel</button>
+            <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+              <button className="btn btn-ghost btn-sm" onClick={() => { setDowngradingId(null); setDowngradeReason(''); }}>Cancel</button>
               <button className="btn btn-warning" onClick={doDowngrade}>Confirm Downgrade</button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Upgrade Modal */}
       {upgradingId && (
-        <div style={{position:'fixed',top:0,left:0,right:0,bottom:0,background:'rgba(0,0,0,.5)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:1000}}>
-          <div style={{background:'var(--bg)',borderRadius:'8px',padding:'20px',minWidth:'350px',border:'1px solid var(--border)'}}>
-            <h3 style={{marginTop:0,marginBottom:'15px',color:'var(--text)'}}>Upgrade Severity</h3>
-            <div className="field" style={{marginBottom:'12px'}}>
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+          <div style={{ background: 'var(--bg)', borderRadius: '8px', padding: '20px', minWidth: '350px', border: '1px solid var(--border)' }}>
+            <h3 style={{ marginTop: 0, marginBottom: '15px', color: 'var(--text)' }}>Upgrade Severity</h3>
+            <div className="field" style={{ marginBottom: '12px' }}>
               <label>Upgrade to:</label>
-              <select disabled style={{width:'100%',padding:'8px',borderRadius:'4px',border:'1px solid var(--border)',background:'var(--bg)',color:'var(--text)'}}>
-                {form.severity === 'Low' && <option>Medium</option>}
-                {form.severity === 'Medium' && <option>High</option>}
+              <select value={upgradeTo} onChange={(event) => setUpgradeTo(event.target.value)} style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--text)' }}>
+                {upgradeBaseSeverity === 'Low' && (<><option value="Medium">Medium</option><option value="High">High</option></>)}
+                {upgradeBaseSeverity === 'Medium' && <option value="High">High</option>}
               </select>
             </div>
-            <p style={{fontSize:'13px',color:'var(--text2)',marginBottom:'15px'}}>Severity will be upgraded to next level. Countdown will restart from now.</p>
-            <div className="field" style={{marginBottom:'15px'}}>
-              <label style={{display:'block',marginBottom:'6px',fontSize:'13px',fontWeight:600,color:'var(--text)'}}>Upgrade To</label>
-              <select value={upgradeTo} onChange={e=>setUpgradeTo(e.target.value)} style={{width:'100%',padding:'8px',borderRadius:'4px',border:'1px solid var(--border)',background:'var(--bg)',color:'var(--text)',fontSize:'13px'}}>
-                {i.severity === 'Low' && (
-                  <>
-                    <option value="Medium">Medium</option>
-                    <option value="High">High</option>
-                  </>
-                )}
-                {i.severity === 'Medium' && (
-                  <option value="High">High</option>
-                )}
-              </select>
-            </div>
-            <div className="field" style={{marginBottom:'15px'}}>
+            <div className="field" style={{ marginBottom: '15px' }}>
               <label>Reason *</label>
-              <textarea value={upgradeReason} onChange={e=>setUpgradeReason(e.target.value)} placeholder="Why are you upgrading this issue?" style={{width:'100%',padding:'8px',borderRadius:'4px',border:'1px solid var(--border)',background:'var(--bg)',color:'var(--text)',minHeight:'80px',boxSizing:'border-box'}}/>
+              <textarea value={upgradeReason} onChange={(event) => setUpgradeReason(event.target.value)} placeholder="Why are you upgrading this issue?" style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--text)', minHeight: '80px', boxSizing: 'border-box' }} />
             </div>
-            <div style={{display:'flex',gap:'8px',justifyContent:'flex-end'}}>
-              <button className="btn btn-ghost btn-sm" onClick={()=>{setUpgradingId(null);setUpgradeTo('Medium');}}>Cancel</button>
-              <button className="btn btn-danger" onClick={doUpgrade}>Confirm Upgrade</button>
+            <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+              <button className="btn btn-ghost btn-sm" onClick={() => { setUpgradingId(null); setUpgradeReason(''); }}>Cancel</button>
+              <button className="btn btn-warning" onClick={doUpgrade}>Confirm Upgrade</button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Assignment Modal */}
-      {assigningId && (
-        <div style={{position:'fixed',top:0,left:0,right:0,bottom:0,background:'rgba(0,0,0,.5)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:1000}} onClick={(e)=>{if(e.target===e.currentTarget){setAssigningId(null);setAssignmentNote();}}}>
-          <div style={{background:'var(--bg)',borderRadius:'8px',padding:'20px',minWidth:'400px',border:'1px solid var(--border)',boxShadow:'0 10px 30px rgba(0,0,0,.3)'}}>
-            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'15px'}}>
-              <h3 style={{margin:0,color:'var(--text)'}}>Assign Issue to User</h3>
-              <button className="btn btn-ghost btn-sm" onClick={()=>{setAssigningId(null);setAssignTo('');setAssignmentNote('');}} style={{cursor:'pointer'}}>✕</button>
-            </div>
-            <div className="field" style={{marginBottom:'15px'}}>
-              <label style={{display:'block',marginBottom:'6px',fontSize:'13px',fontWeight:600,color:'var(--text)'}}>Select User *</label>
-              <select 
-                value={assignTo} 
-                onChange={e=>setAssignTo(e.target.value)} 
-                style={{width:'100%',padding:'8px',borderRadius:'4px',border:'1px solid var(--border)',background:'var(--bg)',color:'var(--text)',fontSize:'13px'}}
-              >
+      {assigningId && assigningIssue && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+          <div style={{ background: 'var(--bg)', borderRadius: '8px', padding: '20px', minWidth: '350px', border: '1px solid var(--border)' }}>
+            <h3 style={{ marginTop: 0, marginBottom: '15px', color: 'var(--text)' }}>Assign Issue {getIssueNumber(assigningIssue)}</h3>
+            {!assigningIssueInMyBucket && <div style={{ fontSize: '12px', color: 'var(--amber)', marginBottom: '12px', padding: '8px', background: 'rgba(217,119,6,.1)', borderRadius: '4px' }}>This issue is not in your bucket. Once you assign it to yourself, you can reassign it to others.</div>}
+            <div className="field" style={{ marginBottom: '12px' }}>
+              <label>Assign to</label>
+              <select value={assignTo} onChange={(event) => setAssignTo(event.target.value)} style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--text)' }}>
                 <option value="">-- Select User --</option>
-                {users && users.length > 0 ? (
-                  users.map((u, idx) => (
-                    <option key={idx} value={u}>{u}</option>
-                  ))
-                ) : (
-                  <option disabled>No users available</option>
-                )}
+                {assignableUsers.map((entry) => (
+                  <option key={entry.value} value={entry.value}>{entry.label}{entry.label !== entry.value ? ` (${entry.value})` : ''}</option>
+                ))}
               </select>
-              {!users || users.length === 0 && (
-                <div style={{fontSize:'11px',color:'var(--amber)',marginTop:'4px'}}>⚠ Loading users...</div>
-              )}
             </div>
-            {assignTo && assignTo !== CURRENT_USER && (
-              <div className="field" style={{marginBottom:'15px'}}>
-                <label style={{display:'block',marginBottom:'6px',fontSize:'13px',fontWeight:600,color:'var(--text)'}}>Assignment Note * <span style={{fontSize:'11px',color:'var(--amber)'}}>Required</span></label>
-                <textarea 
-                  placeholder="Explain why you are assigning this issue..."
-                  value={assignmentNote} 
-                  onChange={e=>setAssignmentNote(e.target.value)} 
-                  style={{width:'100%',padding:'8px',borderRadius:'4px',border:'1px solid var(--border)',background:'var(--bg)',color:'var(--text)',fontSize:'13px',fontFamily:'inherit',minHeight:'80px',resize:'none'}}
-                />
-                <div style={{fontSize:'11px',color:'var(--text3)',marginTop:'4px'}}>{assignmentNote.length}/200</div>
+            {assigningIssueInMyBucket && assignTo !== currentUserEmail && (
+              <div className="field" style={{ marginBottom: '15px' }}>
+                <label>Note (required when reassigning)</label>
+                <textarea value={assignmentNote} onChange={(event) => setAssignmentNote(event.target.value)} placeholder="Why are you assigning this to them?" style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid var(--border)', background: 'var(--bg)', color: 'var(--text)', minHeight: '60px', boxSizing: 'border-box' }} />
               </div>
             )}
-            <div style={{display:'flex',gap:'8px',justifyContent:'flex-end',marginTop:'20px'}}>
-              <button className="btn btn-ghost btn-sm" onClick={()=>{setAssigningId(null);setAssignTo('');setAssignmentNote('');}}>Cancel</button>
-              <button className="btn btn-primary" onClick={doAssign} disabled={!assignTo || (assignTo && assignTo !== CURRENT_USER && !assignmentNote.trim())} style={{opacity: (assignTo && (assignTo === CURRENT_USER || assignmentNote.trim())) ? 1 : 0.5}}>Assign & Notify</button>
+            <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+              <button className="btn btn-ghost btn-sm" onClick={() => { setAssigningId(null); setAssignTo(''); setAssignmentNote(''); }}>Cancel</button>
+              <button className="btn btn-primary" onClick={doAssign}>Assign</button>
             </div>
-            {msg && <div style={{fontSize:'12px',color: msg.includes('Error') ? 'var(--red)' : 'var(--green)',marginTop:'10px',textAlign:'center'}}>{msg}</div>}
           </div>
         </div>
       )}
 
-      {/* History Modal */}
-      {showHistory && (
-        <div style={{position:'fixed',top:0,left:0,right:0,bottom:0,background:'rgba(0,0,0,.5)',display:'flex',alignItems:'center',justifyContent:'center',zIndex:1000,overflow:'auto'}}>
-          <div style={{background:'var(--bg)',borderRadius:'8px',padding:'20px',minWidth:'500px',maxHeight:'85vh',border:'1px solid var(--border)',overflowY:'auto'}}>
-            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'15px'}}>
-              <h3 style={{margin:0,color:'var(--text)'}}>📋 Issue Activity History</h3>
-              <button className="btn btn-ghost btn-sm" onClick={()=>setShowHistory(false)}>✕</button>
+      {showHistory && history.length > 0 && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+          <div style={{ background: 'var(--bg)', borderRadius: '8px', padding: '20px', minWidth: '400px', maxHeight: '70vh', border: '1px solid var(--border)', overflowY: 'auto' }}>
+            <h3 style={{ marginTop: 0, marginBottom: '15px', color: 'var(--text)' }}>Activity History</h3>
+            <div>
+              {history.map((entry, idx) => (
+                <div key={idx} style={{ marginBottom: '12px', paddingBottom: '12px', borderBottom: '1px solid var(--border)', fontSize: '12px' }}>
+                  <div style={{ fontWeight: 600, color: 'var(--text)' }}>{entry.activity_type}</div>
+                  {entry.reason && <div style={{ color: 'var(--text-dim)', marginTop: '4px' }}>Reason: {entry.reason}</div>}
+                  {entry.new_severity && <div style={{ color: 'var(--text-dim)', marginTop: '2px' }}>Severity: {entry.new_severity}</div>}
+                  {entry.assigned_to && <div style={{ color: 'var(--text-dim)', marginTop: '2px' }}>Assigned to: {entry.assigned_to}</div>}
+                  <div style={{ color: 'var(--text-dim)', marginTop: '4px', fontSize: '11px' }}>By {entry.user_name} • {new Date(entry.activity_at).toLocaleString()}</div>
+                </div>
+              ))}
             </div>
-            {history.length === 0 ? (
-              <p style={{color:'var(--text3)',textAlign:'center',padding:'20px'}}>No activity recorded</p>
-            ) : (
-              <div style={{fontSize:'13px',lineHeight:'1.6'}}>
-                {history.map((act, idx) => {
-                  let icon = '•';
-                  let color = 'var(--blue)';
-                  let title = act.activity_type;
-                  
-                  if (act.activity_type === 'created') { icon = '✚'; title = 'Issue Created'; color = 'var(--green)'; }
-                  else if (act.activity_type === 'resolved') { icon = '✓'; title = 'Issue Resolved'; color = 'var(--green)'; }
-                  else if (act.activity_type === 'upgraded') { icon = '↑'; title = 'Severity Upgraded'; color = 'var(--orange)'; }
-                  else if (act.activity_type === 'downgraded') { icon = '↓'; title = 'Severity Downgraded'; color = 'var(--text2)'; }
-                  else if (act.activity_type === 'assigned') { icon = '👤'; title = 'Issue Assigned'; color = 'var(--blue)'; }
-                  
-                  return (
-                    <div key={idx} style={{background:'var(--bg2)',borderRadius:'6px',padding:'14px',marginBottom:'12px',borderLeft:'4px solid '+color,boxShadow:'0 1px 3px rgba(0,0,0,.1)'}}>
-                      <div style={{fontWeight:'700',color:color,marginBottom:'8px',fontSize:'14px'}}>
-                        {icon} {title}
-                      </div>
-                      
-                      <div style={{color:'var(--text2)',fontSize:'12px',marginBottom:'8px'}}>
-                        <strong>By:</strong> <span style={{color:'var(--text)',fontWeight:'600'}}>{act.user_name}</span> · 
-                        <span style={{marginLeft:'8px',color:'var(--text3)'}}>{new Date(act.created_at).toLocaleString('en-GB')}</span>
-                      </div>
-                      
-                      {act.old_severity && act.new_severity && (
-                        <div style={{marginTop:'8px',background:'var(--bg)',padding:'8px 10px',borderRadius:'4px',borderLeft:'2px solid var(--border)'}}>
-                          <span style={{color:'var(--text3)'}}>Severity Changed:</span> 
-                          <span style={{marginLeft:'6px',color:'var(--text)',fontWeight:'600'}}>{act.old_severity}</span>
-                          <span style={{marginLeft:'6px',color:'var(--text3)'}}>→</span>
-                          <span style={{marginLeft:'6px',color:'var(--text)',fontWeight:'600'}}>{act.new_severity}</span>
-                        </div>
-                      )}
-                      
-                      {act.reason && (
-                        <div style={{marginTop:'8px',color:'var(--text)',fontSize:'12px',background:'var(--bg)',padding:'8px 10px',borderRadius:'4px',borderLeft:'2px solid var(--border)',fontStyle:'italic'}}>
-                          <strong>Reason:</strong> {act.reason}
-                        </div>
-                      )}
-                      
-                      {act.action_taken && (
-                        <div style={{marginTop:'8px',color:'var(--text)',fontSize:'12px',background:'var(--bg)',padding:'10px',borderRadius:'4px',borderLeft:'3px solid var(--green)'}}>
-                          <div style={{fontWeight:'600',color:'var(--green)',marginBottom:'4px'}}>✓ Action Taken by {act.user_name}:</div>
-                          <div style={{color:'var(--text)',paddingLeft:'4px'}}>{act.action_taken}</div>
-                        </div>
-                      )}
-                      
-                      {act.assigned_to && (
-                        <div style={{marginTop:'8px',color:'var(--text)',fontSize:'12px',background:'var(--bg)',padding:'8px 10px',borderRadius:'4px',borderLeft:'2px solid var(--blue)'}}>
-                          <strong>👤 Assigned to:</strong> <span style={{color:'var(--blue)',fontWeight:'600'}}>{act.assigned_to}</span>
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            )}
+            <div style={{ marginTop: '15px', display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+              <button className="btn btn-ghost btn-sm" onClick={() => setShowHistory(false)}>Close</button>
+            </div>
           </div>
         </div>
       )}
 
-      <div>
-        {filtered.length === 0
-          ? <div className="issues-empty">No issues found.<br/><span style={{fontSize:'11px',color:'var(--text3)'}}>Click "+ Log Issue" to report a new problem.</span></div>
-          : filtered.map(issue => {
-            const created = new Date(issue.created_at);
-            
-            // Calculate deadline if not set (for backward compatibility)
-            let deadline = issue.resolution_deadline ? new Date(issue.resolution_deadline) : null;
-            if (!deadline) {
-              const severityDays = {
-                'High': 1,
-                'Medium': 3,
-                'Low': 7
-              };
-              const days = severityDays[issue.severity] || 3;
-              deadline = new Date(created);
-              deadline.setDate(deadline.getDate() + days);
-            }
-            
-            const now = Date.now();
-            const msLeft = deadline - now;
-            const daysLeft = msLeft > 0 ? Math.ceil(msLeft / 86400000) : 0;
-            const hoursLeft = msLeft > 0 ? Math.ceil(msLeft / 3600000) : 0;
-            const isBreached = msLeft <= 0 && issue.status === 'open';
-            
-            let timeDisplay = '';
-            if (issue.status === 'open') {
-              if (daysLeft > 1) timeDisplay = `${daysLeft}d left`;
-              else if (daysLeft === 1) timeDisplay = `${hoursLeft}h left`;
-              else if (hoursLeft > 0) timeDisplay = `${hoursLeft}h left`;
-              else timeDisplay = 'Breached!';
-            }
-            
-            const sevCls = issue.severity==='High'?'severity-high':issue.severity==='Medium'?'severity-medium':'severity-low';
-            const sevBadge = issue.severity==='High'?'ib-high':issue.severity==='Medium'?'ib-medium':'ib-low';
-            const statBadge = issue.status==='open'?'ib-open':'ib-resolved';
-            const age = Math.floor((Date.now() - created.getTime()) / 86400000);
-            
-            // Calculate progress for progress bar
-            const msTotal = deadline - created.getTime();
-            const msUsed = now - created.getTime();
-            const progressPercent = msTotal > 0 ? Math.min(100, (msUsed / msTotal) * 100) : 100;
-            const progressColor = isBreached ? 'var(--red)' : progressPercent > 75 ? 'var(--amber)' : progressPercent > 50 ? 'var(--orange)' : 'var(--green)';
-            
-            return (
-              <div key={issue.id} className={`issue-card ${sevCls}`} onClick={()=>edit(issue)}>
-                <div className="issue-header">
-                  <div>
-                    <div className="issue-title">
-                      {issue.issue_unique_id && <span style={{color:'var(--blue)',fontWeight:'700',marginRight:'8px'}}>[{issue.issue_unique_id}]</span>}
-                      {issue.title}
-                    </div>
-                    <div className="issue-meta">
-                      <span>📋 {issue.pmno}</span>
-                      <span>🔧 {issue.serial||'—'}</span>
-                      <span>🖨 {issue.model||'—'}</span>
-                      <span>📍 {issue.loc||'—'}</span>
-                      <span>📁 {issue.category}</span>
-                    </div>
-                  </div>
-                  <div style={{display:'flex',gap:'5px',flexShrink:0,flexDirection:'column',alignItems:'flex-end'}}>
-                    <span className={`issue-badge ${sevBadge}`}>{issue.severity}</span>
-                    <span className={`issue-badge ${statBadge}`}>{issue.status==='open'?'Open':'Resolved'}</span>
-                    {issue.status === 'open' && (
-                      <div style={{display:'flex',flexDirection:'column',gap:'4px',alignItems:'flex-end',width:'70px'}}>
-                        <span style={{fontSize:'11px',fontWeight:700,color:isBreached?'var(--red)':'var(--text)',padding:'4px 8px',background:isBreached?'rgba(239,68,68,.15)':'rgba(217,119,6,.15)',borderRadius:'4px',border:'1px solid '+( isBreached?'rgba(239,68,68,.3)':'rgba(217,119,6,.3)'),whiteSpace:'nowrap',width:'100%',textAlign:'center'}}>
-                          {isBreached ? '⚠️ Breached' : `⏱ ${timeDisplay}`}
-                        </span>
-                        <div style={{position:'relative',height:'12px',background:'transparent',borderRadius:'6px',overflow:'hidden',border:'1.5px solid '+progressColor,boxShadow:'0 1px 4px rgba(0,0,0,.15)',width:'100%'}}>
-                          <div style={{height:'100%',width:progressPercent+'%',background:progressColor,transition:'width 0.3s ease',borderRadius:'5px',boxShadow:'inset 0 1px 2px rgba(255,255,255,.2)'}}/>
-                        </div>
-                        <div style={{fontSize:'9px',color:progressColor,fontWeight:'700',textAlign:'center',width:'100%'}}>
-                          {progressPercent.toFixed(0)}%
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </div>
-                <div className="issue-desc">{issue.desc}</div>
-                {issue.action && <div style={{fontSize:'11px',color:'var(--text3)',background:'var(--bg)',borderRadius:'5px',padding:'6px 10px',marginBottom:'8px',border:'1px solid var(--border)'}}><strong>Action:</strong> {issue.action}</div>}
-                <div className="issue-footer">
-                  <span>By {issue.last_activity_user||issue.reporter} · {age===0?'Today':age+' day'+(age!==1?'s':'')+' ago'}</span>
-                  <div style={{display:'flex',gap:'8px',alignItems:'center',flexWrap:'wrap'}}>
-                    {issue.severity_at_resolve && <span style={{fontSize:'9px',color:'var(--text2)',padding:'2px 7px',borderRadius:'10px',background:'var(--bg2)'}}>Resolved as {issue.severity_at_resolve}</span>}
-                    {issue.resolved_at && <span style={{fontSize:'9px',color:'var(--green)',padding:'2px 7px',borderRadius:'10px',background:'var(--green-bg)'}}>✓ {new Date(issue.resolved_at).toLocaleDateString('en-GB',{day:'2-digit',month:'short'})}</span>}
-                    {issue.assigned_to && <span style={{fontSize:'9px',color:'var(--blue)',padding:'2px 7px',borderRadius:'10px',background:'rgba(59,130,246,.1)'}}>👤 {issue.assigned_to}</span>}
-                  </div>
-                </div>
-                {issue.status === 'open' && (
-                  <div style={{display:'flex',gap:'6px',marginTop:'10px',padding:'10px',background:isBreached ? 'rgba(239,68,68,.08)' : 'rgba(47,51,69,.12)',borderRadius:'4px',borderTop:`2px solid ${isBreached ? 'var(--red)' : 'transparent'}`,flexWrap:'wrap'}}>
-                    <button className="btn btn-success btn-sm" disabled={issue.assigned_to && issue.assigned_to !== CURRENT_USER} onClick={(e)=>{e.stopPropagation();setIsResolving(true);setEditId(issue.id);setForm({pmno:issue.pmno||'',serial:issue.serial||'',model:issue.model||'',loc:issue.loc||'',sapno:issue.sapno||'',mesno:issue.mesno||'',title:issue.title||'',desc:issue.desc||'',action:issue.action||'',severity:issue.severity||'Medium',category:issue.category||'Other',reporter:issue.reporter||'',plant_location:issue.plant_location||'B26',status:issue.status||'open'});setOpen(true);setActionTaken('');setTimeout(() => {if(formRef.current){formRef.current.scrollIntoView({behavior:'smooth',block:'start'})}}, 100);}}>✓ Resolve</button>
-                    {issue.severity !== 'Low' && <button className="btn btn-ghost btn-sm" disabled={issue.assigned_to && issue.assigned_to !== CURRENT_USER} onClick={(e)=>{e.stopPropagation();setDowngradingId(issue.id);setDowngradeTo(issue.severity === 'High' ? 'Medium' : 'Low');setDowngradeReason('');}}>↓ Downgrade</button>}
-                    {issue.severity !== 'High' && <button className="btn btn-ghost btn-sm" disabled={issue.assigned_to && issue.assigned_to !== CURRENT_USER} onClick={(e)=>{e.stopPropagation();setUpgradingId(issue.id);setUpgradeReason('');setUpgradeTo(issue.severity === 'Low' ? 'Medium' : 'High');}}>↑ Upgrade</button>}
-                    <button className="btn btn-info btn-sm" onClick={(e)=>{e.stopPropagation();setAssigningId(issue.id);setAssignTo('');setAssignmentNote('');}}>👤 Assign</button>
-                  </div>
-                )}
-              </div>
-            );
-          })}
-      </div>
+      <table className="data-table">
+        <thead>
+          <tr>
+            <th style={{ width: '70px' }}>Issue ID</th>
+            <th style={{ width: '60px' }}>PM No</th>
+            <th>Title</th>
+            <th style={{ width: '70px' }}>Severity</th>
+            <th style={{ width: '70px' }}>Status</th>
+            <th style={{ width: '100px' }}>Assigned To</th>
+            <th style={{ width: '80px' }}>Created</th>
+            <th style={{ width: '50px' }}>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {filtered.length === 0 ? (
+            <tr>
+              <td colSpan="8" style={{ textAlign: 'center', padding: '20px', color: 'var(--text-dim)' }}>No issues found</td>
+            </tr>
+          ) : (
+            filtered.map((issue) => (
+              <tr key={issue.id} style={{ opacity: issue.status === 'resolved' ? 0.6 : 1 }}>
+                <td style={{ fontWeight: 600, color: 'var(--blue)' }}>{getIssueNumber(issue)}</td>
+                <td>{issue.pmno}</td>
+                <td>{issue.title}</td>
+                <td><span className={`tag ${issue.severity === 'High' ? 'tag-danger' : issue.severity === 'Medium' ? 'tag-warning' : 'tag-info'}`}>{issue.severity}</span></td>
+                <td><span className={`tag ${issue.status === 'open' ? 'tag-warning' : 'tag-success'}`}>{issue.status === 'open' ? 'Open' : 'Resolved'}</span></td>
+                <td style={{ fontSize: '12px' }}>{issue.assigned_to || '—'}</td>
+                <td style={{ fontSize: '12px' }}>{new Date(issue.created_at).toLocaleDateString()}</td>
+                <td><button className="btn btn-ghost btn-xs" onClick={() => openIssueEditor(issue)}>View</button></td>
+              </tr>
+            ))
+          )}
+        </tbody>
+      </table>
     </div>
   );
 }

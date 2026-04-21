@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { printersAPI, vlanAPI } from '../utils/api';
 import { useApp } from '../context/AppContext';
-import { fetchPrinterData } from '../utils/printerFetcher';
 
 export default function ViewPrinters() {
   const { selectedPlants } = useApp();
@@ -78,28 +77,19 @@ export default function ViewPrinters() {
 
   const fetchPrinterWebData = async (printer) => {
     const locData = getLocationData(printer);
-    
-    if (!printer.ip) {
-      // Mark as offline if no IP and save offline status
+
+    if (!printer.pmno || !printer.serial) {
       setPrinterWebData((prev) => ({
         ...prev,
-        [printer.id]: { error: 'No IP', offline: true },
+        [printer.id]: { error: 'No serial number', offline: true },
       }));
-      try {
-        await printersAPI.update(printer.id, { online_status: 'offline' });
-      } catch {}
       return;
     }
 
     try {
-      const formattedSerial = String(printer.serial).toUpperCase().includes('PX940') ? 
-        (!String(printer.serial).startsWith('PX940V-') ? `PX940V-${printer.serial}` : printer.serial) : 
-        printer.serial;
-      
-      const data = await fetchPrinterData(printer.ip, formattedSerial);
+      const { data } = await printersAPI.getLiveWebData(printer.pmno);
       
       if (data.error) {
-        // Ping failed - mark as offline
         setPrinterWebData((prev) => ({
           ...prev,
           [printer.id]: { ...data, offline: true },
@@ -157,7 +147,7 @@ export default function ViewPrinters() {
         // Fetch data from all printers in parallel
         await Promise.all(
           printers.map(async (printer) => {
-            if (printer.ip && printer.serial) {
+            if (printer.pmno && printer.serial) {
               await fetchPrinterWebData(printer);
             }
           })
@@ -303,7 +293,7 @@ export default function ViewPrinters() {
                       <td className="em">{p.pmno || '-'}</td>
                       <td className="mono">{p.serial || '-'}</td>
                       <td>{p.make} {p.model}</td>
-                      <td className="mono">{p.ip || '-'}</td>
+                      <td className="mono">{webData?.ip || p.ip || '-'}</td>
                       <td>
                         <span className={`badge b-${String(p.online_status || '').toLowerCase() === 'online' ? 'online' : 'offline'}`}>
                           {String(p.online_status || '').toLowerCase() === 'online' ? '● Online' : '● Offline'}
@@ -334,9 +324,9 @@ export default function ViewPrinters() {
                       </td>
                       <td style={{ fontSize: '11px', fontWeight: 500, color: 'var(--blue)' }}>{locData.plant}{locData.source === 'vlan' ? ' *' : ''}</td>
                       <td>
-                        {String(p.online_status || '').toLowerCase() === 'online' && p.ip ? (
+                        {String(p.online_status || '').toLowerCase() === 'online' && (webData?.ip || p.ip) ? (
                           <a
-                            href={`http://${p.ip}`}
+                            href={`http://${webData?.ip || p.ip}`}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="btn btn-xs btn-ghost"

@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const pool = require('../db/pool');
+const { adminMiddleware } = require('../middleware/auth');
 const {
   buildSummaryFields,
   ensureRecipeSchema,
@@ -18,7 +19,7 @@ router.get('/', async (req, res) => {
   }
 });
 
-router.post('/', async (req, res) => {
+router.post('/', adminMiddleware, async (req, res) => {
   const { errors, recipe } = validateRecipePayload(req.body);
   if (errors.length > 0) {
     return res.status(400).json({ error: errors.join(' ') });
@@ -61,7 +62,7 @@ router.post('/', async (req, res) => {
   }
 });
 
-router.put('/:id', async (req, res) => {
+router.put('/:id', adminMiddleware, async (req, res) => {
   const { errors, recipe } = validateRecipePayload(req.body);
   if (errors.length > 0) {
     return res.status(400).json({ error: errors.join(' ') });
@@ -121,7 +122,7 @@ router.put('/:id', async (req, res) => {
   }
 });
 
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', adminMiddleware, async (req, res) => {
   try {
     await ensureRecipeSchema(pool);
     const result = await pool.query('DELETE FROM recipes WHERE id = $1', [req.params.id]);
