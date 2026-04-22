@@ -1,0 +1,19 @@
+<svg viewBox="0 0 348 171" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
+  <title id="title">Jabil Logo</title>
+  <desc id="desc">Jabil wordmark with the Made Possible. Made Better. tagline.</desc>
+  <rect width="348" height="171" fill="#ffffff"/>
+  <g fill="#0d4b87">
+    <path d="M4 41h15v62c0 18-10 28-29 28H0v-15h8c8 0 11-4 11-14V41z"/>
+    <path d="M86 41h19l35 90h-18l-8-21H63l-8 21H37l49-90zm23 54-21-37-20 37h41z"/>
+    <path d="M152 41h50c19 0 30 9 30 24 0 10-5 18-14 21 12 3 19 12 19 24 0 19-14 30-38 30h-47V41zm46 37c11 0 17-5 17-13 0-8-6-12-17-12h-29v25h29zm3 49c13 0 20-5 20-15 0-10-7-15-20-15h-32v30h32z"/>
+    <path d="M249 41h17v90h-17V41z"/>
+    <path d="M285 41h17v75h46v15h-63V41z"/>
+  </g>
+  <path d="M60 79l62-18-44 33z" fill="#18a9e1"/>
+  <g fill="#0d4b87" font-family="Arial, Helvetica, sans-serif" letter-spacing=".3px">
+    <text x="4" y="158" font-size="22">MADE</text>
+    <text x="67" y="158" font-size="22" font-weight="700">POSSIBLE.</text>
+    <text x="195" y="158" font-size="22">MADE</text>
+    <text x="258" y="158" font-size="22" font-weight="700">BETTER.</text>
+  </g>
+</svg>

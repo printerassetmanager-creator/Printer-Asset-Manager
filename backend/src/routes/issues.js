@@ -3,6 +3,10 @@ const router = express.Router();
 const pool = require('../db/pool');
 const { sendIssueAssignmentNotification, sendHighSeverityIssueAlert } = require('../services/emailService');
 
+function generateIssueUniqueId(issueId) {
+  return `ISSU${String(issueId).padStart(2, '0')}`;
+}
+
 // Calculate resolution deadline based on severity
 function getResolutionDeadline(severity) {
   const deadlines = {
@@ -84,7 +88,7 @@ router.post('/', async (req, res) => {
     
     // Generate unique issue ID
     try {
-      const uniqueId = 'ISU' + String(issue.id).padStart(6, '0');
+      const uniqueId = generateIssueUniqueId(issue.id);
       const { rows: updatedRows } = await pool.query(
         `UPDATE issues SET issue_unique_id = $1 WHERE id = $2 RETURNING *`,
         [uniqueId, issue.id]
