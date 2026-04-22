@@ -710,10 +710,10 @@ export default function IssuesTracker() {
               {history.map((entry, idx) => (
                 <div key={idx} style={{ marginBottom: '12px', paddingBottom: '12px', borderBottom: '1px solid var(--border)', fontSize: '12px' }}>
                   <div style={{ fontWeight: 600, color: 'var(--text)' }}>{entry.activity_type}</div>
-                  {entry.reason && <div style={{ color: 'var(--text-dim)', marginTop: '4px' }}>Reason: {entry.reason}</div>}
-                  {entry.new_severity && <div style={{ color: 'var(--text-dim)', marginTop: '2px' }}>Severity: {entry.new_severity}</div>}
-                  {entry.assigned_to && <div style={{ color: 'var(--text-dim)', marginTop: '2px' }}>Assigned to: {entry.assigned_to}</div>}
-                  <div style={{ color: 'var(--text-dim)', marginTop: '4px', fontSize: '11px' }}>By {entry.user_name} • {new Date(entry.activity_at).toLocaleString()}</div>
+                  {entry.reason && <div style={{ color: 'var(--text3)', marginTop: '4px' }}>Reason: {entry.reason}</div>}
+                  {entry.new_severity && <div style={{ color: 'var(--text3)', marginTop: '2px' }}>Severity: {entry.new_severity}</div>}
+                  {entry.assigned_to && <div style={{ color: 'var(--text3)', marginTop: '2px' }}>Assigned to: {entry.assigned_to}</div>}
+                  <div style={{ color: 'var(--text3)', marginTop: '4px', fontSize: '11px' }}>By {entry.user_name} | {new Date(entry.activity_at).toLocaleString()}</div>
                 </div>
               ))}
             </div>
