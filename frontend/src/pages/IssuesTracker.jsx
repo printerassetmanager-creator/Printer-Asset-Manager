@@ -65,6 +65,13 @@ const formatIssueDate = (value) => {
   return date.toLocaleDateString();
 };
 
+const formatIssueDateTime = (value) => {
+  if (!value) return '-';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '-';
+  return date.toLocaleString();
+};
+
 const getTimelineDisplay = (issue) => {
   if (issue.status === 'resolved') {
     return {
@@ -713,7 +720,7 @@ export default function IssuesTracker() {
                   {entry.reason && <div style={{ color: 'var(--text3)', marginTop: '4px' }}>Reason: {entry.reason}</div>}
                   {entry.new_severity && <div style={{ color: 'var(--text3)', marginTop: '2px' }}>Severity: {entry.new_severity}</div>}
                   {entry.assigned_to && <div style={{ color: 'var(--text3)', marginTop: '2px' }}>Assigned to: {entry.assigned_to}</div>}
-                  <div style={{ color: 'var(--text3)', marginTop: '4px', fontSize: '11px' }}>By {entry.user_name} | {new Date(entry.activity_at).toLocaleString()}</div>
+                  <div style={{ color: 'var(--text3)', marginTop: '4px', fontSize: '11px' }}>By {entry.user_name} | {formatIssueDateTime(entry.activity_at || entry.created_at)}</div>
                 </div>
               ))}
             </div>

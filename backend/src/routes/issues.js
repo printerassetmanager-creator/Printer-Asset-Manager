@@ -195,7 +195,7 @@ router.put('/:id', async (req, res) => {
 router.get('/:id/history', async (req, res) => {
   try {
     const { rows } = await pool.query(
-      `SELECT * FROM issue_activity_log WHERE issue_id = $1 ORDER BY created_at DESC`,
+      `SELECT *, created_at AS activity_at FROM issue_activity_log WHERE issue_id = $1 ORDER BY created_at DESC`,
       [req.params.id]
     );
     res.json(rows);
