@@ -1,7 +1,16 @@
 import { useEffect, useRef } from 'react';
 
-const useSessionTimeout = (onSessionExpire, timeoutMinutes = 10, isAuthenticated = true) => {
-  const inactivityTimerRef = useRef(null);
+/**
+ * Auto-logout hook that logs out only if:
+ * - Browser is minimized/closed AND hidden for timeoutMinutes (default 20 min)
+ * - Does NOT logout during inactivity while browser window is visible
+ * 
+ * @param {Function} onSessionExpire - Callback when session expires
+ * @param {number} timeoutMinutes - Minutes to wait after browser is hidden before logout (default 20)
+ * @param {boolean} isAuthenticated - Whether user is authenticated
+ */
+const useSessionTimeout = (onSessionExpire, timeoutMinutes = 20, isAuthenticated = true) => {
+  const visibilityHiddenTimerRef = useRef(null);
   const warningTimerRef = useRef(null);
   const warningShownRef = useRef(false);
   const onSessionExpireRef = useRef(onSessionExpire);
@@ -12,58 +21,53 @@ const useSessionTimeout = (onSessionExpire, timeoutMinutes = 10, isAuthenticated
 
   useEffect(() => {
     const clearTimers = () => {
-      if (inactivityTimerRef.current) {
-        clearTimeout(inactivityTimerRef.current);
+      if (visibilityHiddenTimerRef.current) {
+        clearTimeout(visibilityHiddenTimerRef.current);
+        visibilityHiddenTimerRef.current = null;
       }
       if (warningTimerRef.current) {
         clearTimeout(warningTimerRef.current);
+        warningTimerRef.current = null;
       }
+      warningShownRef.current = false;
     };
 
     const expireSession = (reason) => {
-      console.warn(`Session expired due to ${reason}`);
+      console.warn(`Session expired: Browser hidden for ${timeoutMinutes} minutes`);
       onSessionExpireRef.current(reason);
-    };
-
-    const resetInactivityTimer = () => {
-      warningShownRef.current = false;
-      clearTimers();
-
-      if (timeoutMinutes > 1) {
-        warningTimerRef.current = setTimeout(() => {
-          if (!warningShownRef.current) {
-            warningShownRef.current = true;
-            const message = 'Your session will expire in 1 minute due to inactivity.';
-            console.warn(message);
-
-            if ('Notification' in window && Notification.permission === 'granted') {
-              new Notification('Session Expiring', { body: message });
-            }
-          }
-        }, (timeoutMinutes - 1) * 60 * 1000);
-      }
-
-      inactivityTimerRef.current = setTimeout(() => {
-        expireSession('inactivity');
-      }, timeoutMinutes * 60 * 1000);
-    };
-
-    const handleActivity = () => {
-      if (!document.hidden) {
-        resetInactivityTimer();
-      }
     };
 
     const handleVisibilityChange = () => {
       if (document.hidden) {
-        clearTimers();
-        inactivityTimerRef.current = setTimeout(() => {
-          expireSession('inactivity');
-        }, timeoutMinutes * 60 * 1000);
-        return;
-      }
+        // Browser is now hidden (minimized or closed tab)
+        console.log(`Browser hidden - will logout in ${timeoutMinutes} minutes`);
+        warningShownRef.current = false;
 
-      resetInactivityTimer();
+        // Start timer: after timeoutMinutes, logout
+        if (timeoutMinutes > 1) {
+          warningTimerRef.current = setTimeout(() => {
+            if (!warningShownRef.current && document.hidden) {
+              warningShownRef.current = true;
+              const message = `Your session will expire in 1 minute because browser is hidden.`;
+              console.warn(message);
+
+              if ('Notification' in window && Notification.permission === 'granted') {
+                new Notification('Session Expiring', { body: message });
+              }
+            }
+          }, (timeoutMinutes - 1) * 60 * 1000);
+        }
+
+        visibilityHiddenTimerRef.current = setTimeout(() => {
+          if (document.hidden) {
+            expireSession('browser_hidden');
+          }
+        }, timeoutMinutes * 60 * 1000);
+      } else {
+        // Browser is now visible - cancel logout timer
+        console.log('Browser visible - logout timer canceled');
+        clearTimers();
+      }
     };
 
     if (!isAuthenticated) {
@@ -71,30 +75,12 @@ const useSessionTimeout = (onSessionExpire, timeoutMinutes = 10, isAuthenticated
       return;
     }
 
-    resetInactivityTimer();
-
-    const activityEvents = ['mousedown', 'keydown', 'scroll', 'touchstart', 'click'];
-
-    activityEvents.forEach((event) => {
-      document.addEventListener(event, handleActivity, true);
-    });
-
+    // Set up visibility change listener
     document.addEventListener('visibilitychange', handleVisibilityChange);
 
-    const handleFocus = () => {
-      if (!document.hidden) {
-        resetInactivityTimer();
-      }
-    };
-
-    window.addEventListener('focus', handleFocus);
-
+    // Clean up
     return () => {
-      activityEvents.forEach((event) => {
-        document.removeEventListener(event, handleActivity, true);
-      });
       document.removeEventListener('visibilitychange', handleVisibilityChange);
-      window.removeEventListener('focus', handleFocus);
       clearTimers();
     };
   }, [timeoutMinutes, isAuthenticated]);

@@ -8,7 +8,6 @@ export default function ViewPrinters() {
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState('');
   const [loading, setLoading] = useState(false);
-  const [printerWebData, setPrinterWebData] = useState({});
   const [vlanData, setVlanData] = useState([]);
 
   // Function to get location data from VLAN if IP matches, otherwise from printer data
@@ -75,92 +74,21 @@ export default function ViewPrinters() {
     }
   };
 
-  const fetchPrinterWebData = async (printer) => {
-    const locData = getLocationData(printer);
-
-    if (!printer.pmno || !printer.serial) {
-      setPrinterWebData((prev) => ({
-        ...prev,
-        [printer.id]: { error: 'No serial number', offline: true },
-      }));
-      return;
-    }
-
-    try {
-      const { data } = await printersAPI.getLiveWebData(printer.pmno);
-      
-      if (data.error) {
-        setPrinterWebData((prev) => ({
-          ...prev,
-          [printer.id]: { ...data, offline: true },
-        }));
-        try {
-          await printersAPI.update(printer.id, { online_status: 'offline' });
-        } catch {}
-      } else {
-        // Ping successful - save data to database and mark as online
-        const updateData = {
-          online_status: 'online',
-          firmware: data.firmwareVersion || printer.firmware_version,
-          head_km: data.headRunKm || printer.printer_km,
-          wc: locData.wc,
-          bay: locData.bay,
-          loc: locData.location,
-          plant_location: locData.plant,
-          last_ip: printer.ip
-        };
-        
-        setPrinterWebData((prev) => ({
-          ...prev,
-          [printer.id]: data,
-        }));
-        
-        try {
-          await printersAPI.update(printer.id, updateData);
-        } catch {}
-      }
-    } catch (e) {
-      // Exception during fetch - mark as offline
-      setPrinterWebData((prev) => ({
-        ...prev,
-        [printer.id]: { error: 'Failed to fetch', offline: true },
-      }));
-      try {
-        await printersAPI.update(printer.id, { online_status: 'offline' });
-      } catch {}
-    }
-  };
-
   useEffect(() => {
     load();
     loadVlanData();
     
-    // Refresh database data every 2 minutes
-    const dbInterval = setInterval(refreshLive, 120000);
+    // Refresh live ping status every minute
+    const dbInterval = setInterval(load, 60000);
     
     // Refresh VLAN data every 30 seconds
     const vlanInterval = setInterval(loadVlanData, 30000);
     
-    // Continuously fetch printer web data every 5 seconds
-    const webDataInterval = setInterval(async () => {
-      if (printers.length > 0) {
-        // Fetch data from all printers in parallel
-        await Promise.all(
-          printers.map(async (printer) => {
-            if (printer.pmno && printer.serial) {
-              await fetchPrinterWebData(printer);
-            }
-          })
-        );
-      }
-    }, 5000); // Fetch web data every 5 seconds
-    
     return () => {
       clearInterval(dbInterval);
       clearInterval(vlanInterval);
-      clearInterval(webDataInterval);
     };
-  }, [selectedPlants, printers]);
+  }, [selectedPlants]);
 
   // Enhanced search logic
   const filtered = printers.filter((p) => {
@@ -285,7 +213,6 @@ export default function ViewPrinters() {
                 </tr>
               ) : (
                 filtered.map((p) => {
-                  const webData = printerWebData[p.id];
                   const locData = getLocationData(p);
                   const pmDate = p.pmdate ? new Date(p.pmdate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '-';
                   return (
@@ -293,7 +220,7 @@ export default function ViewPrinters() {
                       <td className="em">{p.pmno || '-'}</td>
                       <td className="mono">{p.serial || '-'}</td>
                       <td>{p.make} {p.model}</td>
-                      <td className="mono">{webData?.ip || p.ip || '-'}</td>
+                      <td className="mono">{p.ip || '-'}</td>
                       <td>
                         <span className={`badge b-${String(p.online_status || '').toLowerCase() === 'online' ? 'online' : 'offline'}`}>
                           {String(p.online_status || '').toLowerCase() === 'online' ? '● Online' : '● Offline'}
@@ -301,32 +228,22 @@ export default function ViewPrinters() {
                       </td>
                       <td style={{ fontSize: '11px' }}>{pmDate}</td>
                       <td style={{ fontSize: '11px' }}>
-                        {webData ? (
-                          webData.error ? (
-                            <span style={{ color: 'var(--text3)' }}>{webData.error}</span>
-                          ) : (
-                            <span style={{ color: webData.printerCondition ? 'var(--green)' : 'var(--text3)' }}>
-                              {webData.printerCondition || '-'}
-                            </span>
-                          )
-                        ) : (
-                          <span className={`badge ${conditionClass(p)}`}>{conditionLabel(p)}</span>
-                        )}
+                        <span className={`badge ${conditionClass(p)}`}>{conditionLabel(p)}</span>
                       </td>
                       <td style={{ fontSize: '11px' }}>
-                        {webData && !webData.error ? (webData.firmwareVersion || '-') : (p.firmware_version || '-')}
+                        {p.firmware_version || '-'}
                       </td>
                       <td style={{ fontSize: '11px' }}>
-                        {webData && !webData.error ? (webData.headRunKm !== null && webData.headRunKm !== undefined ? `${webData.headRunKm} km` : '-') : (p.printer_km ? `${p.printer_km} km` : '-')}
+                        {p.printer_km ? `${p.printer_km} km` : '-'}
                       </td>
                       <td style={{ fontSize: '11px' }}>
                         {`${locData.wc}, ${locData.stage}, ${locData.bay}${locData.source === 'vlan' ? ' (VLAN)' : ''}`}
                       </td>
                       <td style={{ fontSize: '11px', fontWeight: 500, color: 'var(--blue)' }}>{locData.plant}{locData.source === 'vlan' ? ' *' : ''}</td>
                       <td>
-                        {String(p.online_status || '').toLowerCase() === 'online' && (webData?.ip || p.ip) ? (
+                        {String(p.online_status || '').toLowerCase() === 'online' && p.ip ? (
                           <a
-                            href={`http://${webData?.ip || p.ip}`}
+                            href={`http://${p.ip}`}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="btn btn-xs btn-ghost"

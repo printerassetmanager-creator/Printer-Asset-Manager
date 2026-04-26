@@ -1,10 +1,21 @@
 import React, { useEffect, useState } from 'react';
 import { iLearnAPI } from '../utils/api';
 import { useApp, CURRENT_USER, displayName, IS_ADMIN } from '../context/AppContext';
-import { toSentenceCase } from '../utils/textFormat';
+import { getWritingSuggestion, improveWriting } from '../utils/textFormat';
 
 const emptyIssue = { title: '', category: 'General' };
 const emptyStep = { title: '', description: '', image_url: '', step_number: 1 };
+
+const applyIssueWritingSuggestions = (issue) => ({
+  ...issue,
+  title: improveWriting(issue.title, 'title'),
+});
+
+const applyStepWritingSuggestions = (step) => ({
+  ...step,
+  title: improveWriting(step.title, 'title'),
+  description: improveWriting(step.description, 'sentence'),
+});
 
 export default function ILearn() {
   const { user } = useApp();
@@ -24,6 +35,10 @@ export default function ILearn() {
   const [categoryFilter, setCategoryFilter] = useState('All');
   const [showStepModal, setShowStepModal] = useState(false);
   const [imagePreview, setImagePreview] = useState(null);
+
+  const issueTitleSuggestion = getWritingSuggestion(form.title, 'title');
+  const stepTitleSuggestion = getWritingSuggestion(stepForm.title, 'title');
+  const stepDescriptionSuggestion = getWritingSuggestion(stepForm.description, 'sentence');
 
   const load = async () => {
     try {
@@ -47,6 +62,8 @@ export default function ILearn() {
     loadCategories();
   }, []);
 
+  // Suggestions are generated locally via `getWritingSuggestion`.
+
   useEffect(() => {
     load();
   }, [categoryFilter, search]);
@@ -68,7 +85,10 @@ export default function ILearn() {
       setMsg('Step title is required');
       return;
     }
-    const newStep = { ...stepForm, step_number: stepsBeingSaved.length + 1 };
+    const newStep = {
+      ...applyStepWritingSuggestions(stepForm),
+      step_number: stepsBeingSaved.length + 1,
+    };
     setStepsBeingSaved([...stepsBeingSaved, newStep]);
     setStepForm(emptyStep);
     setImagePreview(null);
@@ -92,7 +112,10 @@ export default function ILearn() {
       return;
     }
     const updated = [...stepsBeingSaved];
-    updated[editStepId] = { ...stepForm, step_number: editStepId + 1 };
+    updated[editStepId] = {
+      ...applyStepWritingSuggestions(stepForm),
+      step_number: editStepId + 1,
+    };
     setStepsBeingSaved(updated);
     setStepForm(emptyStep);
     setImagePreview(null);
@@ -129,11 +152,17 @@ export default function ILearn() {
         setMsg('Add at least one step before saving');
         return;
       }
+      const cleanedIssue = applyIssueWritingSuggestions(form);
+      const cleanedSteps = stepsBeingSaved.map((step, index) => ({
+        ...applyStepWritingSuggestions(step),
+        step_number: index + 1,
+      }));
+
       const payload = {
-        title: form.title,
-        category: form.category,
+        title: cleanedIssue.title,
+        category: cleanedIssue.category,
         created_by: loggedInUser,
-        steps: stepsBeingSaved,
+        steps: cleanedSteps,
       };
       await iLearnAPI.create(payload);
       setMsg('Issue saved successfully');
@@ -144,7 +173,7 @@ export default function ILearn() {
       setTimeout(() => setMsg(''), 1500);
     } catch (e) {
       console.error('Error saving issue:', e);
-      setMsg(`Error: ${e.message || 'Failed to save issue'}`);
+      setMsg(`Error: ${e.response?.data?.error || e.message || 'Failed to save issue'}`);
     }
   };
 
@@ -179,10 +208,11 @@ export default function ILearn() {
         updateStepInForm();
       } else {
         // Saving to API
+        const cleanedStep = applyStepWritingSuggestions(stepForm);
         const payload = {
           step_number: stepForm.step_number,
-          title: stepForm.title,
-          description: stepForm.description,
+          title: cleanedStep.title,
+          description: cleanedStep.description,
           image_url: stepForm.image_url,
         };
         if (editStepId && typeof editStepId === 'string') {
@@ -199,7 +229,7 @@ export default function ILearn() {
       }
     } catch (e) {
       console.error('Error saving step:', e);
-      setMsg(`Error: ${e.message || 'Failed to save step'}`);
+      setMsg(`Error: ${e.response?.data?.error || e.message || 'Failed to save step'}`);
     }
   };
 
@@ -223,11 +253,9 @@ export default function ILearn() {
             <div style={{ fontSize: '13px', color: 'var(--text2)' }}>
               Search issues and view step-by-step resolution guides
             </div>
-            {isAdmin && (
-              <button className="btn btn-primary" onClick={() => { setForm(emptyIssue); setStepsBeingSaved([]); setView('add'); }}>
-                + Add Issue
-              </button>
-            )}
+            <button className="btn btn-primary" onClick={() => { setForm(emptyIssue); setStepsBeingSaved([]); setView('add'); }}>
+              + Add Issue
+            </button>
           </div>
 
           <div className="search-row">
@@ -247,7 +275,7 @@ export default function ILearn() {
 
           {issues.length === 0 ? (
             <div className="card" style={{ padding: '32px', textAlign: 'center', color: 'var(--text3)' }}>
-              No issues found. {isAdmin && 'Create your first learning issue to help team members!'}
+              No issues found. Create your first learning issue to help team members!
             </div>
           ) : (
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: '14px' }}>
@@ -315,16 +343,16 @@ export default function ILearn() {
               </div>
             </div>
             <div style={{ display: 'flex', gap: '8px' }}>
-              {isAdmin && (
-                <>
-                  <button className="btn btn-primary" onClick={() => setShowStepModal(true)}>
-                    + Add Step
-                  </button>
+              <>
+                <button className="btn btn-primary" onClick={() => setShowStepModal(true)}>
+                  + Add Step
+                </button>
+                {isAdmin && (
                   <button className="btn btn-danger btn-sm" onClick={deleteIssue}>
                     Delete Issue
                   </button>
-                </>
-              )}
+                )}
+              </>
               <button className="btn btn-ghost btn-sm" onClick={() => setView('list')}>Back</button>
             </div>
           </div>
@@ -403,6 +431,14 @@ export default function ILearn() {
                   onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
                   placeholder="e.g. Print head not printing properly"
                 />
+                {issueTitleSuggestion && (
+                  <div className="writing-suggestion">
+                    <span>Suggestion: {issueTitleSuggestion}</span>
+                    <button type="button" className="btn btn-ghost btn-xs" onClick={() => setForm((f) => ({ ...f, title: issueTitleSuggestion }))}>
+                      Use Suggestion
+                    </button>
+                  </div>
+                )}
               </div>
               <div className="field">
                 <label>Category</label>
@@ -460,6 +496,14 @@ export default function ILearn() {
                   onChange={(e) => setStepForm((f) => ({ ...f, title: e.target.value }))}
                   placeholder="e.g. Clean the print head"
                 />
+                {stepTitleSuggestion && (
+                  <div className="writing-suggestion">
+                    <span>Suggestion: {stepTitleSuggestion}</span>
+                    <button type="button" className="btn btn-ghost btn-xs" onClick={() => setStepForm((f) => ({ ...f, title: stepTitleSuggestion }))}>
+                      Use Suggestion
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -471,6 +515,14 @@ export default function ILearn() {
                 placeholder="Detailed step-by-step instructions..."
                 style={{ minHeight: '80px' }}
               />
+              {stepDescriptionSuggestion && (
+                <div className="writing-suggestion">
+                  <span>Suggestion: {stepDescriptionSuggestion}</span>
+                  <button type="button" className="btn btn-ghost btn-xs" onClick={() => setStepForm((f) => ({ ...f, description: stepDescriptionSuggestion }))}>
+                    Use Suggestion
+                  </button>
+                </div>
+              )}
             </div>
 
             <div className="field" style={{ marginBottom: '12px' }}>
@@ -574,6 +626,14 @@ export default function ILearn() {
                   onChange={(e) => setStepForm((f) => ({ ...f, title: e.target.value }))}
                   placeholder="e.g. Clean the print head"
                 />
+                {stepTitleSuggestion && (
+                  <div className="writing-suggestion">
+                    <span>Suggestion: {stepTitleSuggestion}</span>
+                    <button type="button" className="btn btn-ghost btn-xs" onClick={() => setStepForm((f) => ({ ...f, title: stepTitleSuggestion }))}>
+                      Use Suggestion
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -585,6 +645,14 @@ export default function ILearn() {
                 placeholder="Detailed step-by-step instructions..."
                 style={{ minHeight: '80px' }}
               />
+              {stepDescriptionSuggestion && (
+                <div className="writing-suggestion">
+                  <span>Suggestion: {stepDescriptionSuggestion}</span>
+                  <button type="button" className="btn btn-ghost btn-xs" onClick={() => setStepForm((f) => ({ ...f, description: stepDescriptionSuggestion }))}>
+                    Use Suggestion
+                  </button>
+                </div>
+              )}
             </div>
 
             <div className="field" style={{ marginBottom: '12px' }}>

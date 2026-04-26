@@ -72,7 +72,7 @@ router.post('/send-registration-otp', async (req, res) => {
 
 // ═══ REGISTER - Create new account (pending approval) ═══
 router.post('/register', async (req, res) => {
-  const { email, password, confirmPassword, fullName, otp } = req.body;
+  const { email, password, confirmPassword, fullName, otp, supportType } = req.body;
 
   try {
     // Validation
@@ -112,10 +112,13 @@ router.post('/register', async (req, res) => {
     // Hash password
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // Create user with 'pending' status
+    // Determine support type (default to technical)
+    const support_type = (supportType === 'application') ? 'application' : 'technical';
+
+    // Create user with 'pending' status and support_type
     const result = await pool.query(
-      'INSERT INTO users (email, password_hash, full_name, status) VALUES ($1, $2, $3, $4) RETURNING id, email, full_name, status',
-      [email, hashedPassword, fullName || email, 'pending']
+      'INSERT INTO users (email, password_hash, full_name, support_type, status) VALUES ($1, $2, $3, $4, $5) RETURNING id, email, full_name, support_type, status',
+      [email, hashedPassword, fullName || email, support_type, 'pending']
     );
 
     const user = result.rows[0];

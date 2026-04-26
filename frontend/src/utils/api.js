@@ -6,8 +6,8 @@ const api = axios.create({ baseURL: '/api' });
 export const authAPI = {
   sendRegistrationOtp: (email) => api.post('/auth/send-registration-otp', { email }),
   login: (email, password) => api.post('/auth/login', { email, password }),
-  register: (email, password, confirmPassword, fullName, otp) =>
-    api.post('/auth/register', { email, password, confirmPassword, fullName, otp }),
+  register: (email, password, confirmPassword, fullName, otp, supportType = 'technical') =>
+    api.post('/auth/register', { email, password, confirmPassword, fullName, otp, supportType }),
   forgotPassword: (email) => api.post('/auth/forgot-password', { email }),
   resetPassword: (email, otp, newPassword, confirmPassword) =>
     api.post('/auth/reset-password', { email, otp, newPassword, confirmPassword }),

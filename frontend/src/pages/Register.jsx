@@ -3,6 +3,8 @@ import { authAPI } from '../utils/api';
 import '../styles/auth.css';
 
 export default function Register({ onBack }) {
+  const [supportType, setSupportType] = useState('technical');
+  const [showAppDevModal, setShowAppDevModal] = useState(false);
   const [email, setEmail] = useState('');
   const [fullName, setFullName] = useState('');
   const [password, setPassword] = useState('');
@@ -78,7 +80,7 @@ export default function Register({ onBack }) {
     setLoading(true);
 
     try {
-      const response = await authAPI.register(email, password, confirmPassword, fullName, otp.trim());
+      const response = await authAPI.register(email, password, confirmPassword, fullName, otp.trim(), supportType);
       setSuccess(response.data?.message || 'Account created successfully');
       setTimeout(() => {
         onBack();
@@ -110,10 +112,52 @@ export default function Register({ onBack }) {
         </div>
 
         <form onSubmit={otpSent ? handleRegister : handleSendOtp} className="auth-form">
-          {error && <div className="auth-error">{error}</div>}
-          {success && <div className="auth-success">{success}</div>}
-
           <div className="form-group">
+            <label>Register As</label>
+            <div style={{ display: 'flex', gap: '12px' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <input
+                  type="radio"
+                  name="supportType"
+                  value="technical"
+                  checked={supportType === 'technical'}
+                  onChange={() => setSupportType('technical')}
+                  disabled={loading}
+                />
+                Technical Support
+              </label>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <input
+                  type="radio"
+                  name="supportType"
+                  value="application"
+                  checked={supportType === 'application'}
+                  onChange={() => setSupportType('application')}
+                  disabled={loading}
+                />
+                Application Support
+              </label>
+            </div>
+          </div>
+
+          {supportType === 'application' && (
+            <div className="form-group">
+              <div className="auth-info">
+                <strong>Application Support</strong>
+                <p>This section is currently under development.</p>
+                <button type="button" className="btn btn-ghost" onClick={() => setShowAppDevModal(true)}>
+                  Learn more
+                </button>
+              </div>
+            </div>
+          )}
+
+          {supportType === 'application' ? null : (
+            <>
+              {error && <div className="auth-error">{error}</div>}
+              {success && <div className="auth-success">{success}</div>}
+
+              <div className="form-group">
             <label>Full Name (Optional)</label>
             <input
               type="text"
@@ -195,7 +239,7 @@ export default function Register({ onBack }) {
             </div>
           ) : null}
 
-          <button type="submit" className="btn btn-primary btn-block" disabled={loading}>
+            <button type="submit" className="btn btn-primary btn-block" disabled={loading}>
             {loading
               ? otpSent
                 ? 'Verifying OTP...'
@@ -205,17 +249,31 @@ export default function Register({ onBack }) {
                 : 'Send OTP'}
           </button>
 
-          {otpSent ? (
-            <button
-              type="button"
-              className="btn btn-ghost btn-block"
-              onClick={handleSendOtp}
-              disabled={loading}
-            >
-              Resend OTP
-            </button>
-          ) : null}
+              {otpSent ? (
+                <button
+                  type="button"
+                  className="btn btn-ghost btn-block"
+                  onClick={handleSendOtp}
+                  disabled={loading}
+                >
+                  Resend OTP
+                </button>
+              ) : null}
+            </>
+          )}
         </form>
+
+        {showAppDevModal && (
+          <div className="auth-modal-backdrop" onClick={() => setShowAppDevModal(false)}>
+            <div className="auth-modal" onClick={(e) => e.stopPropagation()}>
+              <h3>Application Support</h3>
+              <p>This section is currently under development. Please check back later.</p>
+              <div style={{ marginTop: 12 }}>
+                <button className="btn btn-primary" onClick={() => setShowAppDevModal(false)}>Close</button>
+              </div>
+            </div>
+          </div>
+        )}
 
         <div className="auth-footer">
           <button type="button" className="btn btn-ghost" onClick={onBack} disabled={loading}>

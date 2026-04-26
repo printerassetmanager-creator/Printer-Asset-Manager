@@ -29,7 +29,10 @@ export const displayName = (user) => String(user || '')
 const getInitialScreen = () => {
   try {
     const params = new URLSearchParams(window.location.search);
-    return params.get('screen') === 'issues' ? 'issues' : 'dashboard';
+    const screen = params.get('screen');
+    if (screen === 'issues') return 'issues';
+    if (screen === 'printmonitarbot') return 'printmonitarbot';
+    return 'dashboard';
   } catch (e) {
     console.warn('URL parsing error:', e);
     return 'dashboard';
@@ -51,7 +54,14 @@ export function AppProvider({ children }) {
   const [user, setUser] = useState(() => {
     try {
       const saved = localStorage.getItem('user');
-      return saved ? JSON.parse(saved) : null;
+      if (!saved) return null;
+      const parsed = JSON.parse(saved);
+      // Prevent auto-authenticating a stored super-admin on first launch
+      if (parsed && parsed.role === 'super_admin') {
+        try { localStorage.removeItem('user'); localStorage.removeItem('authToken'); } catch (e) {}
+        return null;
+      }
+      return parsed;
     } catch (e) {
       console.warn('user parsing error:', e);
       return null;

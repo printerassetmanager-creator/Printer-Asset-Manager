@@ -4,6 +4,7 @@ const pool = require('../db/pool');
 const { authMiddleware, adminMiddleware } = require('../middleware/auth');
 const {
   ensurePrinterMonitorTables,
+  ensureFreshPrinterLiveState,
   cleanupOldPrinterLogs,
   pingPrinterForIp,
   readPrinterWebDetails,
@@ -47,6 +48,7 @@ router.post('/dashboard-live/refresh', async (req, res) => {
 router.get('/dashboard-live', async (req, res) => {
   try {
     await ensurePrinterMonitorTables();
+    await ensureFreshPrinterLiveState();
     await cleanupOldPrinterLogs();
 
     const { plants } = req.query;

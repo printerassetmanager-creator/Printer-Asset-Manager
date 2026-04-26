@@ -32,8 +32,8 @@ async function createSuperAdmin() {
     
     // Insert user
     const result = await pool.query(
-      'INSERT INTO users (email, password_hash, full_name, role, status) VALUES ($1, $2, $3, $4, $5) RETURNING *',
-      [email, hashedPassword, fullName, 'admin', 'active']
+      'INSERT INTO users (email, password_hash, full_name, support_type, role, status) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
+      [email, hashedPassword, fullName, 'technical', 'super_admin', 'active']
     );
     
     const user = result.rows[0];

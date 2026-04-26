@@ -55,43 +55,7 @@ const buildIssueFormState = (issue) => ({
   assignment_note: '',
 });
 
-const getIssueNumber = (issue) =>
-  issue?.issue_unique_id || (issue?.id ? `ISSU${String(issue.id).padStart(2, '0')}` : '');
-
-const formatIssueDate = (value) => {
-  if (!value) return '-';
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return '-';
-  return date.toLocaleDateString();
-};
-
-const formatIssueDateTime = (value) => {
-  if (!value) return '-';
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return '-';
-  return date.toLocaleString();
-};
-
-const getTimelineDisplay = (issue) => {
-  if (issue.status === 'resolved') {
-    return {
-      label: issue.resolved_at ? `Resolved ${formatIssueDate(issue.resolved_at)}` : 'Resolved',
-      tone: 'resolved',
-    };
-  }
-
-  if (issue.timeRemaining?.isBreached) {
-    return {
-      label: 'Breached',
-      tone: 'breached',
-    };
-  }
-
-  return {
-    label: issue.timeRemaining?.display || '-',
-    tone: 'active',
-  };
-};
+const getIssueNumber = (issue) => issue?.issue_unique_id || (issue?.id ? `#${issue.id}` : '');
 
 const EMPTY_FORM = {
   pmno: '',
@@ -717,10 +681,10 @@ export default function IssuesTracker() {
               {history.map((entry, idx) => (
                 <div key={idx} style={{ marginBottom: '12px', paddingBottom: '12px', borderBottom: '1px solid var(--border)', fontSize: '12px' }}>
                   <div style={{ fontWeight: 600, color: 'var(--text)' }}>{entry.activity_type}</div>
-                  {entry.reason && <div style={{ color: 'var(--text3)', marginTop: '4px' }}>Reason: {entry.reason}</div>}
-                  {entry.new_severity && <div style={{ color: 'var(--text3)', marginTop: '2px' }}>Severity: {entry.new_severity}</div>}
-                  {entry.assigned_to && <div style={{ color: 'var(--text3)', marginTop: '2px' }}>Assigned to: {entry.assigned_to}</div>}
-                  <div style={{ color: 'var(--text3)', marginTop: '4px', fontSize: '11px' }}>By {entry.user_name} | {formatIssueDateTime(entry.activity_at || entry.created_at)}</div>
+                  {entry.reason && <div style={{ color: 'var(--text-dim)', marginTop: '4px' }}>Reason: {entry.reason}</div>}
+                  {entry.new_severity && <div style={{ color: 'var(--text-dim)', marginTop: '2px' }}>Severity: {entry.new_severity}</div>}
+                  {entry.assigned_to && <div style={{ color: 'var(--text-dim)', marginTop: '2px' }}>Assigned to: {entry.assigned_to}</div>}
+                  <div style={{ color: 'var(--text-dim)', marginTop: '4px', fontSize: '11px' }}>By {entry.user_name} • {new Date(entry.activity_at).toLocaleString()}</div>
                 </div>
               ))}
             </div>
@@ -731,58 +695,40 @@ export default function IssuesTracker() {
         </div>
       )}
 
-      <div className="issues-table-wrap">
-        <table className="data-table">
+      <table className="data-table">
         <thead>
           <tr>
-            <th style={{ width: '96px' }}>Issue ID</th>
-            <th style={{ width: '90px' }}>PM No</th>
-            <th style={{ minWidth: '260px' }}>Title</th>
-            <th style={{ width: '90px' }}>Plant</th>
-            <th style={{ width: '100px' }}>Severity</th>
-            <th style={{ width: '100px' }}>Status</th>
-            <th style={{ minWidth: '190px' }}>Assigned To</th>
-            <th style={{ width: '140px' }}>Breach Time</th>
-            <th style={{ width: '120px' }}>Created</th>
+            <th style={{ width: '70px' }}>Issue ID</th>
+            <th style={{ width: '60px' }}>PM No</th>
+            <th>Title</th>
+            <th style={{ width: '70px' }}>Severity</th>
+            <th style={{ width: '70px' }}>Status</th>
+            <th style={{ width: '100px' }}>Assigned To</th>
+            <th style={{ width: '80px' }}>Created</th>
+            <th style={{ width: '50px' }}>Actions</th>
           </tr>
         </thead>
         <tbody>
           {filtered.length === 0 ? (
             <tr>
-              <td colSpan="9" className="issues-empty-row">No issues found</td>
+              <td colSpan="8" style={{ textAlign: 'center', padding: '20px', color: 'var(--text-dim)' }}>No issues found</td>
             </tr>
           ) : (
-            filtered.map((issue) => {
-              const timeline = getTimelineDisplay(issue);
-
-              return (
-                <tr
-                  key={issue.id}
-                  className="issue-table-row"
-                  style={{ opacity: issue.status === 'resolved' ? 0.72 : 1 }}
-                  onClick={() => openIssueEditor(issue)}
-                >
-                <td className="issue-id-cell">{getIssueNumber(issue)}</td>
-                <td>{issue.pmno || '-'}</td>
-                <td>
-                  <div className="issue-title-main">{issue.title}</div>
-                  <div className="issue-title-sub">
-                    {[issue.category, issue.loc].filter(Boolean).join(' | ') || issue.desc || '-'}
-                  </div>
-                </td>
-                <td>{issue.plant_location || '-'}</td>
+            filtered.map((issue) => (
+              <tr key={issue.id} style={{ opacity: issue.status === 'resolved' ? 0.6 : 1 }}>
+                <td style={{ fontWeight: 600, color: 'var(--blue)' }}>{getIssueNumber(issue)}</td>
+                <td>{issue.pmno}</td>
+                <td>{issue.title}</td>
                 <td><span className={`tag ${issue.severity === 'High' ? 'tag-danger' : issue.severity === 'Medium' ? 'tag-warning' : 'tag-info'}`}>{issue.severity}</span></td>
                 <td><span className={`tag ${issue.status === 'open' ? 'tag-warning' : 'tag-success'}`}>{issue.status === 'open' ? 'Open' : 'Resolved'}</span></td>
-                <td className="issue-assignee-cell">{issue.assigned_to || '-'}</td>
-                <td><span className={`issue-time-pill ${timeline.tone}`}>{timeline.label}</span></td>
-                <td>{formatIssueDate(issue.created_at)}</td>
-                </tr>
-              );
-            })
+                <td style={{ fontSize: '12px' }}>{issue.assigned_to || '—'}</td>
+                <td style={{ fontSize: '12px' }}>{new Date(issue.created_at).toLocaleDateString()}</td>
+                <td><button className="btn btn-ghost btn-xs" onClick={() => openIssueEditor(issue)}>View</button></td>
+              </tr>
+            ))
           )}
         </tbody>
-        </table>
-      </div>
+      </table>
     </div>
   );
 }

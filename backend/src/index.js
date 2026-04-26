@@ -1,63 +1,21 @@
-const express = require('express');
-const cors = require('cors');
+const app = require('./app');
 const pool = require('./db/pool');
 const { startPrinterMonitor } = require('./services/printerMonitor');
 const { startHPPrinterMonitor } = require('./services/hpPrinterMonitor');
 require('dotenv').config();
 
-const app = express();
-app.use(cors());
-app.use(express.json());
-
-// Middleware to log requests
-app.use((req, res, next) => {
-  console.log(`[${new Date().toISOString()}] ${req.method} ${req.path}`);
-  next();
-});
-
-// Auth Routes
-app.use('/api/auth', require('./routes/auth'));
-app.use('/api/admin', require('./routes/users'));
-
-// Routes
-app.use('/api/printers', require('./routes/printers'));
-app.use('/api/vlan', require('./routes/vlan'));
-app.use('/api/spare-parts', require('./routes/spareParts'));
-app.use('/api/hp-printers', require('./routes/hpPrinters'));
-app.use('/api/cartridges', require('./routes/cartridges'));
-app.use('/api/recipes', require('./routes/recipes'));
-app.use('/api/push-to-printer', require('./routes/pushToPrinter'));
-app.use('/api/issues', require('./routes/issues'));
-app.use('/api/health-checkup', require('./routes/healthCheckup'));
-app.use('/api/pm-pasted', require('./routes/pmPasted'));
-app.use('/api/i-learn', require('./routes/iLearn'));
-app.use('/api/dashboard', require('./routes/dashboard'));
-
-// Health check endpoint
-app.get('/health', async (req, res) => {
-  try {
-    const result = await pool.query('SELECT NOW()');
-    res.json({ status: 'OK', timestamp: result.rows[0].now });
-  } catch (error) {
-    res.status(503).json({ status: 'Database unavailable', error: error.message });
-  }
-});
-
 const PORT = process.env.PORT || 5000;
 
-// Start server with database checks
 async function startServer() {
   try {
     console.log('\n╔═══════════════════════════════════════════════════════════╗');
     console.log('║     PRINTER ASSET MANAGER - SERVER STARTUP                 ║');
     console.log('╚═══════════════════════════════════════════════════════════╝\n');
 
-    // Test database connection
     console.log('🔗 Testing database connection...');
     const connTest = await pool.query('SELECT NOW()');
     console.log('✅ Database connected\n');
 
-    // Verify critical tables
     console.log('📋 Verifying database schema...');
     const criticalTables = ['users', 'printers', 'vlan', 'hp_printers'];
     const tables = await pool.query(`
@@ -65,7 +23,7 @@ async function startServer() {
       WHERE table_schema = 'public'
     `);
     const existingTables = new Set(tables.rows.map(t => t.table_name));
-    
+
     let missingTables = [];
     for (const table of criticalTables) {
       if (existingTables.has(table)) {
@@ -88,7 +46,6 @@ async function startServer() {
       console.log('✅ All critical tables present\n');
     }
 
-    // Start Express server
     app.listen(PORT, () => {
       console.log(`\n✅ Server running on port ${PORT}`);
       console.log(`\n📊 API Endpoints ready:`);
@@ -99,7 +56,6 @@ async function startServer() {
       console.log(`📡 Backend API: http://localhost:${PORT}\n`);
     });
 
-    // Start background monitors (with error handling)
     try {
       if (existingTables.has('printers')) {
         startPrinterMonitor();
@@ -130,5 +86,8 @@ async function startServer() {
   }
 }
 
-// Start the server
-startServer();
+if (require.main === module) {
+  startServer();
+}
+
+module.exports = { startServer };

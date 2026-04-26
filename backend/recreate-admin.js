@@ -14,8 +14,8 @@ async function deleteAndRecreate() {
     const hashedPassword = await bcrypt.hash(password, 10);
     
     const result = await pool.query(
-      'INSERT INTO users (email, password_hash, full_name, role, status) VALUES ($1, $2, $3, $4, $5) RETURNING *',
-      [email, hashedPassword, 'Super Admin', 'admin', 'active']
+      'INSERT INTO users (email, password_hash, full_name, support_type, role, status) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
+      [email, hashedPassword, 'Super Admin', 'technical', 'super_admin', 'active']
     );
     
     const user = result.rows[0];

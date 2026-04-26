@@ -19,6 +19,7 @@ import IssuesTracker from './pages/IssuesTracker';
 import ILearn from './pages/ILearn';
 import PrinterMaster from './pages/PrinterMaster';
 import UserApprovals from './pages/UserApprovals';
+import PrintMonitarBot from './pages/PrintMonitarBot';
 
 // Auth Pages
 import Login from './pages/Login';
@@ -51,7 +52,7 @@ function AppInner() {
   };
 
   // Auto log out after 10 minutes without web activity.
-  useSessionTimeout(handleSessionExpire, 10, isAuthenticated);
+  useSessionTimeout(handleSessionExpire, 20, isAuthenticated);
 
   console.log('App rendering - isAuthenticated:', isAuthenticated, 'user:', user);
 
@@ -104,6 +105,7 @@ function AppInner() {
     switch (currentScreen) {
       case 'dashboard':     return <Dashboard />;
       case 'printerdashboard': return <PrinterDashboard />;
+      case 'printmonitarbot': return <PrintMonitarBot />;
       case 'health':        return <HealthCheckup />;
       case 'pmform':        return <PmForm />;
       case 'viewprinters':  return <ViewPrinters />;

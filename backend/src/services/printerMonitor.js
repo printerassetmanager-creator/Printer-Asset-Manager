@@ -5,11 +5,12 @@ const os = require('os');
 
 const execAsync = promisify(exec);
 
-const DEFAULT_INTERVAL_MS = Number(process.env.PRINTER_MONITOR_INTERVAL_MS || 120000);
+const DEFAULT_INTERVAL_MS = Number(process.env.PRINTER_MONITOR_INTERVAL_MS || 60000);
 const DEFAULT_CONCURRENCY = Number(process.env.PRINTER_MONITOR_CONCURRENCY || 6);
 
 let monitorTimer = null;
 let isCycleRunning = false;
+let monitorCyclePromise = null;
 let tablesReady = false;
 let localIpv4Cache = null;
 
@@ -20,7 +21,11 @@ function extractIpFromText(text) {
 }
 
 function normalizeSerial(serial) {
-  return String(serial || '').trim().replace(/[^a-zA-Z0-9._-]/g, '');
+  return String(serial || '').trim().toUpperCase().replace(/[^A-Z0-9._-]/g, '');
+}
+
+function isHoneywellMake(make) {
+  return String(make || '').toLowerCase().includes('honeywell');
 }
 
 function uniq(values) {
@@ -119,7 +124,7 @@ function hostTargetsForPrinter(make, serial) {
   if (!normalizedSerial) return [];
 
   const domain = process.env.PRINTER_CORP_DOMAIN || 'corp.JABIL.ORG';
-  const isHoneywell = String(make || '').toLowerCase().includes('honeywell');
+  const isHoneywell = isHoneywellMake(make);
   const prefixed = normalizedSerial.toUpperCase().startsWith('PX940V-')
     ? normalizedSerial
     : `PX940V-${normalizedSerial}`;
@@ -646,6 +651,18 @@ async function cleanupOldPrinterLogs(client = pool) {
   await client.query(`DELETE FROM printer_status_logs WHERE logged_at < NOW() - INTERVAL '1 month'`);
 }
 
+async function ensureFreshPrinterLiveState(maxAgeMs = Number(process.env.PRINTER_MONITOR_FRESHNESS_MS || DEFAULT_INTERVAL_MS)) {
+  await ensurePrinterMonitorTables();
+
+  const { rows } = await pool.query('SELECT MAX(updated_at) AS latest_updated_at FROM printer_live_state');
+  const latestUpdatedAt = rows[0]?.latest_updated_at ? new Date(rows[0].latest_updated_at) : null;
+  const isFresh = latestUpdatedAt && (Date.now() - latestUpdatedAt.getTime()) <= maxAgeMs;
+
+  if (!isFresh) {
+    await runPrinterMonitorCycle();
+  }
+}
+
 function buildChangeLogs(prev, next) {
   const logs = [];
 
@@ -702,155 +719,149 @@ function buildChangeLogs(prev, next) {
 }
 
 async function runPrinterMonitorCycle() {
-  if (isCycleRunning) return;
-  isCycleRunning = true;
+  if (monitorCyclePromise) return monitorCyclePromise;
 
-  let client;
-  try {
-    await ensurePrinterMonitorTables();
+  monitorCyclePromise = (async () => {
+    isCycleRunning = true;
 
-    const [{ rows: printers }, { rows: vlanRows }, { rows: liveRows }, { rows: latestHealthRows }] = await Promise.all([
-      pool.query('SELECT id, pmno, serial, make, model, dpi, pmdate, firmware, wc, loc, stage, bay, status FROM printers ORDER BY pmno'),
-      pool.query('SELECT ip, bay, stage, wc, loc FROM vlan'),
-      pool.query('SELECT * FROM printer_live_state'),
-      pool.query(`
-        SELECT DISTINCT ON (pmno)
-          pmno, firmware, km, loc, stage, bay, wc, checked_at
-        FROM health_checkups
-        WHERE pmno IS NOT NULL
-        ORDER BY pmno, checked_at DESC
-      `),
-    ]);
+    let client;
+    try {
+      await ensurePrinterMonitorTables();
 
-    client = await pool.connect();
-    await client.query('BEGIN');
+      const [{ rows: printers }, { rows: vlanRows }, { rows: liveRows }, { rows: latestHealthRows }] = await Promise.all([
+        pool.query('SELECT id, pmno, serial, make, model, dpi, pmdate, firmware, wc, loc, stage, bay, status FROM printers ORDER BY pmno'),
+        pool.query('SELECT ip, bay, stage, wc, loc FROM vlan'),
+        pool.query('SELECT * FROM printer_live_state'),
+        pool.query(`
+          SELECT DISTINCT ON (pmno)
+            pmno, firmware, km, loc, stage, bay, wc, checked_at
+          FROM health_checkups
+          WHERE pmno IS NOT NULL
+          ORDER BY pmno, checked_at DESC
+        `),
+      ]);
 
-    const normalizedPrinters = [];
-    for (const p of printers) {
-      const normalizedPmDate = await maybeAdvancePmDate(p, client);
-      normalizedPrinters.push({ ...p, pmno: String(p.pmno || '').toUpperCase(), pmdate: normalizedPmDate });
-    }
+      client = await pool.connect();
+      await client.query('BEGIN');
 
-    const vlanByIp = new Map(vlanRows.map((v) => [String(v.ip || '').trim(), v]));
-    const prevByPm = new Map(liveRows.map((s) => [String(s.pmno || '').toUpperCase(), s]));
-    const healthByPm = new Map(latestHealthRows.map((h) => [String(h.pmno || '').toUpperCase(), h]));
+      const normalizedPrinters = [];
+      for (const p of printers) {
+        const normalizedPmDate = await maybeAdvancePmDate(p, client);
+        normalizedPrinters.push({ ...p, pmno: String(p.pmno || '').toUpperCase(), pmdate: normalizedPmDate });
+      }
 
-    const nextStates = await mapWithConcurrency(normalizedPrinters, DEFAULT_CONCURRENCY, async (p) => {
-      const prev = prevByPm.get(p.pmno);
-      const pingIp = await pingPrinterForIp(p.make, p.serial);
-      const online_status = pingIp ? 'online' : 'offline';
+      const vlanByIp = new Map(vlanRows.map((v) => [String(v.ip || '').trim(), v]));
+      const prevByPm = new Map(liveRows.map((s) => [String(s.pmno || '').toUpperCase(), s]));
+      const healthByPm = new Map(latestHealthRows.map((h) => [String(h.pmno || '').toUpperCase(), h]));
 
-      const effectiveIp = pingIp || prev?.ip || null;
-      const health = healthByPm.get(p.pmno);
-      const vlanMatch = effectiveIp ? vlanByIp.get(String(effectiveIp).trim()) : null;
-      const web = pingIp ? await readPrinterWebDetails(pingIp, p.make) : null;
+      const nextStates = await mapWithConcurrency(normalizedPrinters, DEFAULT_CONCURRENCY, async (p) => {
+        const prev = prevByPm.get(p.pmno);
+        const pingIp = await pingPrinterForIp(p.make, p.serial);
+        const online_status = pingIp ? 'online' : 'offline';
 
-      const fallbackCondition = prev?.condition_status || 'unknown';
-      const condition_status = pingIp
-        ? (web?.condition_status || 'unknown')
-        : fallbackCondition;
-      const error_reason = pingIp
-        ? (web?.error_reason || null)
-        : (prev?.error_reason || null);
+        const effectiveIp = pingIp || prev?.ip || null;
+        const health = healthByPm.get(p.pmno);
+        const vlanMatch = effectiveIp ? vlanByIp.get(String(effectiveIp).trim()) : null;
+        const baseCondition = String(p.status || '').toLowerCase() === 'error' ? 'error' : 'ready';
+        const condition_status = prev?.condition_status || baseCondition;
+        const error_reason = prev?.error_reason || null;
+        const firmware_version = prev?.firmware_version || null;
+        const printer_km = prev?.printer_km || null;
 
-      const firmware_version = pingIp
-        ? (web?.web_reachable ? (web?.firmware_version || null) : null)
-        : (prev?.firmware_version || null);
+        const resolved_bay = vlanMatch?.bay || health?.bay || p.bay || prev?.resolved_bay || null;
+        const resolved_stage = vlanMatch?.stage || health?.stage || p.stage || prev?.resolved_stage || null;
+        const resolved_wc = vlanMatch?.wc || health?.wc || p.wc || prev?.resolved_wc || null;
+        const location_display = composeLocation(resolved_bay, resolved_stage, resolved_wc);
 
-      const printer_km = pingIp
-        ? (web?.web_reachable ? (web?.printer_km || null) : null)
-        : (prev?.printer_km || null);
+        return {
+          pmno: p.pmno,
+          serial: p.serial || null,
+          ip: effectiveIp,
+          online_status,
+          condition_status,
+          error_reason,
+          firmware_version,
+          printer_km,
+          resolved_bay,
+          resolved_stage,
+          resolved_wc,
+          location_display,
+        };
+      });
 
-      const resolved_bay = vlanMatch?.bay || health?.bay || p.bay || prev?.resolved_bay || null;
-      const resolved_stage = vlanMatch?.stage || health?.stage || p.stage || prev?.resolved_stage || null;
-      const resolved_wc = vlanMatch?.wc || health?.wc || p.wc || prev?.resolved_wc || null;
-      const location_display = composeLocation(resolved_bay, resolved_stage, resolved_wc);
-
-      return {
-        pmno: p.pmno,
-        serial: p.serial || null,
-        ip: effectiveIp,
-        online_status,
-        condition_status,
-        error_reason,
-        firmware_version,
-        printer_km,
-        resolved_bay,
-        resolved_stage,
-        resolved_wc,
-        location_display,
-      };
-    });
-
-    for (const s of nextStates) {
-      await client.query(
-        `INSERT INTO printer_live_state
-          (pmno, serial, ip, online_status, condition_status, error_reason, firmware_version, printer_km, resolved_bay, resolved_stage, resolved_wc, location_display, updated_at)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,NOW())
-         ON CONFLICT (pmno) DO UPDATE SET
-           serial = EXCLUDED.serial,
-           ip = EXCLUDED.ip,
-           online_status = EXCLUDED.online_status,
-           condition_status = EXCLUDED.condition_status,
-           error_reason = EXCLUDED.error_reason,
-           firmware_version = EXCLUDED.firmware_version,
-           printer_km = EXCLUDED.printer_km,
-           resolved_bay = EXCLUDED.resolved_bay,
-           resolved_stage = EXCLUDED.resolved_stage,
-           resolved_wc = EXCLUDED.resolved_wc,
-           location_display = EXCLUDED.location_display,
-           updated_at = NOW()`,
-        [
-          s.pmno,
-          s.serial,
-          s.ip,
-          s.online_status,
-          s.condition_status,
-          s.error_reason,
-          s.firmware_version,
-          s.printer_km,
-          s.resolved_bay,
-          s.resolved_stage,
-          s.resolved_wc,
-          s.location_display,
-        ]
-      );
-
-      const prev = prevByPm.get(s.pmno);
-      if (!prev) continue;
-      const logs = buildChangeLogs(prev, s);
-      for (const log of logs) {
+      for (const s of nextStates) {
         await client.query(
-          `INSERT INTO printer_status_logs
-            (pmno, serial, event_type, reason, old_online_status, new_online_status, old_condition_status, new_condition_status, old_error_reason, new_error_reason, old_ip, new_ip, logged_at)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,NOW())`,
+          `INSERT INTO printer_live_state
+            (pmno, serial, ip, online_status, condition_status, error_reason, firmware_version, printer_km, resolved_bay, resolved_stage, resolved_wc, location_display, updated_at)
+           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,NOW())
+           ON CONFLICT (pmno) DO UPDATE SET
+             serial = EXCLUDED.serial,
+             ip = EXCLUDED.ip,
+             online_status = EXCLUDED.online_status,
+             condition_status = EXCLUDED.condition_status,
+             error_reason = EXCLUDED.error_reason,
+             firmware_version = EXCLUDED.firmware_version,
+             printer_km = EXCLUDED.printer_km,
+             resolved_bay = EXCLUDED.resolved_bay,
+             resolved_stage = EXCLUDED.resolved_stage,
+             resolved_wc = EXCLUDED.resolved_wc,
+             location_display = EXCLUDED.location_display,
+             updated_at = NOW()`,
           [
             s.pmno,
             s.serial,
-            log.event_type,
-            log.reason,
-            log.old_online_status,
-            log.new_online_status,
-            log.old_condition_status,
-            log.new_condition_status,
-            log.old_error_reason,
-            log.new_error_reason,
-            log.old_ip,
-            log.new_ip,
+            s.ip,
+            s.online_status,
+            s.condition_status,
+            s.error_reason,
+            s.firmware_version,
+            s.printer_km,
+            s.resolved_bay,
+            s.resolved_stage,
+            s.resolved_wc,
+            s.location_display,
           ]
         );
-      }
-    }
 
-    await cleanupOldPrinterLogs(client);
-    await client.query('COMMIT');
-  } catch (e) {
-    if (client) await client.query('ROLLBACK');
-    console.error('Printer monitor cycle failed:', e.message);
-  } finally {
-    if (client) client.release();
-    isCycleRunning = false;
-  }
+        const prev = prevByPm.get(s.pmno);
+        if (!prev) continue;
+        const logs = buildChangeLogs(prev, s);
+        for (const log of logs) {
+          await client.query(
+            `INSERT INTO printer_status_logs
+              (pmno, serial, event_type, reason, old_online_status, new_online_status, old_condition_status, new_condition_status, old_error_reason, new_error_reason, old_ip, new_ip, logged_at)
+             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,NOW())`,
+            [
+              s.pmno,
+              s.serial,
+              log.event_type,
+              log.reason,
+              log.old_online_status,
+              log.new_online_status,
+              log.old_condition_status,
+              log.new_condition_status,
+              log.old_error_reason,
+              log.new_error_reason,
+              log.old_ip,
+              log.new_ip,
+            ]
+          );
+        }
+      }
+
+      await cleanupOldPrinterLogs(client);
+      await client.query('COMMIT');
+    } catch (e) {
+      if (client) await client.query('ROLLBACK');
+      console.error('Printer monitor cycle failed:', e.message);
+    } finally {
+      if (client) client.release();
+      isCycleRunning = false;
+      monitorCyclePromise = null;
+    }
+  })();
+
+  return monitorCyclePromise;
 }
 
 function startPrinterMonitor() {
@@ -862,6 +873,7 @@ function startPrinterMonitor() {
 
 module.exports = {
   ensurePrinterMonitorTables,
+  ensureFreshPrinterLiveState,
   cleanupOldPrinterLogs,
   pingPrinterForIp,
   readPrinterWebDetails,

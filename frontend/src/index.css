@@ -365,6 +365,8 @@ html,body,#root{height:100%;overflow:hidden;font-family:'Inter',system-ui,sans-s
 .tag-warning{color:var(--amber);background:var(--amber-bg);border-color:rgba(232,160,32,.35)}
 .tag-info{color:#8ec9ff;background:rgba(74,127,212,.12);border-color:rgba(74,127,212,.35)}
 .tag-success{color:var(--green);background:var(--green-bg);border-color:rgba(61,184,122,.35)}
+.writing-suggestion{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-top:6px;padding:8px 10px;border-radius:var(--r);background:rgba(74,127,212,.08);border:1px solid rgba(74,127,212,.18);font-size:11px;color:var(--text2)}
+.writing-suggestion span{line-height:1.5}
 
 .search-printers-card {
   padding: 6px;

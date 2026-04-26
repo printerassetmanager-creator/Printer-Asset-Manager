@@ -106,6 +106,10 @@ export default function Sidebar() {
           <svg className="ni-icon" viewBox="0 0 16 16" fill="none"><rect x="1.5" y="2" width="13" height="10" rx="1.4" stroke="#4a7fd4" strokeWidth="1.2"/><path d="M4 14h8M8 12v2" stroke="#4a7fd4" strokeWidth="1.2" strokeLinecap="round"/><path d="M4 6h8M4 8.5h5" stroke="#4a7fd4" strokeWidth="1" strokeLinecap="round"/></svg>
           <span className="ni-label">Printer Dashboard</span>
         </div>
+        <div className={ni('printmonitarbot')} onClick={() => setCurrentScreen('printmonitarbot')}>
+          <svg className="ni-icon" viewBox="0 0 16 16" fill="none"><rect x="2" y="2" width="8" height="6" rx="1.2" stroke="#3db87a" strokeWidth="1.2"/><path d="M4 10.5h4M3.5 13h7" stroke="#3db87a" strokeWidth="1.2" strokeLinecap="round"/><circle cx="12.5" cy="5" r="1.5" fill="#3db87a"/><path d="M11.5 9l1-1 1 1 1.5-1.5" stroke="#3db87a" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round"/></svg>
+          <span className="ni-label">Print Monitar Bot</span>
+        </div>
 
         {/* Label Printer Group */}
         <div className="ni-group-header" onClick={() => setShowLabelPrinterGroup(!showLabelPrinterGroup)}>

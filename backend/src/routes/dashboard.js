@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const pool = require('../db/pool');
+const { ensureFreshPrinterLiveState } = require('../services/printerMonitor');
 
 function parseSimpleDate(dateStr) {
   if (!dateStr) return null;
@@ -85,6 +86,8 @@ function getPmStatusAndDate(printer, today, pmPastedMap) {
 
 router.get('/stats', async (req, res) => {
   try {
+    await ensureFreshPrinterLiveState();
+
     const { plants } = req.query;
     const plantList = plants ? plants.split(',').map((p) => p.trim()) : null;
 
@@ -95,8 +98,9 @@ router.get('/stats', async (req, res) => {
       params.push(plantList);
     }
 
-    const [{ rows: printers }, { rows: issues }, { rows: spareParts }] = await Promise.all([
+    const [{ rows: printers }, { rows: liveRows }, { rows: issues }, { rows: spareParts }] = await Promise.all([
       pool.query(printerQuery, params),
+      pool.query('SELECT pmno, online_status FROM printer_live_state'),
       pool.query("SELECT * FROM issues WHERE status='open'" + (plantList && plantList.length > 0 ? ' AND plant_location = ANY($1)' : ''), plantList && plantList.length > 0 ? [plantList] : []),
       pool.query('SELECT * FROM spare_parts'),
     ]);
@@ -111,8 +115,9 @@ router.get('/stats', async (req, res) => {
 
     const p = printers;
     const total = p.length;
-    const online = p.filter(x => x.ip && x.status !== 'offline').length;
-    const offline = p.filter(x => !x.ip || x.status === 'offline').length;
+    const liveByPm = new Map(liveRows.map((row) => [String(row.pmno || '').toUpperCase(), String(row.online_status || '').toLowerCase()]));
+    const online = p.filter((printer) => liveByPm.get(String(printer.pmno || '').toUpperCase()) === 'online').length;
+    const offline = total - online;
 
     const today = new Date();
     today.setHours(0, 0, 0, 0);

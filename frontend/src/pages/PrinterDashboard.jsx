@@ -71,7 +71,6 @@ export default function PrinterDashboard() {
   const [selectedPm, setSelectedPm] = useState('');
   const [statusLogs, setStatusLogs] = useState([]);
   const [logsLoading, setLogsLoading] = useState(false);
-  const [printerWebData, setPrinterWebData] = useState({});
   const [vlanData, setVlanData] = useState([]);
 
   // Function to get location data from VLAN if IP matches, otherwise from printer data
@@ -144,43 +143,17 @@ export default function PrinterDashboard() {
     load();
     loadVlanData();
     
-    // Refresh database data every 15 seconds
-    const dbInterval = setInterval(load, 15000);
+    // Refresh live ping status every minute
+    const dbInterval = setInterval(load, 60000);
     
     // Refresh VLAN data every 30 seconds
     const vlanInterval = setInterval(loadVlanData, 30000);
     
-    // Continuously fetch printer web data every 2 seconds
-    const webDataInterval = setInterval(async () => {
-      if (rows.length > 0) {
-        // Fetch data from all printers in parallel
-        await Promise.all(
-          rows.map(async (printer) => {
-            if (printer.pmno && printer.serial) {
-              try {
-                const { data } = await printersAPI.getLiveWebData(printer.pmno);
-                setPrinterWebData((prev) => ({
-                  ...prev,
-                  [printer.id]: data,
-                }));
-              } catch (e) {
-                setPrinterWebData((prev) => ({
-                  ...prev,
-                  [printer.id]: { error: 'Failed to fetch', timestamp: new Date() },
-                }));
-              }
-            }
-          })
-        );
-      }
-    }, 5000); // Fetch web data every 5 seconds
-    
     return () => {
       clearInterval(dbInterval);
       clearInterval(vlanInterval);
-      clearInterval(webDataInterval);
     };
-  }, [selectedPlants, rows]);
+  }, [selectedPlants]);
 
   const openLogs = async (pmno) => {
     setSelectedPm(pmno);
@@ -301,7 +274,6 @@ export default function PrinterDashboard() {
                 </tr>
               ) : (
                 filtered.map((p) => {
-                  const webData = printerWebData[p.id];
                   return (
                     <tr key={p.id}>
                       <td className="em">
@@ -320,25 +292,15 @@ export default function PrinterDashboard() {
                         </span>
                       </td>
                       <td style={{ fontSize: '11px' }}>
-                        {webData ? (
-                          webData.error ? (
-                            <span style={{ color: 'var(--text3)' }}>{webData.error}</span>
-                          ) : (
-                            <span style={{ color: webData.printerCondition ? 'var(--green)' : 'var(--text3)' }}>
-                              {webData.printerCondition || '-'}
-                            </span>
-                          )
-                        ) : (
-                          <span className={`badge ${conditionClass(p)}`}>{conditionLabel(p)}</span>
-                        )}
+                        <span className={`badge ${conditionClass(p)}`}>{conditionLabel(p)}</span>
                       </td>
                       <td style={{ fontSize: '11px' }}>
-                        {webData && !webData.error ? (webData.firmwareVersion || '-') : (p.firmware_version || '-')}
+                        {p.firmware_version || '-'}
                       </td>
                       <td style={{ fontSize: '11px' }}>
-                        {webData && !webData.error ? (webData.headRunKm !== null && webData.headRunKm !== undefined ? `${webData.headRunKm} km` : '-') : (p.printer_km ? `${p.printer_km} km` : '-')}
+                        {p.printer_km ? `${p.printer_km} km` : '-'}
                       </td>
-                      <td className="mono">{webData?.ip || p.ip || '-'}</td>
+                      <td className="mono">{p.ip || '-'}</td>
                       <td style={{ fontSize: '11px' }}>
                         {(() => {
                           const locData = getLocationData(p);
