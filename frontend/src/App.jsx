@@ -27,9 +27,28 @@ import Register from './pages/Register';
 import ForgotPassword from './pages/ForgotPassword';
 import UserProfile from './pages/UserProfile';
 
+function ProfileIcon() {
+  return (
+    <svg viewBox="0 0 16 16" aria-hidden="true">
+      <circle cx="8" cy="5" r="2.5" fill="currentColor" />
+      <path d="M3 13c0-2.2 2.2-3.8 5-3.8s5 1.6 5 3.8" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function LogoutIcon() {
+  return (
+    <svg viewBox="0 0 16 16" aria-hidden="true">
+      <path d="M6 2.5H3.8A1.3 1.3 0 0 0 2.5 3.8v8.4a1.3 1.3 0 0 0 1.3 1.3H6" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+      <path d="M9 4.5 12.5 8 9 11.5" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M6 8h6" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 function AppInner() {
   const { currentScreen, isAuthenticated, user, logout, loginUser } = useApp();
-  const [authScreen, setAuthScreen] = useState('login'); // login, register, forgot-password
+  const [authScreen, setAuthScreen] = useState('login');
   const [time, setTime] = useState('');
   const [showUserProfile, setShowUserProfile] = useState(false);
   const isAdmin = user?.role === 'admin';
@@ -44,19 +63,16 @@ function AppInner() {
     closeUserProfile();
   };
 
-  // Handle session expiration (either due to inactivity or browser hidden)
   const handleSessionExpire = (reason) => {
     console.log(`Auto-logout triggered: ${reason}`);
     logout();
     closeUserProfile();
   };
 
-  // Auto log out after 10 minutes without web activity.
   useSessionTimeout(handleSessionExpire, 20, isAuthenticated);
 
   console.log('App rendering - isAuthenticated:', isAuthenticated, 'user:', user);
 
-  // Clock for action bar
   React.useEffect(() => {
     const tick = () => setTime(new Date().toLocaleTimeString('en-GB'));
     tick();
@@ -64,9 +80,7 @@ function AppInner() {
     return () => clearInterval(t);
   }, []);
 
-  // Handle login success
   const handleLoginSuccess = (result) => {
-    // Check if this is a navigation request (screen switch)
     if (result && result.screen) {
       if (result.screen === 'register') {
         setAuthScreen('register');
@@ -74,13 +88,11 @@ function AppInner() {
         setAuthScreen('forgot-password');
       }
     } else {
-      // Successful login - result is a user object
       const token = localStorage.getItem('authToken');
       loginUser(result, token);
     }
   };
 
-  // Handle back to login
   const handleBackToLogin = () => {
     setAuthScreen('login');
   };
@@ -92,7 +104,7 @@ function AppInner() {
         justifyContent: 'center',
         alignItems: 'center',
         height: '100vh',
-        background: '#6c5ce7'
+        background: '#6c5ce7',
       }}>
         {authScreen === 'login' && <Login onLoginSuccess={handleLoginSuccess} />}
         {authScreen === 'register' && <Register onBack={handleBackToLogin} />}
@@ -103,23 +115,23 @@ function AppInner() {
 
   const renderScreen = () => {
     switch (currentScreen) {
-      case 'dashboard':     return <Dashboard />;
+      case 'dashboard': return <Dashboard />;
       case 'printerdashboard': return <PrinterDashboard />;
       case 'printmonitarbot': return <PrintMonitarBot />;
-      case 'health':        return <HealthCheckup />;
-      case 'pmform':        return <PmForm />;
-      case 'viewprinters':  return <ViewPrinters />;
-      case 'vlan':          return <VlanActivity />;
-      case 'spare':         return <SpareParts />;
-      case 'hp':            return <HpPrinters />;
-      case 'recipe':        return <LabelRecipes />;
-      case 'upcoming':      return <UpcomingPM />;
-      case 'dueoverdue':    return <DueOverdue />;
-      case 'ilearn':        return <ILearn />;
-      case 'issues':        return <IssuesTracker />;
+      case 'health': return <HealthCheckup />;
+      case 'pmform': return <PmForm />;
+      case 'viewprinters': return <ViewPrinters />;
+      case 'vlan': return <VlanActivity />;
+      case 'spare': return <SpareParts />;
+      case 'hp': return <HpPrinters />;
+      case 'recipe': return <LabelRecipes />;
+      case 'upcoming': return <UpcomingPM />;
+      case 'dueoverdue': return <DueOverdue />;
+      case 'ilearn': return <ILearn />;
+      case 'issues': return <IssuesTracker />;
       case 'printermaster': return isAdmin ? <PrinterMaster /> : <Dashboard />;
       case 'userapprovals': return isSuperAdmin ? <UserApprovals /> : <Dashboard />;
-      default:              return <Dashboard />;
+      default: return <Dashboard />;
     }
   };
 
@@ -134,17 +146,18 @@ function AppInner() {
             Logged in as <span>{user?.email}</span> · <span>{time}</span>
           </div>
           <div className="act-btns">
-            <button className="btn btn-ghost btn-sm" onClick={() => setShowUserProfile(true)}>
-              👤 Profile
+            <button className="btn btn-sm action-pill action-pill-profile" onClick={() => setShowUserProfile(true)}>
+              <span className="action-pill-icon"><ProfileIcon /></span>
+              <span>Profile</span>
             </button>
-            <button className="btn btn-danger btn-sm" onClick={handleLogout}>
-              🚪 Logout
+            <button className="btn btn-sm action-pill action-pill-logout" onClick={handleLogout}>
+              <span className="action-pill-icon"><LogoutIcon /></span>
+              <span>Logout</span>
             </button>
           </div>
         </div>
       </div>
 
-      {/* User Profile Modal */}
       {showUserProfile && (
         <UserProfile user={user} onClose={closeUserProfile} onLogout={handleLogout} />
       )}

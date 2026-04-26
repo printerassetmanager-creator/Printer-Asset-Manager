@@ -101,6 +101,19 @@ html,body,#root{height:100%;overflow:hidden;font-family:'Inter',system-ui,sans-s
 .act-info{font-size:11px;color:var(--text3)}
 .act-info span{color:var(--green)}
 .act-btns{display:flex;gap:8px}
+.action-pill{min-width:118px;justify-content:center;padding:10px 16px;border-radius:14px;font-size:12px;font-weight:700;letter-spacing:.01em;box-shadow:0 12px 24px rgba(0,0,0,.18);position:relative;overflow:hidden;color:#f8fbff !important;text-shadow:0 1px 1px rgba(0,0,0,.35)}
+.action-pill::before{content:"";position:absolute;inset:0;opacity:.4;pointer-events:none}
+.action-pill:hover{transform:translateY(-1px);box-shadow:0 16px 28px rgba(0,0,0,.24)}
+.action-pill:active{transform:translateY(0) scale(.98)}
+.action-pill-profile{background:linear-gradient(135deg, rgba(82,93,180,.22), rgba(33,43,79,.95));border-color:rgba(107,125,232,.45);color:#eef3ff}
+.action-pill-profile::before{background:linear-gradient(90deg, transparent, rgba(255,255,255,.08), transparent);transform:translateX(-100%)}
+.action-pill-profile:hover::before{transform:translateX(100%);transition:transform .55s ease}
+.action-pill-logout{background:linear-gradient(135deg, rgba(148,53,67,.22), rgba(77,29,38,.95));border-color:rgba(230,104,122,.4);color:#fff2f4}
+.action-pill > span{position:relative;z-index:1}
+.action-pill-icon{width:24px;height:24px;border-radius:8px;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0}
+.action-pill-icon svg{width:14px;height:14px;display:block}
+.action-pill-profile .action-pill-icon{background:linear-gradient(135deg, rgba(168,127,250,.95), rgba(81,101,255,.95));color:#fff}
+.action-pill-logout .action-pill-icon{background:linear-gradient(135deg, rgba(255,185,120,.95), rgba(234,112,88,.95));color:#fff}
 
 /* CARDS */
 .card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--r2);padding:10px}
