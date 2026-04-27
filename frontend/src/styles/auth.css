@@ -73,7 +73,8 @@
 
 .auth-header p {
   font-size: 14px;
-  color: #666;
+  color: #3d4757;
+  font-weight: 700;
   margin: 0;
 }
 
@@ -91,7 +92,7 @@
 
 .form-group label {
   font-size: 14px;
-  font-weight: 500;
+  font-weight: 700;
   color: #111; /* stronger contrast for visibility */
 }
 
@@ -120,7 +121,8 @@
 
 .form-group small {
   font-size: 12px;
-  color: #999;
+  color: #4b5563;
+  font-weight: 700;
   margin-top: 4px;
 }
 
@@ -175,9 +177,9 @@
 .auth-divider {
   text-align: center;
   margin: 20px 0;
-  color: #999;
+  color: #4b5563;
   font-size: 12px;
-  font-weight: 600;
+  font-weight: 800;
 }
 
 .auth-links {
@@ -198,7 +200,8 @@
   border-top: 1px solid #eee;
   text-align: center;
   font-size: 12px;
-  color: #666;
+  color: #374151;
+  font-weight: 700;
 }
 
 .auth-footer p {
@@ -236,7 +239,8 @@
   margin: 0;
   font-size: 15px;
   line-height: 1.6;
-  color: #4b5563;
+  color: #374151;
+  font-weight: 700;
 }
 
 /* User Profile Modal */
@@ -319,8 +323,8 @@
 
 .profile-item label {
   font-size: 12px;
-  font-weight: 600;
-  color: #999;
+  font-weight: 800;
+  color: #4b5563;
   text-transform: uppercase;
   display: block;
   margin-bottom: 6px;
@@ -329,6 +333,7 @@
 .profile-item p {
   font-size: 16px;
   color: #333;
+  font-weight: 700;
   margin: 0;
 }
 
@@ -371,15 +376,15 @@
   border: none;
   border-radius: 6px;
   font-size: 14px;
-  font-weight: 600;
+  font-weight: 800;
   cursor: pointer;
   transition: all 0.3s;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 6px;
-  color: #222 !important;
-  background: #f7f7f7;
+  color: #111827 !important;
+  background: #f8fafc;
   text-shadow: 0 1px 0 #fff, 0 0 2px #0001;
 }
 
@@ -394,12 +399,13 @@
 }
 
 .btn-primary {
-  background-color: #667eea;
-  color: white !important;
+  background: linear-gradient(135deg, #7287ff, #5a67d8);
+  color: #ffffff !important;
+  box-shadow: 0 10px 22px rgba(102, 126, 234, 0.25);
 }
 
 .btn-primary:hover:not(:disabled) {
-  background-color: #5568d3;
+  background: linear-gradient(135deg, #8093ff, #6674e6);
 }
 .btn-primary:disabled {
   background-color: #bfc7f7 !important;
@@ -409,45 +415,45 @@
 }
 
 .btn-secondary {
-  background-color: #42a5f5;
-  color: white !important;
+  background: linear-gradient(135deg, #4db6ff, #2196f3);
+  color: #ffffff !important;
 }
 
 .btn-secondary:hover:not(:disabled) {
-  background-color: #1e88e5;
+  background: linear-gradient(135deg, #66c2ff, #2ba1ff);
 }
 
 .btn-success {
-  background-color: #66bb6a;
-  color: white !important;
+  background: linear-gradient(135deg, #6fdc86, #43a047);
+  color: #ffffff !important;
 }
 
 .btn-success:hover:not(:disabled) {
-  background-color: #43a047;
+  background: linear-gradient(135deg, #82e698, #4caf50);
 }
 
 .btn-danger {
-  background-color: #ef5350;
-  color: white !important;
+  background: linear-gradient(135deg, #ff7270, #e53935);
+  color: #ffffff !important;
 }
 
 .btn-danger:hover:not(:disabled) {
-  background-color: #e53935;
+  background: linear-gradient(135deg, #ff8684, #ef5350);
 }
 
 .btn-warning {
-  background-color: #ffa726;
-  color: white !important;
+  background: linear-gradient(135deg, #ffbf4d, #fb8c00);
+  color: #ffffff !important;
 }
 
 .btn-warning:hover:not(:disabled) {
-  background-color: #fb8c00;
+  background: linear-gradient(135deg, #ffca66, #ff9800);
 }
 
 .btn-ghost {
-  background-color: transparent;
-  color: #667eea;
-  border: 1px solid #667eea;
+  background-color: #eef2ff;
+  color: #4353bf !important;
+  border: 1px solid #7c8ef0;
 }
 
 .btn-ghost:disabled {
@@ -457,7 +463,8 @@
 }
 
 .btn-ghost:hover:not(:disabled) {
-  background-color: #f0f2ff;
+  background-color: #e2e8ff;
+  color: #2f3ea3 !important;
 }
 
 .btn-sm {
