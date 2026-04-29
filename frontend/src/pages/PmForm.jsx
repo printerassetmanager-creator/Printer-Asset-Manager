@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { printersAPI, vlanAPI, pmPastedAPI } from '../utils/api';
+import { printersAPI, pmPastedAPI } from '../utils/api';
 import { buildLoftwareValue, getDefaultLoftwareForSap, LOFTWARE_OPTIONS, parseLoftwareValue } from '../utils/loftware';
 import { CURRENT_USER } from '../context/AppContext';
 
@@ -9,7 +9,6 @@ export default function PmForm() {
   const [pm, setPm] = useState('');
   const [status, setStatus] = useState('');
   const [form, setForm] = useState({serial:'',model:'',make:'',dpi:'',ip:'',firmware:'',pmno_disp:'',pmdate:'',pasted_at:nowStr(),stage:'',bay:'',wc:'',loc:'',sapno:'',mesno:'',loftware:'',user:CURRENT_USER,engineer:'Aniket',shift:'1st Shift'});
-  const [vlanInfo, setVlanInfo] = useState(null);
   const [msg, setMsg] = useState('');
   const [secondaryLoftware, setSecondaryLoftware] = useState('');
   const [auditTrail, setAuditTrail] = useState([]);
@@ -51,9 +50,6 @@ export default function PmForm() {
       setForm(f=>({...f,serial:p.serial||'',model:p.model||'',make:p.make||'',dpi:p.dpi||'',ip:p.ip||'',firmware:'R17.09.01',pmno_disp:p.pmno,pmdate:p.pmdate||'',stage:p.stage||'',bay:p.bay||'',wc:p.wc||'',loc:p.loc||'',sapno:p.sapno||'',mesno:p.mesno||'',loftware:loftware.primary||'',pasted_at:nowStr()}));
       setSecondaryLoftware(loftware.secondary || '');
       setStatus(<span style={{color:'var(--green)'}}>✓ {p.serial} loaded</span>);
-      if (p.ip) {
-        try { const { data: vl } = await vlanAPI.getByIp(p.ip); setVlanInfo(vl); } catch {}
-      }
     } catch {
       if (pm.length > 2) setStatus(<span style={{color:'var(--red)'}}>Not found</span>);
     }
@@ -123,11 +119,6 @@ export default function PmForm() {
         <div style={{display:'flex',flexDirection:'column',gap:'14px'}}>
           <div className="card">
             <div className="sec">Location Details</div>
-            {vlanInfo !== null && (
-              vlanInfo
-                ? <div className="vlan-match" style={{marginBottom:'8px'}}>✓ Location from VLAN — edit if wrong</div>
-                : <div className="vlan-nomatch" style={{marginBottom:'8px'}}>⚠ IP not in VLAN — enter manually</div>
-            )}
             <div className="fgrid fg3" style={{gap:'10px',marginBottom:'10px'}}>
               <div className="field"><label>Stage</label><input value={form.stage} onChange={e=>fld('stage',e.target.value)} placeholder="e.g. SMT-2"/></div>
               <div className="field"><label>Bay</label><input value={form.bay} onChange={e=>fld('bay',e.target.value)} placeholder="e.g. Bay-04"/></div>

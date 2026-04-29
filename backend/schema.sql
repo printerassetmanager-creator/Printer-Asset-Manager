@@ -75,6 +75,23 @@ CREATE TABLE IF NOT EXISTS printers (
 );
 
 -- ═══ VLAN ═══
+-- ═══ BACKUP PRINTERS ═══
+CREATE TABLE IF NOT EXISTS backup_printers (
+  id SERIAL PRIMARY KEY,
+  pmno VARCHAR(20) UNIQUE NOT NULL,
+  serial VARCHAR(50) NOT NULL,
+  make VARCHAR(50) NOT NULL,
+  dpi VARCHAR(10) NOT NULL,
+  plant_location VARCHAR(50) DEFAULT 'B26',
+  storage_location TEXT NOT NULL,
+  remarks TEXT,
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_backup_printers_plant_dpi
+  ON backup_printers (plant_location, dpi);
+
 CREATE TABLE IF NOT EXISTS vlan (
   id SERIAL PRIMARY KEY,
   port VARCHAR(30) NOT NULL,
@@ -216,6 +233,12 @@ CREATE TABLE IF NOT EXISTS issues (
   resolution_deadline TIMESTAMP,
   breach_status VARCHAR(20) DEFAULT 'on-track',
   last_activity_user VARCHAR(100),
+  used_backup_printer BOOLEAN DEFAULT FALSE,
+  backup_printer_id INTEGER,
+  backup_printer_pmno VARCHAR(20),
+  backup_printer_serial VARCHAR(50),
+  backup_printer_storage_location TEXT,
+  backup_printer_plant_location VARCHAR(50),
   created_at TIMESTAMP DEFAULT NOW(),
   expires_at TIMESTAMP DEFAULT (NOW() + INTERVAL '10 days'),
   resolved_at TIMESTAMP
@@ -292,6 +315,29 @@ CREATE TABLE IF NOT EXISTS pm_pasted_log (
   remarks TEXT,
   created_at TIMESTAMP DEFAULT NOW()
 );
+
+-- PRINTER LOCATION HISTORY
+CREATE TABLE IF NOT EXISTS printer_location_logs (
+  id SERIAL PRIMARY KEY,
+  pmno VARCHAR(20) NOT NULL,
+  serial VARCHAR(50),
+  old_wc VARCHAR(30),
+  old_stage VARCHAR(30),
+  old_bay VARCHAR(30),
+  old_loc TEXT,
+  old_plant_location VARCHAR(50),
+  new_wc VARCHAR(30),
+  new_stage VARCHAR(30),
+  new_bay VARCHAR(30),
+  new_loc TEXT,
+  new_plant_location VARCHAR(50),
+  source VARCHAR(30) NOT NULL,
+  changed_by VARCHAR(100),
+  changed_at TIMESTAMP DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_printer_location_logs_pmno_time
+  ON printer_location_logs (pmno, changed_at DESC);
 
 -- HEALTH CHECKUP ACTIVITY LOG (1 month retention by API cleanup)
 CREATE TABLE IF NOT EXISTS health_checkup_activity_log (

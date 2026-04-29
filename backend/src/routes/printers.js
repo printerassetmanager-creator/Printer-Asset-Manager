@@ -10,10 +10,14 @@ const {
   readPrinterWebDetails,
   runPrinterMonitorCycle,
 } = require('../services/printerMonitor');
+const {
+  composeLocation,
+  ensurePrinterLocationLogsTable,
+} = require('../services/printerLocationSync');
 
-function composeLocation(bay, stage, wc) {
-  return [bay, stage, wc].filter(Boolean).join(' / ') || '-';
-}
+const printerLocationLogInitPromise = ensurePrinterLocationLogsTable().catch((e) => {
+  console.error('Failed to initialize printer_location_logs:', e.message);
+});
 
 router.get('/', async (req, res) => {
   try {
@@ -62,10 +66,9 @@ router.get('/dashboard-live', async (req, res) => {
     }
     printerQuery += ' ORDER BY pmno';
 
-    const [{ rows: printers }, { rows: liveRows }, { rows: vlanRows }, { rows: latestHealthRows }] = await Promise.all([
+    const [{ rows: printers }, { rows: liveRows }, { rows: latestHealthRows }] = await Promise.all([
       pool.query(printerQuery, params),
       pool.query('SELECT * FROM printer_live_state'),
-      pool.query('SELECT ip, bay, stage, wc, loc FROM vlan'),
       pool.query(`
         SELECT DISTINCT ON (pmno)
           pmno, firmware, km, loc, stage, bay, wc, checked_at
@@ -76,7 +79,6 @@ router.get('/dashboard-live', async (req, res) => {
     ]);
 
     const liveByPm = new Map(liveRows.map((l) => [String(l.pmno || '').toUpperCase(), l]));
-    const vlanByIp = new Map(vlanRows.map((v) => [String(v.ip || '').trim(), v]));
     const healthByPm = new Map(latestHealthRows.map((h) => [String(h.pmno || '').toUpperCase(), h]));
 
     const out = printers.map((p) => {
@@ -84,11 +86,10 @@ router.get('/dashboard-live', async (req, res) => {
       const live = liveByPm.get(pmno);
       const health = healthByPm.get(pmno);
       const ip = live?.ip || null;
-      const vlan = ip ? vlanByIp.get(String(ip).trim()) : null;
 
-      const resolved_bay = live?.resolved_bay || vlan?.bay || health?.bay || p.bay || null;
-      const resolved_stage = live?.resolved_stage || vlan?.stage || health?.stage || p.stage || null;
-      const resolved_wc = live?.resolved_wc || vlan?.wc || health?.wc || p.wc || null;
+      const resolved_bay = live?.resolved_bay || p.bay || health?.bay || null;
+      const resolved_stage = live?.resolved_stage || p.stage || health?.stage || null;
+      const resolved_wc = live?.resolved_wc || p.wc || health?.wc || null;
 
       return {
         ...p,
@@ -101,7 +102,12 @@ router.get('/dashboard-live', async (req, res) => {
         resolved_bay,
         resolved_stage,
         resolved_wc,
-        location_display: live?.location_display || composeLocation(resolved_bay, resolved_stage, resolved_wc),
+        location_display: live?.location_display || composeLocation({
+          bay: resolved_bay,
+          stage: resolved_stage,
+          wc: resolved_wc,
+          loc: p.loc || health?.loc,
+        }) || '-',
         monitored_at: live?.updated_at || null,
       };
     });
@@ -125,6 +131,25 @@ router.get('/status-logs/:pmno', async (req, res) => {
        FROM printer_status_logs
        WHERE pmno = $1 AND logged_at >= NOW() - INTERVAL '1 month'
        ORDER BY logged_at DESC`,
+      [pmno]
+    );
+    res.json(rows);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+router.get('/location-logs/:pmno', async (req, res) => {
+  try {
+    await printerLocationLogInitPromise;
+    const pmno = String(req.params.pmno || '').trim().toUpperCase();
+    const { rows } = await pool.query(
+      `SELECT id, pmno, serial, old_wc, old_stage, old_bay, old_loc, old_plant_location,
+              new_wc, new_stage, new_bay, new_loc, new_plant_location,
+              source, changed_by, changed_at
+       FROM printer_location_logs
+       WHERE pmno = $1
+       ORDER BY changed_at DESC`,
       [pmno]
     );
     res.json(rows);

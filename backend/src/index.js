@@ -17,7 +17,7 @@ async function startServer() {
     console.log('✅ Database connected\n');
 
     console.log('📋 Verifying database schema...');
-    const criticalTables = ['users', 'printers', 'vlan', 'hp_printers'];
+    const criticalTables = ['users', 'printers', 'hp_printers'];
     const tables = await pool.query(`
       SELECT table_name FROM information_schema.tables 
       WHERE table_schema = 'public'

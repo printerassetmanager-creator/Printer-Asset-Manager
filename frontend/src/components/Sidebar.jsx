@@ -134,6 +134,10 @@ export default function Sidebar() {
               <svg className="ni-icon" viewBox="0 0 16 16" fill="none"><rect x="2" y="1" width="12" height="14" rx="1.5" stroke="#4a7fd4" strokeWidth="1.2"/><path d="M5 5h6M5 8h6M5 11h4" stroke="#4a7fd4" strokeWidth="1" strokeLinecap="round"/></svg>
               <span className="ni-label">PM Pasted Form</span>
             </div>
+            <div className={ni('backupprinters')} onClick={() => setCurrentScreen('backupprinters')} style={{paddingLeft: '40px'}}>
+              <svg className="ni-icon" viewBox="0 0 16 16" fill="none"><rect x="2" y="3" width="9" height="10" rx="1.4" stroke="#4a7fd4" strokeWidth="1.2"/><path d="M6 1.8v2.4M4.2 6.4h4.8M4.2 9h4.8" stroke="#4a7fd4" strokeWidth="1.1" strokeLinecap="round"/><path d="M11 8.5h3M12.5 7v3" stroke="#3db87a" strokeWidth="1.2" strokeLinecap="round"/></svg>
+              <span className="ni-label">Backup Printers</span>
+            </div>
             <div className={ni('upcoming')} onClick={() => setCurrentScreen('upcoming')} style={{paddingLeft: '40px'}}>
               <svg className="ni-icon" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="9" r="5.5" stroke="#4a7fd4" strokeWidth="1.2"/><path d="M8 6v3l2 1.5" stroke="#4a7fd4" strokeWidth="1.2" strokeLinecap="round"/><path d="M5.5 2h5" stroke="#4a7fd4" strokeWidth="1.2" strokeLinecap="round"/></svg>
               <span className="ni-label">Upcoming PM</span>

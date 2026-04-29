@@ -35,6 +35,32 @@ function getTimeRemaining(deadline) {
   return { isBreached: false, display: `${minutes}m` };
 }
 
+async function ensureIssueBackupColumns() {
+  await pool.query(`ALTER TABLE issues ADD COLUMN IF NOT EXISTS used_backup_printer BOOLEAN DEFAULT FALSE`);
+  await pool.query(`ALTER TABLE issues ADD COLUMN IF NOT EXISTS backup_printer_id INTEGER`);
+  await pool.query(`ALTER TABLE issues ADD COLUMN IF NOT EXISTS backup_printer_pmno VARCHAR(20)`);
+  await pool.query(`ALTER TABLE issues ADD COLUMN IF NOT EXISTS backup_printer_serial VARCHAR(50)`);
+  await pool.query(`ALTER TABLE issues ADD COLUMN IF NOT EXISTS backup_printer_storage_location TEXT`);
+  await pool.query(`ALTER TABLE issues ADD COLUMN IF NOT EXISTS backup_printer_plant_location VARCHAR(50)`);
+}
+
+async function ensureBackupPrintersTable() {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS backup_printers (
+      id SERIAL PRIMARY KEY,
+      pmno VARCHAR(20) UNIQUE NOT NULL,
+      serial VARCHAR(50) NOT NULL,
+      make VARCHAR(50) NOT NULL,
+      dpi VARCHAR(10) NOT NULL,
+      plant_location VARCHAR(50) DEFAULT 'B26',
+      storage_location TEXT NOT NULL,
+      remarks TEXT,
+      created_at TIMESTAMP DEFAULT NOW(),
+      updated_at TIMESTAMP DEFAULT NOW()
+    )
+  `);
+}
+
 router.get('/', async (req, res) => {
   try {
     // Auto-delete issues: only non-high severity after 10 days. High severity issues are stored permanently.
@@ -65,10 +91,31 @@ router.get('/', async (req, res) => {
 });
 
 router.post('/', async (req, res) => {
-  const { pmno, serial, model, loc, title, desc, severity, category, reporter, sapno, mesno, plant_location, user_name, user_email, assigned_to, assignment_note } = req.body;
+  const {
+    pmno,
+    serial,
+    model,
+    loc,
+    title,
+    desc,
+    severity,
+    category,
+    reporter,
+    sapno,
+    mesno,
+    plant_location,
+    user_name,
+    user_email,
+    assigned_to,
+    assignment_note,
+    used_backup_printer,
+    backup_printer_id,
+  } = req.body;
+  const selectedSeverity = severity || 'Medium';
+  const wantsBackupPrinter = Boolean(used_backup_printer && backup_printer_id);
   
   // For Medium/Low severity issues, assignment is mandatory during creation
-  if ((severity === 'Medium' || severity === 'Low')) {
+  if ((selectedSeverity === 'Medium' || selectedSeverity === 'Low')) {
     if (!assigned_to || !assigned_to.trim()) {
       return res.status(400).json({ error: 'Assignment is required for Medium/Low severity issues' });
     }
@@ -76,13 +123,76 @@ router.post('/', async (req, res) => {
       return res.status(400).json({ error: 'Current user email is required for assignment' });
     }
   }
+
+  if (wantsBackupPrinter && selectedSeverity === 'High') {
+    return res.status(400).json({ error: 'If a backup printer is used, the issue severity must be Medium or Low.' });
+  }
   
   try {
-    const deadline = getResolutionDeadline(severity);
+    await ensureIssueBackupColumns();
+    await ensureBackupPrintersTable();
+
+    let backupPrinter = null;
+    if (wantsBackupPrinter) {
+      const { rows: printers } = await pool.query(
+        'SELECT pmno, dpi, plant_location FROM printers WHERE pmno = $1',
+        [String(pmno || '').trim().toUpperCase()]
+      );
+
+      if (!printers.length) {
+        return res.status(400).json({ error: 'Source printer not found for backup printer validation.' });
+      }
+
+      const sourcePrinter = printers[0];
+      const { rows: backups } = await pool.query(
+        'SELECT * FROM backup_printers WHERE id = $1',
+        [backup_printer_id]
+      );
+
+      if (!backups.length) {
+        return res.status(400).json({ error: 'Selected backup printer was not found.' });
+      }
+
+      backupPrinter = backups[0];
+      if ((backupPrinter.dpi || '') !== (sourcePrinter.dpi || '')) {
+        return res.status(400).json({ error: 'Backup printer DPI must match the issue printer DPI.' });
+      }
+      if ((backupPrinter.plant_location || 'B26') !== (plant_location || sourcePrinter.plant_location || 'B26')) {
+        return res.status(400).json({ error: 'Backup printer plant location must match the issue plant location.' });
+      }
+    }
+
+    const deadline = getResolutionDeadline(selectedSeverity);
     const { rows } = await pool.query(
-      `INSERT INTO issues (pmno,serial,model,loc,title,"desc",severity,category,reporter,sapno,mesno,plant_location,resolution_deadline,status_changed_at,last_activity_user,assigned_to)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,NOW(),$14,$15) RETURNING *`,
-      [pmno, serial, model, loc, title, desc, severity||'Medium', category||'Other', reporter, sapno, mesno, plant_location||'B26', deadline, user_name||'system', assigned_to || null]
+      `INSERT INTO issues (
+         pmno,serial,model,loc,title,"desc",severity,category,reporter,sapno,mesno,plant_location,
+         resolution_deadline,status_changed_at,last_activity_user,assigned_to,used_backup_printer,
+         backup_printer_id,backup_printer_pmno,backup_printer_serial,backup_printer_storage_location,backup_printer_plant_location
+       )
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,NOW(),$14,$15,$16,$17,$18,$19,$20,$21) RETURNING *`,
+      [
+        pmno,
+        serial,
+        model,
+        loc,
+        title,
+        desc,
+        selectedSeverity,
+        category || 'Other',
+        reporter,
+        sapno,
+        mesno,
+        plant_location || 'B26',
+        deadline,
+        user_name || 'system',
+        assigned_to || null,
+        wantsBackupPrinter,
+        backupPrinter?.id || null,
+        backupPrinter?.pmno || null,
+        backupPrinter?.serial || null,
+        backupPrinter?.storage_location || null,
+        backupPrinter?.plant_location || null,
+      ]
     );
     let issue = rows[0];
     
@@ -103,11 +213,22 @@ router.post('/', async (req, res) => {
     await pool.query(
       `INSERT INTO issue_activity_log (issue_id, activity_type, new_severity, severity_at_time, user_name, assigned_to, reason)
        VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-      [issue.id, 'created', severity||'Medium', severity||'Medium', user_name||'system', assigned_to || null, assignment_note || '']
+      [
+        issue.id,
+        'created',
+        selectedSeverity,
+        selectedSeverity,
+        user_name || 'system',
+        assigned_to || null,
+        [
+          assignment_note || '',
+          wantsBackupPrinter && backupPrinter ? `Backup printer used: ${backupPrinter.pmno} (${backupPrinter.storage_location})` : '',
+        ].filter(Boolean).join(' | ')
+      ]
     );
     
     // Handle notifications based on severity
-    if (severity === 'High') {
+    if (selectedSeverity === 'High') {
       // Send notification to all users for high severity
       try {
         const usersResult = await pool.query('SELECT email, full_name FROM users WHERE status = $1', ['active']);
@@ -131,7 +252,7 @@ router.post('/', async (req, res) => {
         console.error('Error sending high severity alert:', emailError);
         // Don't fail the request if email fails
       }
-    } else if ((severity === 'Medium' || severity === 'Low') && assigned_to) {
+    } else if ((selectedSeverity === 'Medium' || selectedSeverity === 'Low') && assigned_to) {
       // Send assignment notification for Medium/Low severity
       try {
         const userResult = await pool.query(

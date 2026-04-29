@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { printersAPI, vlanAPI, healthAPI } from '../utils/api';
+import { printersAPI, healthAPI } from '../utils/api';
 import { PLANT_LOCATIONS } from '../context/AppContext';
 import { buildLoftwareValue, getDefaultLoftwareForSap, LOFTWARE_OPTIONS, parseLoftwareValue } from '../utils/loftware';
 import { toSentenceCase } from '../utils/textFormat';
@@ -67,7 +67,6 @@ export default function HealthCheckup() {
     is_repeat: false,
     engineer: 'Aniket'
   });
-  const [vlanInfo, setVlanInfo] = useState(null);
   const [usedParts, setUsedParts] = useState([]);
   const [dmgParts, setDmgParts] = useState([]);
   const [showDmgModal, setShowDmgModal] = useState(false);
@@ -141,15 +140,6 @@ export default function HealthCheckup() {
       }));
       setSecondaryLoftware(loftware.secondary || '');
 
-      if (p.ip) {
-        try {
-          const { data: vl } = await vlanAPI.getByIp(p.ip);
-          setVlanInfo(vl);
-          if (vl) setForm((f) => ({ ...f, mac: `${vl.sw} / ${vl.mac}` }));
-        } catch {
-          // no-op
-        }
-      }
     } catch {
       setStatus(<span style={{ color: 'var(--red)' }}>PM not found</span>);
     }
@@ -165,8 +155,7 @@ export default function HealthCheckup() {
         req_parts: toSentenceCase(form.req_parts),
         damaged_parts: dmgParts,
         loftware: buildLoftwareValue(form.loftware, allowTwoLoftware ? secondaryLoftware : ''),
-        logged_at: nowStr(),
-        vlan: vlanInfo
+        logged_at: nowStr()
       });
       await loadActivityLog();
       setMsg('Saved');

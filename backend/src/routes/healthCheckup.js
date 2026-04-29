@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const pool = require('../db/pool');
+const { syncPrinterMasterFromEvent } = require('../services/printerLocationSync');
 
 const ensureActivityLogTable = async () => {
   await pool.query(`
@@ -72,6 +73,27 @@ router.post('/', async (req, res) => {
     );
 
     const savedCheckup = rows[0];
+    await syncPrinterMasterFromEvent({
+      db: client,
+      pmno: savedCheckup.pmno || pmno,
+      serial: savedCheckup.serial || serial,
+      model: savedCheckup.model || model,
+      make: savedCheckup.make || make,
+      dpi: savedCheckup.dpi || dpi,
+      ip: savedCheckup.ip || ip,
+      wc: savedCheckup.wc || wc,
+      loc: savedCheckup.loc || loc,
+      stage: savedCheckup.stage || stage,
+      bay: savedCheckup.bay || bay,
+      sapno: savedCheckup.sapno || sapno,
+      mesno: savedCheckup.mesno || mesno,
+      firmware: savedCheckup.firmware || firmware,
+      plant_location: req.body.plant_location,
+      source: 'health_checkup',
+      changed_by: savedCheckup.engineer || engineer || 'Unknown',
+      changed_at: savedCheckup.checked_at,
+    });
+
     await client.query(
       `INSERT INTO health_checkup_activity_log (pmno, engineer, checked_at)
        VALUES ($1, $2, $3)`,

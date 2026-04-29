@@ -728,9 +728,8 @@ async function runPrinterMonitorCycle() {
     try {
       await ensurePrinterMonitorTables();
 
-      const [{ rows: printers }, { rows: vlanRows }, { rows: liveRows }, { rows: latestHealthRows }] = await Promise.all([
+      const [{ rows: printers }, { rows: liveRows }, { rows: latestHealthRows }] = await Promise.all([
         pool.query('SELECT id, pmno, serial, make, model, dpi, pmdate, firmware, wc, loc, stage, bay, status FROM printers ORDER BY pmno'),
-        pool.query('SELECT ip, bay, stage, wc, loc FROM vlan'),
         pool.query('SELECT * FROM printer_live_state'),
         pool.query(`
           SELECT DISTINCT ON (pmno)
@@ -750,7 +749,6 @@ async function runPrinterMonitorCycle() {
         normalizedPrinters.push({ ...p, pmno: String(p.pmno || '').toUpperCase(), pmdate: normalizedPmDate });
       }
 
-      const vlanByIp = new Map(vlanRows.map((v) => [String(v.ip || '').trim(), v]));
       const prevByPm = new Map(liveRows.map((s) => [String(s.pmno || '').toUpperCase(), s]));
       const healthByPm = new Map(latestHealthRows.map((h) => [String(h.pmno || '').toUpperCase(), h]));
 
@@ -761,16 +759,15 @@ async function runPrinterMonitorCycle() {
 
         const effectiveIp = pingIp || prev?.ip || null;
         const health = healthByPm.get(p.pmno);
-        const vlanMatch = effectiveIp ? vlanByIp.get(String(effectiveIp).trim()) : null;
         const baseCondition = String(p.status || '').toLowerCase() === 'error' ? 'error' : 'ready';
         const condition_status = prev?.condition_status || baseCondition;
         const error_reason = prev?.error_reason || null;
         const firmware_version = prev?.firmware_version || null;
         const printer_km = prev?.printer_km || null;
 
-        const resolved_bay = vlanMatch?.bay || health?.bay || p.bay || prev?.resolved_bay || null;
-        const resolved_stage = vlanMatch?.stage || health?.stage || p.stage || prev?.resolved_stage || null;
-        const resolved_wc = vlanMatch?.wc || health?.wc || p.wc || prev?.resolved_wc || null;
+        const resolved_bay = health?.bay || p.bay || prev?.resolved_bay || null;
+        const resolved_stage = health?.stage || p.stage || prev?.resolved_stage || null;
+        const resolved_wc = health?.wc || p.wc || prev?.resolved_wc || null;
         const location_display = composeLocation(resolved_bay, resolved_stage, resolved_wc);
 
         return {

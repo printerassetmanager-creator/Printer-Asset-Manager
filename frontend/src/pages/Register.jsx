@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { authAPI } from '../utils/api';
+import UnderDevelopmentNotice from '../components/UnderDevelopmentNotice';
 import '../styles/auth.css';
 
 export default function Register({ onBack }) {
@@ -142,12 +143,17 @@ export default function Register({ onBack }) {
 
           {supportType === 'application' && (
             <div className="form-group">
-              <div className="auth-info">
-                <strong>Application Support</strong>
-                <p>This section is currently under development.</p>
-                <button type="button" className="btn btn-ghost" onClick={() => setShowAppDevModal(true)}>
-                  Learn more
-                </button>
+              <div className="auth-under-dev">
+                <UnderDevelopmentNotice
+                  title="Application Support is under development."
+                  description="This section is under development."
+                  compact
+                />
+                <div style={{ display: 'flex', justifyContent: 'center', marginTop: '12px' }}>
+                  <button type="button" className="btn btn-ghost" onClick={() => setShowAppDevModal(true)}>
+                    Learn more
+                  </button>
+                </div>
               </div>
             </div>
           )}
@@ -267,8 +273,15 @@ export default function Register({ onBack }) {
           <div className="auth-modal-backdrop" onClick={() => setShowAppDevModal(false)}>
             <div className="auth-modal" onClick={(e) => e.stopPropagation()}>
               <h3>Application Support</h3>
-              <p>This section is currently under development. Please check back later.</p>
-              <div style={{ marginTop: 12 }}>
+              <div style={{ textAlign: 'left', fontSize: '15px', lineHeight: '1.6' }}>
+                <ul>
+                  <li>We aim to automate repetitive tasks, such as creating dashboards for server user count, C drive status, and centralizing issues with their resolutions for new engineers.</li>
+                  <li>We are building tools to help identify likely root causes faster using safe, read-only analysis workflows.</li>
+                  <li>Automation and analysis are reviewed carefully before any real operational changes are made.</li>
+                  <li>The goal is faster support, smoother onboarding, and better continuous improvement for the application team.</li>
+                </ul>
+              </div>
+              <div style={{ marginTop: '12px', display: 'flex', justifyContent: 'flex-end' }}>
                 <button className="btn btn-primary" onClick={() => setShowAppDevModal(false)}>Close</button>
               </div>
             </div>

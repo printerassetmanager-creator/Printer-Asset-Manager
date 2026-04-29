@@ -1,6 +1,34 @@
 import React, { useEffect, useState } from 'react';
-import { printersAPI, vlanAPI } from '../utils/api';
+import { printersAPI } from '../utils/api';
 import { useApp } from '../context/AppContext';
+
+function fmtDateTime(value) {
+  if (!value) return '-';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '-';
+  return date.toLocaleString('en-GB', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
+function formatLocationSummary(parts = {}) {
+  const combined = [parts.wc, parts.stage, parts.bay].filter(Boolean).join(', ');
+  return combined || '-';
+}
+
+function formatLocationLogEntry(log, prefix) {
+  const plant = log[`${prefix}_plant_location`];
+  const wc = log[`${prefix}_wc`];
+  const stage = log[`${prefix}_stage`];
+  const bay = log[`${prefix}_bay`];
+  const loc = log[`${prefix}_loc`];
+  const details = [plant, wc, stage, bay].filter(Boolean).join(' / ');
+  return loc || details || '-';
+}
 
 export default function ViewPrinters() {
   const { selectedPlants } = useApp();
@@ -8,41 +36,17 @@ export default function ViewPrinters() {
   const [search, setSearch] = useState('');
   const [filter, setFilter] = useState('');
   const [loading, setLoading] = useState(false);
-  const [vlanData, setVlanData] = useState([]);
+  const [showLocationModal, setShowLocationModal] = useState(false);
+  const [selectedPrinter, setSelectedPrinter] = useState(null);
+  const [locationLogs, setLocationLogs] = useState([]);
+  const [loadingLocationLogs, setLoadingLocationLogs] = useState(false);
 
-  // Function to get location data from VLAN if IP matches, otherwise from printer data
-  const getLocationData = (printer) => {
-    if (!printer.ip || !vlanData.length) {
-      return {
-        wc: printer.resolved_wc || '-',
-        stage: printer.resolved_stage || '-',
-        bay: printer.resolved_bay || '-',
-        plant: printer.plant_location || 'B26',
-        source: 'printer'
-      };
-    }
-
-    // Find matching VLAN entry by IP
-    const vlanMatch = vlanData.find(v => v.ip === printer.ip);
-    if (vlanMatch) {
-      return {
-        wc: vlanMatch.wc || '-',
-        stage: vlanMatch.stage || '-',
-        bay: vlanMatch.bay || '-',
-        plant: vlanMatch.plant_location || 'B26',
-        source: 'vlan'
-      };
-    }
-
-    // Fallback to printer data if no VLAN match
-    return {
-      wc: printer.resolved_wc || '-',
-      stage: printer.resolved_stage || '-',
-      bay: printer.resolved_bay || '-',
-      plant: printer.plant_location || 'B26',
-      source: 'printer'
-    };
-  };
+  const getLocationData = (printer) => ({
+    wc: printer.resolved_wc || '',
+    stage: printer.resolved_stage || '',
+    bay: printer.resolved_bay || '',
+    plant: printer.plant_location || 'B26',
+  });
 
   const load = async () => {
     setLoading(true);
@@ -65,87 +69,95 @@ export default function ViewPrinters() {
     await load();
   };
 
-  const loadVlanData = async () => {
+  const openLocationLogs = async (printer) => {
+    setSelectedPrinter(printer);
+    setShowLocationModal(true);
+    setLoadingLocationLogs(true);
     try {
-      const { data } = await vlanAPI.getAll(selectedPlants);
-      setVlanData(Array.isArray(data) ? data : []);
+      const { data } = await printersAPI.getLocationLogs(printer.pmno);
+      setLocationLogs(Array.isArray(data) ? data : []);
     } catch {
-      setVlanData([]);
+      setLocationLogs([]);
+    } finally {
+      setLoadingLocationLogs(false);
     }
   };
 
   useEffect(() => {
     load();
-    loadVlanData();
-    
-    // Refresh live ping status every minute
     const dbInterval = setInterval(load, 60000);
-    
-    // Refresh VLAN data every 30 seconds
-    const vlanInterval = setInterval(loadVlanData, 30000);
-    
-    return () => {
-      clearInterval(dbInterval);
-      clearInterval(vlanInterval);
-    };
+
+    return () => clearInterval(dbInterval);
   }, [selectedPlants]);
 
-  // Enhanced search logic
-  const filtered = printers.filter((p) => {
-    const q = search.trim().toLowerCase();
-    if (!q) return true;
+  const filtered = printers.filter((printer) => {
+    const statusFilter = filter.trim().toLowerCase();
+    if (statusFilter) {
+      const onlineStatus = String(printer.online_status || '').toLowerCase();
+      const conditionStatus = String(printer.condition_status || '').toLowerCase();
+      if (statusFilter === 'online' && onlineStatus !== 'online') return false;
+      if (statusFilter === 'offline' && onlineStatus !== 'offline') return false;
+      if (statusFilter === 'error' && conditionStatus !== 'error') return false;
+      if (statusFilter === 'ready' && conditionStatus !== 'ready') return false;
+    }
 
-    // Exact match fields
-    const pmno = String(p.pmno || '').toLowerCase();
-    const serial = String(p.serial || '').toLowerCase();
-    const printerNo = String(p.printer_no || '').toLowerCase();
-    if (q === pmno || q === serial || q === printerNo) return true;
+    const query = search.trim().toLowerCase();
+    if (!query) return true;
 
-    // Get location data from VLAN if available
-    const locData = getLocationData(p);
-
-    // Fuzzy search for other fields
-    const fuzzyFields = [
-      p.make,
-      p.model,
-      p.ip,
-      p.firmware_version,
-      p.printer_km,
-      locData.wc,
-      locData.bay,
-      locData.location,
-      p.online_status,
-      p.condition_status,
-      p.error_reason,
-      locData.plant,
+    const location = getLocationData(printer);
+    const exactFields = [
+      printer.pmno,
+      printer.serial,
+      printer.printer_no,
     ];
-    return fuzzyFields.some(f => String(f || '').toLowerCase().includes(q));
+
+    if (exactFields.some((field) => String(field || '').toLowerCase() === query)) {
+      return true;
+    }
+
+    const fuzzyFields = [
+      printer.make,
+      printer.model,
+      printer.ip,
+      printer.firmware_version,
+      printer.printer_km,
+      location.wc,
+      location.stage,
+      location.bay,
+      printer.location_display,
+      printer.online_status,
+      printer.condition_status,
+      printer.error_reason,
+      location.plant,
+    ];
+
+    return fuzzyFields.some((field) => String(field || '').toLowerCase().includes(query));
   });
 
   const exportCSV = () => {
     const header = 'PM No,Serial No,Make,Model,PM Date,IP Address,Firmware,Printer KM,Workcell,Location,Plant,Online,Condition,Error Reason\n';
     const rows = filtered
-      .map((p) => [
-        p.pmno || '',
-        p.serial || '',
-        p.make || '',
-        p.model || '',
-        p.pmdate || '',
-        p.ip || '',
-        p.firmware_version || '',
-        p.printer_km || '',
-        p.resolved_wc || '',
-        p.location_display || '',
-        p.plant_location || 'B26',
-        p.online_status || '',
-        p.condition_status || '',
-        p.error_reason || '',
+      .map((printer) => [
+        printer.pmno || '',
+        printer.serial || '',
+        printer.make || '',
+        printer.model || '',
+        printer.pmdate || '',
+        printer.ip || '',
+        printer.firmware_version || '',
+        printer.printer_km || '',
+        printer.resolved_wc || '',
+        printer.location_display || '',
+        printer.plant_location || 'B26',
+        printer.online_status || '',
+        printer.condition_status || '',
+        printer.error_reason || '',
       ].join(','))
       .join('\n');
-    const a = document.createElement('a');
-    a.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(header + rows);
-    a.download = 'printers-live.csv';
-    a.click();
+    const anchor = document.createElement('a');
+    anchor.href = `data:text/csv;charset=utf-8,${encodeURIComponent(header + rows)}`;
+    anchor.download = 'printers-live.csv';
+    anchor.click();
   };
 
   const conditionClass = (printer) => {
@@ -169,11 +181,11 @@ export default function ViewPrinters() {
           <input
             placeholder="Search PM No, Serial, Make, Model, Workcell, Error..."
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(event) => setSearch(event.target.value)}
           />
           <select
             value={filter}
-            onChange={(e) => setFilter(e.target.value)}
+            onChange={(event) => setFilter(event.target.value)}
             style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 'var(--r)', padding: '8px 11px', fontSize: '13px', color: 'var(--text)', fontFamily: 'Inter,sans-serif', outline: 'none' }}
           >
             <option value="">All Status</option>
@@ -182,8 +194,8 @@ export default function ViewPrinters() {
             <option>Error</option>
             <option>Ready</option>
           </select>
-          <button className="btn btn-ghost btn-sm" onClick={exportCSV}>⬇ Export</button>
-          <button className="btn btn-primary btn-sm" onClick={refreshLive}>↻ Refresh Live</button>
+          <button className="btn btn-ghost btn-sm" onClick={exportCSV}>Export</button>
+          <button className="btn btn-primary btn-sm" onClick={refreshLive}>Refresh Live</button>
         </div>
 
         <div className="tbl-wrap">
@@ -212,38 +224,53 @@ export default function ViewPrinters() {
                   </td>
                 </tr>
               ) : (
-                filtered.map((p) => {
-                  const locData = getLocationData(p);
-                  const pmDate = p.pmdate ? new Date(p.pmdate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '-';
+                filtered.map((printer) => {
+                  const location = getLocationData(printer);
+                  const pmDate = printer.pmdate
+                    ? new Date(printer.pmdate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+                    : '-';
+
                   return (
-                    <tr key={p.id}>
-                      <td className="em">{p.pmno || '-'}</td>
-                      <td className="mono">{p.serial || '-'}</td>
-                      <td>{p.make} {p.model}</td>
-                      <td className="mono">{p.ip || '-'}</td>
+                    <tr key={printer.id}>
+                      <td className="em">{printer.pmno || '-'}</td>
+                      <td className="mono">{printer.serial || '-'}</td>
+                      <td>{[printer.make, printer.model].filter(Boolean).join(' ') || '-'}</td>
+                      <td className="mono">{printer.ip || '-'}</td>
                       <td>
-                        <span className={`badge b-${String(p.online_status || '').toLowerCase() === 'online' ? 'online' : 'offline'}`}>
-                          {String(p.online_status || '').toLowerCase() === 'online' ? '● Online' : '● Offline'}
+                        <span className={`badge b-${String(printer.online_status || '').toLowerCase() === 'online' ? 'online' : 'offline'}`}>
+                          {String(printer.online_status || '').toLowerCase() === 'online' ? 'Online' : 'Offline'}
                         </span>
                       </td>
                       <td style={{ fontSize: '11px' }}>{pmDate}</td>
                       <td style={{ fontSize: '11px' }}>
-                        <span className={`badge ${conditionClass(p)}`}>{conditionLabel(p)}</span>
+                        <span className={`badge ${conditionClass(printer)}`}>{conditionLabel(printer)}</span>
                       </td>
+                      <td style={{ fontSize: '11px' }}>{printer.firmware_version || '-'}</td>
+                      <td style={{ fontSize: '11px' }}>{printer.printer_km ? `${printer.printer_km} km` : '-'}</td>
                       <td style={{ fontSize: '11px' }}>
-                        {p.firmware_version || '-'}
+                        <button
+                          type="button"
+                          onClick={() => openLocationLogs(printer)}
+                          style={{
+                            background: 'none',
+                            border: 'none',
+                            padding: 0,
+                            color: 'var(--blue)',
+                            cursor: 'pointer',
+                            textAlign: 'left',
+                            font: 'inherit',
+                            textDecoration: 'underline',
+                          }}
+                          title="View location history"
+                        >
+                          {formatLocationSummary(location)}
+                        </button>
                       </td>
-                      <td style={{ fontSize: '11px' }}>
-                        {p.printer_km ? `${p.printer_km} km` : '-'}
-                      </td>
-                      <td style={{ fontSize: '11px' }}>
-                        {`${locData.wc}, ${locData.stage}, ${locData.bay}${locData.source === 'vlan' ? ' (VLAN)' : ''}`}
-                      </td>
-                      <td style={{ fontSize: '11px', fontWeight: 500, color: 'var(--blue)' }}>{locData.plant}{locData.source === 'vlan' ? ' *' : ''}</td>
+                      <td style={{ fontSize: '11px', fontWeight: 500, color: 'var(--blue)' }}>{location.plant}</td>
                       <td>
-                        {String(p.online_status || '').toLowerCase() === 'online' && p.ip ? (
+                        {String(printer.online_status || '').toLowerCase() === 'online' && printer.ip ? (
                           <a
-                            href={`http://${p.ip}`}
+                            href={`http://${printer.ip}`}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="btn btn-xs btn-ghost"
@@ -263,6 +290,52 @@ export default function ViewPrinters() {
           </table>
         </div>
       </div>
+
+      {showLocationModal && (
+        <div className="modal-bg show" onClick={(event) => { if (event.target === event.currentTarget) setShowLocationModal(false); }}>
+          <div className="modal" style={{ width: '900px', maxWidth: '96vw' }}>
+            <div className="modal-title">Location History - {selectedPrinter?.pmno || '-'}</div>
+            <button className="modal-close" onClick={() => setShowLocationModal(false)}>X</button>
+            <div style={{ fontSize: '12px', color: 'var(--text3)', marginBottom: '14px' }}>
+              Clicked from current location: {selectedPrinter ? `${selectedPrinter.location_display || formatLocationSummary(getLocationData(selectedPrinter))} (${selectedPrinter.plant_location || 'B26'})` : '-'}
+            </div>
+            <div className="tbl-wrap" style={{ overflowY: 'auto', maxHeight: '60vh' }}>
+              <table className="tbl">
+                <thead>
+                  <tr>
+                    <th>Changed At</th>
+                    <th>Source</th>
+                    <th>Changed By</th>
+                    <th>Old Location</th>
+                    <th>New Location</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {loadingLocationLogs ? (
+                    <tr>
+                      <td colSpan="5" style={{ textAlign: 'center', padding: '20px' }}>Loading location history...</td>
+                    </tr>
+                  ) : locationLogs.length === 0 ? (
+                    <tr>
+                      <td colSpan="5" style={{ textAlign: 'center', padding: '20px', color: 'var(--text3)' }}>No location history found for this printer</td>
+                    </tr>
+                  ) : (
+                    locationLogs.map((log) => (
+                      <tr key={log.id}>
+                        <td style={{ fontSize: '11px' }}>{fmtDateTime(log.changed_at)}</td>
+                        <td>{String(log.source || '').replace(/_/g, ' ') || '-'}</td>
+                        <td>{log.changed_by || '-'}</td>
+                        <td style={{ fontSize: '11px' }}>{formatLocationLogEntry(log, 'old')}</td>
+                        <td style={{ fontSize: '11px' }}>{formatLocationLogEntry(log, 'new')}</td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

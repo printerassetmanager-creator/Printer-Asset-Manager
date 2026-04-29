@@ -10,6 +10,7 @@ import HealthCheckup from './pages/HealthCheckup';
 import PmForm from './pages/PmForm';
 import ViewPrinters from './pages/ViewPrinters';
 import VlanActivity from './pages/VlanActivity';
+import BackupPrinters from './pages/BackupPrinters';
 import SpareParts from './pages/SpareParts';
 import HpPrinters from './pages/HpPrinters';
 import LabelRecipes from './pages/LabelRecipes';
@@ -121,6 +122,7 @@ function AppInner() {
       case 'health': return <HealthCheckup />;
       case 'pmform': return <PmForm />;
       case 'viewprinters': return <ViewPrinters />;
+      case 'backupprinters': return <BackupPrinters />;
       case 'vlan': return <VlanActivity />;
       case 'spare': return <SpareParts />;
       case 'hp': return <HpPrinters />;

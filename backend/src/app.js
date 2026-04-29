@@ -16,7 +16,6 @@ app.use((req, res, next) => {
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/admin', require('./routes/users'));
 app.use('/api/printers', require('./routes/printers'));
-app.use('/api/vlan', require('./routes/vlan'));
 app.use('/api/spare-parts', require('./routes/spareParts'));
 app.use('/api/hp-printers', require('./routes/hpPrinters'));
 app.use('/api/cartridges', require('./routes/cartridges'));

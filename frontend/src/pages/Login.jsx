@@ -43,7 +43,7 @@ export default function Login({ onLoginSuccess }) {
           <div className="logo-container">
             <img src="/jabil-logo.svg" alt="JABIL Logo" className="auth-logo" />
           </div>
-          <h1>Printer Asset Manager</h1>
+          <h1>IT Support Activities</h1>
           <p>Login to your account</p>
         </div>
 

@@ -7,6 +7,7 @@
   min-height: 100vh;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  overflow-y: auto;
 }
 
 .auth-box {
@@ -16,6 +17,8 @@
   box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
   width: 100%;
   max-width: 420px;
+  max-height: 90vh;
+  overflow-y: auto;
 }
 
 .auth-header {
@@ -206,6 +209,10 @@
 
 .auth-footer p {
   margin: 5px 0;
+}
+
+.auth-under-dev {
+  width: 100%;
 }
 
 .auth-modal-backdrop {

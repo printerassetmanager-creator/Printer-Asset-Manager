@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { issuesAPI, printersAPI } from '../utils/api';
+import { backupPrintersAPI, issuesAPI, printersAPI } from '../utils/api';
 import { useApp, CURRENT_USER, PLANT_LOCATIONS } from '../context/AppContext';
 import { toSentenceCase } from '../utils/textFormat';
 
@@ -53,6 +53,13 @@ const buildIssueFormState = (issue) => ({
   status: issue.status || 'open',
   assigned_to: '',
   assignment_note: '',
+  used_backup_printer: Boolean(issue.used_backup_printer),
+  backup_printer_id: issue.backup_printer_id ? String(issue.backup_printer_id) : '',
+  backup_printer_pmno: issue.backup_printer_pmno || '',
+  backup_printer_serial: issue.backup_printer_serial || '',
+  backup_printer_storage_location: issue.backup_printer_storage_location || '',
+  backup_printer_plant_location: issue.backup_printer_plant_location || '',
+  printer_dpi: issue.printer_dpi || '',
 });
 
 const getIssueNumber = (issue) => issue?.issue_unique_id || (issue?.id ? `#${issue.id}` : '');
@@ -73,6 +80,13 @@ const EMPTY_FORM = {
   plant_location: 'B26',
   assigned_to: '',
   assignment_note: '',
+  used_backup_printer: false,
+  backup_printer_id: '',
+  backup_printer_pmno: '',
+  backup_printer_serial: '',
+  backup_printer_storage_location: '',
+  backup_printer_plant_location: '',
+  printer_dpi: '',
 };
 
 export default function IssuesTracker() {
@@ -101,12 +115,26 @@ export default function IssuesTracker() {
   const [assignTo, setAssignTo] = useState('');
   const [assignmentNote, setAssignmentNote] = useState('');
   const [users, setUsers] = useState([]);
+  const [backupMatches, setBackupMatches] = useState([]);
+  const [backupMatchesLoading, setBackupMatchesLoading] = useState(false);
 
   const currentUserEmail = user?.email || CURRENT_USER;
   const currentUserName = user?.full_name || user?.fullName || displayName(currentUserEmail);
 
   const setField = (key, value) => {
     setForm((previous) => ({ ...previous, [key]: value }));
+  };
+
+  const clearBackupPrinterSelection = () => {
+    setForm((previous) => ({
+      ...previous,
+      used_backup_printer: false,
+      backup_printer_id: '',
+      backup_printer_pmno: '',
+      backup_printer_serial: '',
+      backup_printer_storage_location: '',
+      backup_printer_plant_location: '',
+    }));
   };
 
   const getIssueById = (issueId) => data.find((issue) => String(issue.id) === String(issueId));
@@ -153,9 +181,32 @@ export default function IssuesTracker() {
     loadUsers();
   }, [selectedPlants]);
 
+  const loadBackupMatches = async (pmno) => {
+    const normalizedPmno = String(pmno || '').trim().toUpperCase();
+    if (!normalizedPmno) {
+      setBackupMatches([]);
+      return;
+    }
+
+    setBackupMatchesLoading(true);
+    try {
+      const { data: matchData } = await backupPrintersAPI.getMatches(normalizedPmno);
+      setBackupMatches(Array.isArray(matchData?.matches) ? matchData.matches : []);
+    } catch (error) {
+      console.error('Error loading backup printer matches:', error);
+      setBackupMatches([]);
+    } finally {
+      setBackupMatchesLoading(false);
+    }
+  };
+
   const autoFill = async (pmno) => {
     setField('pmno', pmno);
-    if (pmno.length < 4) return;
+    if (pmno.length < 4) {
+      setBackupMatches([]);
+      clearBackupPrinterSelection();
+      return;
+    }
 
     try {
       const { data: printer } = await printersAPI.getOne(pmno.trim().toUpperCase());
@@ -167,8 +218,15 @@ export default function IssuesTracker() {
         loc: fullLoc,
         sapno: printer.sapno || '',
         mesno: printer.mesno || '',
+        plant_location: printer.plant_location || previous.plant_location || 'B26',
+        printer_dpi: printer.dpi || '',
       }));
-    } catch {}
+      clearBackupPrinterSelection();
+      await loadBackupMatches(printer.pmno || pmno);
+    } catch {
+      setBackupMatches([]);
+      clearBackupPrinterSelection();
+    }
   };
 
   const clear = () => {
@@ -208,6 +266,16 @@ export default function IssuesTracker() {
   const save = async () => {
     if (!form.title || !form.desc) {
       setMsg('Title and Description required');
+      return;
+    }
+
+    if (form.used_backup_printer && !form.backup_printer_id) {
+      setMsg('Please choose a backup printer before saving');
+      return;
+    }
+
+    if (form.used_backup_printer && form.severity === 'High') {
+      setMsg('If you use a backup printer, severity must be Medium or Low');
       return;
     }
 
@@ -398,6 +466,19 @@ export default function IssuesTracker() {
   const assigningIssueInMyBucket = isIssueInMyBucket(assigningIssue);
   const assignableUsers = getAssignableUsers(assigningIssue);
   const upgradeBaseSeverity = selectedIssue?.severity || form.severity;
+  const visibleBackupMatches = backupMatches.filter(
+    (printer) => (printer.plant_location || 'B26') === (form.plant_location || 'B26')
+  );
+  const selectedBackupPrinter = visibleBackupMatches.find(
+    (printer) => String(printer.id) === String(form.backup_printer_id)
+  ) || backupMatches.find((printer) => String(printer.id) === String(form.backup_printer_id));
+
+  useEffect(() => {
+    if (!form.backup_printer_id || !selectedBackupPrinter) return;
+    if ((selectedBackupPrinter.plant_location || 'B26') !== (form.plant_location || 'B26')) {
+      clearBackupPrinterSelection();
+    }
+  }, [form.plant_location, form.backup_printer_id, selectedBackupPrinter]);
 
   useEffect(() => {
     const linkedIssue = getIssueSearchParam().trim();
@@ -437,6 +518,8 @@ export default function IssuesTracker() {
         issue.category,
         issue.action,
         issue.reporter,
+        issue.backup_printer_pmno,
+        issue.backup_printer_serial,
       ];
 
       return fields.some((field) => String(field || '').toLowerCase().includes(query)) && matchesFilters;
@@ -460,7 +543,7 @@ export default function IssuesTracker() {
   }).length;
 
   return (
-    <div className="screen">
+    <div className="screen issues-screen">
       <div className="notice n-warn">
         High severity issues are stored permanently for audit trail. Other issues are automatically deleted after 10 days of resolution.
       </div>
@@ -533,11 +616,81 @@ export default function IssuesTracker() {
           <div className="field">
             <label>Severity</label>
             <select disabled={editId && !isResolving} value={form.severity} onChange={(event) => setField('severity', event.target.value)}>
-              <option value="High">High - Printer Down</option>
+              {!form.used_backup_printer && <option value="High">High - Printer Down</option>}
               <option value="Medium">Medium - Degraded</option>
               <option value="Low">Low - Minor</option>
             </select>
           </div>
+          {!editId && (form.severity === 'High' || form.used_backup_printer) && (
+            <div className="field full">
+              <label>Backup Printer Option</label>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', padding: '12px', border: '1px solid var(--border)', borderRadius: 'var(--r)', background: 'var(--bg2)' }}>
+                <div style={{ fontSize: '12px', color: 'var(--text3)', lineHeight: 1.5 }}>
+                  Matching backup printers are shown only when the printer DPI and plant location match.
+                  {form.used_backup_printer ? ' Using a backup printer means this issue must stay Medium or Low.' : ''}
+                </div>
+                {backupMatchesLoading ? (
+                  <div style={{ fontSize: '12px', color: 'var(--text3)' }}>Checking backup printers...</div>
+                ) : visibleBackupMatches.length === 0 ? (
+                  <div style={{ fontSize: '12px', color: 'var(--text3)' }}>No matching backup printer found for this printer DPI and plant location.</div>
+                ) : (
+                  <div style={{ display: 'grid', gap: '10px' }}>
+                    {visibleBackupMatches.map((printer) => {
+                      const isSelected = String(printer.id) === String(form.backup_printer_id);
+                      return (
+                        <div
+                          key={printer.id}
+                          style={{
+                            border: `1px solid ${isSelected ? 'rgba(61,184,122,.45)' : 'var(--border)'}`,
+                            borderRadius: 'var(--r)',
+                            padding: '12px',
+                            background: isSelected ? 'rgba(61,184,122,.08)' : 'var(--bg3)',
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            gap: '12px',
+                            flexWrap: 'wrap',
+                          }}
+                        >
+                          <div style={{ display: 'grid', gap: '4px', fontSize: '12px', color: 'var(--text2)' }}>
+                            <div><strong>PM No:</strong> {printer.pmno}</div>
+                            <div><strong>Serial No:</strong> {printer.serial}</div>
+                            <div><strong>Location:</strong> {printer.storage_location}</div>
+                            <div><strong>Plant:</strong> {printer.plant_location}</div>
+                          </div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            {isSelected ? (
+                              <>
+                                <span className="tag tag-success">Selected</span>
+                                <button className="btn btn-ghost btn-sm" onClick={clearBackupPrinterSelection}>Remove</button>
+                              </>
+                            ) : (
+                              <button
+                                className="btn btn-primary btn-sm"
+                                onClick={() => {
+                                  setForm((previous) => ({
+                                    ...previous,
+                                    used_backup_printer: true,
+                                    backup_printer_id: String(printer.id),
+                                    backup_printer_pmno: printer.pmno || '',
+                                    backup_printer_serial: printer.serial || '',
+                                    backup_printer_storage_location: printer.storage_location || '',
+                                    backup_printer_plant_location: printer.plant_location || '',
+                                    severity: previous.severity === 'High' ? 'Medium' : previous.severity,
+                                  }));
+                                }}
+                              >
+                                Use Backup Printer
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
           {!editId && (form.severity === 'Medium' || form.severity === 'Low') && (
             <div className="field">
               <label>Assign To * <span style={{ color: 'var(--red)', fontSize: '12px' }}>Required for {form.severity} severity</span></label>
@@ -563,6 +716,17 @@ export default function IssuesTracker() {
           </div>
           <div className="field"><label>Reported By</label><input disabled={editId && !isResolving} value={form.reporter} onChange={(event) => setField('reporter', event.target.value)} placeholder="Your name" /></div>
           <div className="field full"><label>Issue Description *</label><textarea disabled={editId && !isResolving} value={form.desc} onChange={(event) => setField('desc', event.target.value)} placeholder="Describe the issue in detail..." style={{ minHeight: '70px' }} /></div>
+          {(form.used_backup_printer || form.backup_printer_pmno) && (
+            <div className="field full">
+              <label>Backup Printer In Use</label>
+              <div style={{ padding: '12px', border: '1px solid rgba(61,184,122,.35)', borderRadius: 'var(--r)', background: 'rgba(61,184,122,.08)', fontSize: '12px', color: 'var(--text2)', lineHeight: 1.6 }}>
+                <div><strong>PM No:</strong> {form.backup_printer_pmno || selectedBackupPrinter?.pmno || '-'}</div>
+                <div><strong>Serial No:</strong> {form.backup_printer_serial || selectedBackupPrinter?.serial || '-'}</div>
+                <div><strong>Location:</strong> {form.backup_printer_storage_location || selectedBackupPrinter?.storage_location || '-'}</div>
+                <div><strong>Plant:</strong> {form.backup_printer_plant_location || selectedBackupPrinter?.plant_location || '-'}</div>
+              </div>
+            </div>
+          )}
           {!editId || isResolving ? null : <div className="field full"><label>Action Taken</label><textarea value={form.action} onChange={(event) => setField('action', event.target.value)} placeholder="What was tried or done to resolve this..." style={{ minHeight: '50px' }} /></div>}
           {editId && isResolving && <div className="field full"><label>Action Taken *</label><textarea value={actionTaken} onChange={(event) => setActionTaken(event.target.value)} placeholder="Describe what action you took to resolve this issue..." style={{ minHeight: '70px', borderColor: 'var(--green)', backgroundColor: 'rgba(74,222,128,.05)' }} /></div>}
         </div>
@@ -695,7 +859,8 @@ export default function IssuesTracker() {
         </div>
       )}
 
-      <table className="data-table">
+      <div className="issues-table-wrap">
+        <table className="data-table">
         <thead>
           <tr>
             <th style={{ width: '70px' }}>Issue ID</th>
@@ -705,17 +870,28 @@ export default function IssuesTracker() {
             <th style={{ width: '70px' }}>Status</th>
             <th style={{ width: '100px' }}>Assigned To</th>
             <th style={{ width: '80px' }}>Created</th>
-            <th style={{ width: '50px' }}>Actions</th>
           </tr>
         </thead>
         <tbody>
           {filtered.length === 0 ? (
             <tr>
-              <td colSpan="8" style={{ textAlign: 'center', padding: '20px', color: 'var(--text-dim)' }}>No issues found</td>
+              <td colSpan="7" style={{ textAlign: 'center', padding: '20px', color: 'var(--text-dim)' }}>No issues found</td>
             </tr>
           ) : (
             filtered.map((issue) => (
-              <tr key={issue.id} style={{ opacity: issue.status === 'resolved' ? 0.6 : 1 }}>
+              <tr
+                key={issue.id}
+                onClick={() => openIssueEditor(issue)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault();
+                    openIssueEditor(issue);
+                  }
+                }}
+                tabIndex={0}
+                style={{ opacity: issue.status === 'resolved' ? 0.6 : 1, cursor: 'pointer' }}
+                title={`View ${getIssueNumber(issue) || issue.title}`}
+              >
                 <td style={{ fontWeight: 600, color: 'var(--blue)' }}>{getIssueNumber(issue)}</td>
                 <td>{issue.pmno}</td>
                 <td>{issue.title}</td>
@@ -723,12 +899,12 @@ export default function IssuesTracker() {
                 <td><span className={`tag ${issue.status === 'open' ? 'tag-warning' : 'tag-success'}`}>{issue.status === 'open' ? 'Open' : 'Resolved'}</span></td>
                 <td style={{ fontSize: '12px' }}>{issue.assigned_to || '—'}</td>
                 <td style={{ fontSize: '12px' }}>{new Date(issue.created_at).toLocaleDateString()}</td>
-                <td><button className="btn btn-ghost btn-xs" onClick={() => openIssueEditor(issue)}>View</button></td>
               </tr>
             ))
           )}
         </tbody>
-      </table>
+        </table>
+      </div>
     </div>
   );
 }

@@ -2,6 +2,17 @@ import axios from 'axios';
 
 const api = axios.create({ baseURL: '/api' });
 
+api.interceptors.request.use((config) => {
+  const token = localStorage.getItem('authToken');
+  if (token && !config.headers?.Authorization) {
+    config.headers = {
+      ...config.headers,
+      Authorization: `Bearer ${token}`,
+    };
+  }
+  return config;
+});
+
 // Auth API
 export const authAPI = {
   sendRegistrationOtp: (email) => api.post('/auth/send-registration-otp', { email }),
@@ -50,6 +61,7 @@ export const printersAPI = {
   getDashboardLive: (plants) => api.get('/printers/dashboard-live', { params: plants ? { plants: plants.join(',') } : {} }),
   refreshDashboardLive: () => api.post('/printers/dashboard-live/refresh'),
   getStatusLogs: (pmno) => api.get(`/printers/status-logs/${encodeURIComponent(pmno)}`),
+  getLocationLogs: (pmno) => api.get(`/printers/location-logs/${encodeURIComponent(pmno)}`),
   getLiveWebData: (pmno) => api.get(`/printers/${encodeURIComponent(pmno)}/live-web`),
   getOne: (pmno) => api.get(`/printers/${pmno}`),
   create: (data) => api.post('/printers', data),
@@ -57,12 +69,12 @@ export const printersAPI = {
   delete: (id) => api.delete(`/printers/${id}`),
 };
 
-export const vlanAPI = {
-  getAll: (plants) => api.get('/vlan', { params: plants ? { plants: plants.join(',') } : {} }),
-  getByIp: (ip) => api.get(`/vlan/by-ip/${ip}`),
-  create: (data) => api.post('/vlan', data),
-  update: (id, data) => api.put(`/vlan/${id}`, data),
-  delete: (id) => api.delete(`/vlan/${id}`),
+export const backupPrintersAPI = {
+  getAll: (plants) => api.get('/backup-printers', { params: plants ? { plants: plants.join(',') } : {} }),
+  getMatches: (pmno) => api.get(`/backup-printers/match-for-issue/${encodeURIComponent(pmno)}`),
+  create: (data) => api.post('/backup-printers', data),
+  update: (id, data) => api.put(`/backup-printers/${id}`, data),
+  delete: (id) => api.delete(`/backup-printers/${id}`),
 };
 
 export const sparePartsAPI = {

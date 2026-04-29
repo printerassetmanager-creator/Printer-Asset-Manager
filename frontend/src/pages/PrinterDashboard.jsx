@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { printersAPI, vlanAPI } from '../utils/api';
+import { printersAPI } from '../utils/api';
 import { useApp } from '../context/AppContext';
 
 function includesText(value, query) {
@@ -71,41 +71,13 @@ export default function PrinterDashboard() {
   const [selectedPm, setSelectedPm] = useState('');
   const [statusLogs, setStatusLogs] = useState([]);
   const [logsLoading, setLogsLoading] = useState(false);
-  const [vlanData, setVlanData] = useState([]);
 
-  // Function to get location data from VLAN if IP matches, otherwise from printer data
-  const getLocationData = (printer) => {
-    if (!printer.ip || !vlanData.length) {
-      return {
-        wc: printer.resolved_wc || '-',
-        stage: printer.resolved_stage || '-',
-        bay: printer.resolved_bay || '-',
-        plant: printer.plant_location || 'B26',
-        source: 'printer'
-      };
-    }
-
-    // Find matching VLAN entry by IP
-    const vlanMatch = vlanData.find(v => v.ip === printer.ip);
-    if (vlanMatch) {
-      return {
-        wc: vlanMatch.wc || '-',
-        stage: vlanMatch.stage || '-',
-        bay: vlanMatch.bay || '-',
-        plant: vlanMatch.plant_location || 'B26',
-        source: 'vlan'
-      };
-    }
-
-    // Fallback to printer data if no VLAN match
-    return {
-      wc: printer.resolved_wc || '-',
-      stage: printer.resolved_stage || '-',
-      bay: printer.resolved_bay || '-',
-      plant: printer.plant_location || 'B26',
-      source: 'printer'
-    };
-  };
+  const getLocationData = (printer) => ({
+    wc: printer.resolved_wc || '-',
+    stage: printer.resolved_stage || '-',
+    bay: printer.resolved_bay || '-',
+    plant: printer.plant_location || 'B26',
+  });
 
   const load = async () => {
     setLoading(true);
@@ -116,15 +88,6 @@ export default function PrinterDashboard() {
       setRows([]);
     } finally {
       setLoading(false);
-    }
-  };
-
-  const loadVlanData = async () => {
-    try {
-      const { data } = await vlanAPI.getAll(selectedPlants);
-      setVlanData(Array.isArray(data) ? data : []);
-    } catch {
-      setVlanData([]);
     }
   };
 
@@ -141,18 +104,9 @@ export default function PrinterDashboard() {
 
   useEffect(() => {
     load();
-    loadVlanData();
-    
-    // Refresh live ping status every minute
     const dbInterval = setInterval(load, 60000);
-    
-    // Refresh VLAN data every 30 seconds
-    const vlanInterval = setInterval(loadVlanData, 30000);
-    
-    return () => {
-      clearInterval(dbInterval);
-      clearInterval(vlanInterval);
-    };
+
+    return () => clearInterval(dbInterval);
   }, [selectedPlants]);
 
   const openLogs = async (pmno) => {
@@ -304,7 +258,7 @@ export default function PrinterDashboard() {
                       <td style={{ fontSize: '11px' }}>
                         {(() => {
                           const locData = getLocationData(p);
-                          return `${locData.wc}, ${locData.stage}, ${locData.bay}${locData.source === 'vlan' ? ' (VLAN)' : ''}`;
+                          return `${locData.wc}, ${locData.stage}, ${locData.bay}`;
                         })()}
                       </td>
 
