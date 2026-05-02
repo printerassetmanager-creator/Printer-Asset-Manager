@@ -450,6 +450,8 @@ html,body,#root{height:100%;overflow:hidden;font-family:'Inter',system-ui,sans-s
     flex-direction: column;
     height: auto;
     min-height: 100vh;
+    overflow-y: auto;
+    overflow-x: hidden;
   }
   .sidebar {
     width: 100vw;
@@ -478,6 +480,9 @@ html,body,#root{height:100%;overflow:hidden;font-family:'Inter',system-ui,sans-s
     min-width: 0;
     width: 100vw;
     padding-left: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+    min-height: calc(100vh - 56px);
   }
   .topbar {
     padding: 8px 4px;
@@ -485,6 +490,8 @@ html,body,#root{height:100%;overflow:hidden;font-family:'Inter',system-ui,sans-s
   .screen {
     padding: 8px 2vw;
     gap: 8px;
+    overflow-y: auto;
+    min-height: calc(100vh - 120px);
   }
   .kpi-grid {
     grid-template-columns: 1fr;
