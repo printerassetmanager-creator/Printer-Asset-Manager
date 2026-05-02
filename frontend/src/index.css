@@ -406,8 +406,135 @@ html,body,#root{height:100%;overflow:hidden;font-family:'Inter',system-ui,sans-s
   font-size: 12px;
 }
 
+
 .search-printers-card .field label {
   font-size: 9px;
+}
+
+/* --- RESPONSIVE DESIGN --- */
+@media (max-width: 1024px) {
+  .sidebar {
+    width: 60px;
+    min-width: 60px;
+    padding: 0;
+  }
+  .sb-user-info, .sb-plant-label, .sb-plant-tags, .sb-plant-dropdown-wrapper, .sb-brand .ti, .sb-brand .co {
+    display: none !important;
+  }
+  .sb-logo-container {
+    margin: 0;
+    height: 40px;
+  }
+  .main-area {
+    padding-left: 0;
+  }
+}
+
+@media (max-width: 900px) {
+  .topbar {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 10px 10px;
+  }
+  .screen {
+    padding: 12px 8px;
+  }
+  .kpi-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 720px) {
+  .app {
+    flex-direction: column;
+    height: auto;
+    min-height: 100vh;
+  }
+  .sidebar {
+    width: 100vw;
+    min-width: 0;
+    flex-direction: row;
+    height: 56px;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 1000;
+    border-right: none;
+    border-top: 1px solid var(--border);
+    overflow-x: auto;
+    overflow-y: hidden;
+  }
+  .sb-nav {
+    flex-direction: row;
+    flex: 1;
+    padding: 0 4px;
+    overflow-x: auto;
+    overflow-y: hidden;
+  }
+  .main-area {
+    margin-top: 56px;
+    min-width: 0;
+    width: 100vw;
+    padding-left: 0;
+  }
+  .topbar {
+    padding: 8px 4px;
+  }
+  .screen {
+    padding: 8px 2vw;
+    gap: 8px;
+  }
+  .kpi-grid {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+  .card, .recipe-card, .issue-card {
+    padding: 8px 4px;
+  }
+  .tbl-wrap, .issues-table-wrap {
+    overflow-x: auto;
+    min-width: 0;
+  }
+  .tbl, .data-table {
+    min-width: 600px;
+    font-size: 12px;
+  }
+  .sb-brand, .sb-user, .sb-plant-selector, .adm-section {
+    display: none !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .topbar {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+    padding: 6px 2px;
+  }
+  .screen {
+    padding: 4px 1vw;
+    gap: 4px;
+  }
+  .card, .recipe-card, .issue-card {
+    padding: 4px 2px;
+  }
+  .modal {
+    width: 98vw;
+    padding: 10px 2vw;
+  }
+  .kpi-val {
+    font-size: 18px;
+  }
+  .kpi-grid {
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
+  .btn, .btn-primary, .btn-success, .btn-ghost, .btn-danger, .btn-amber, .btn-info {
+    padding: 6px 8px;
+    font-size: 11px;
+  }
 }
 
 @media (max-width: 1180px) {
