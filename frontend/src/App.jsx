@@ -21,6 +21,7 @@ import ILearn from './pages/ILearn';
 import PrinterMaster from './pages/PrinterMaster';
 import UserApprovals from './pages/UserApprovals';
 import PrintMonitarBot from './pages/PrintMonitarBot';
+import ApplicationSupport from './pages/ApplicationSupport';
 
 // Auth Pages
 import Login from './pages/Login';
@@ -133,6 +134,7 @@ function AppInner() {
       case 'issues': return <IssuesTracker />;
       case 'printermaster': return isAdmin ? <PrinterMaster /> : <Dashboard />;
       case 'userapprovals': return isSuperAdmin ? <UserApprovals /> : <Dashboard />;
+      case 'appsupport': return <ApplicationSupport />;
       default: return <Dashboard />;
     }
   };

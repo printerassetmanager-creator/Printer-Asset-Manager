@@ -1,11 +1,9 @@
 import React, { useState } from 'react';
 import { authAPI } from '../utils/api';
-import UnderDevelopmentNotice from '../components/UnderDevelopmentNotice';
 import '../styles/auth.css';
 
 export default function Register({ onBack }) {
   const [supportType, setSupportType] = useState('technical');
-  const [showAppDevModal, setShowAppDevModal] = useState(false);
   const [email, setEmail] = useState('');
   const [fullName, setFullName] = useState('');
   const [password, setPassword] = useState('');
@@ -141,63 +139,46 @@ export default function Register({ onBack }) {
             </div>
           </div>
 
-          {supportType === 'application' && (
-            <div className="form-group">
-              <div className="auth-under-dev">
-                <UnderDevelopmentNotice
-                  title="Application Support is under development."
-                  description="This section is under development."
-                  compact
-                />
-                <div style={{ display: 'flex', justifyContent: 'center', marginTop: '12px' }}>
-                  <button type="button" className="btn btn-ghost" onClick={() => setShowAppDevModal(true)}>
-                    Learn more
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
+          {error && <div className="auth-error">{error}</div>}
+          {success && <div className="auth-success">{success}</div>}
 
           {supportType === 'application' ? null : (
             <>
-              {error && <div className="auth-error">{error}</div>}
-              {success && <div className="auth-success">{success}</div>}
+              <div className="form-group">
+                <label>Full Name (Optional)</label>
+                <input
+                  type="text"
+                  value={fullName}
+                  onChange={(e) => setFullName(e.target.value)}
+                  placeholder="Enter your full name"
+                  disabled={loading}
+                />
+              </div>
 
               <div className="form-group">
-            <label>Full Name (Optional)</label>
-            <input
-              type="text"
-              value={fullName}
-              onChange={(e) => setFullName(e.target.value)}
-              placeholder="Enter your full name"
-              disabled={loading}
-            />
-          </div>
+                <label>Email Address *</label>
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => handleEmailChange(e.target.value)}
+                  placeholder="Enter your email"
+                  disabled={loading}
+                  required
+                />
+                {otpSent ? <small>If you change the email, a new OTP will be required.</small> : null}
+              </div>
 
-          <div className="form-group">
-            <label>Email Address *</label>
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => handleEmailChange(e.target.value)}
-              placeholder="Enter your email"
-              disabled={loading}
-              required
-            />
-            {otpSent ? <small>If you change the email, a new OTP will be required.</small> : null}
-          </div>
-
-          <div className="form-group">
-            <label>Password (min 6 characters) *</label>
-            <div className="password-input">
-              <input
-                type={showPassword ? 'text' : 'password'}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="Enter password"
-                disabled={loading}
-                required
-              />
+              <div className="form-group">
+                <label>Password (min 6 characters) *</label>
+                <div className="password-input">
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="Enter password"
+                    disabled={loading}
+                    required
+                  />
               <button
                 type="button"
                 className="toggle-password"
@@ -245,7 +226,7 @@ export default function Register({ onBack }) {
             </div>
           ) : null}
 
-            <button type="submit" className="btn btn-primary btn-block" disabled={loading}>
+          <button type="submit" className="btn btn-primary btn-block" disabled={loading}>
             {loading
               ? otpSent
                 ? 'Verifying OTP...'
@@ -255,38 +236,19 @@ export default function Register({ onBack }) {
                 : 'Send OTP'}
           </button>
 
-              {otpSent ? (
-                <button
-                  type="button"
-                  className="btn btn-ghost btn-block"
-                  onClick={handleSendOtp}
-                  disabled={loading}
-                >
-                  Resend OTP
-                </button>
-              ) : null}
+          {otpSent ? (
+            <button
+              type="button"
+              className="btn btn-ghost btn-block"
+              onClick={handleSendOtp}
+              disabled={loading}
+            >
+              Resend OTP
+            </button>
+          ) : null}
             </>
           )}
         </form>
-
-        {showAppDevModal && (
-          <div className="auth-modal-backdrop" onClick={() => setShowAppDevModal(false)}>
-            <div className="auth-modal" onClick={(e) => e.stopPropagation()}>
-              <h3>Application Support</h3>
-              <div style={{ textAlign: 'left', fontSize: '15px', lineHeight: '1.6' }}>
-                <ul>
-                  <li>We aim to automate repetitive tasks, such as creating dashboards for server user count, C drive status, and centralizing issues with their resolutions for new engineers.</li>
-                  <li>We are building tools to help identify likely root causes faster using safe, read-only analysis workflows.</li>
-                  <li>Automation and analysis are reviewed carefully before any real operational changes are made.</li>
-                  <li>The goal is faster support, smoother onboarding, and better continuous improvement for the application team.</li>
-                </ul>
-              </div>
-              <div style={{ marginTop: '12px', display: 'flex', justifyContent: 'flex-end' }}>
-                <button className="btn btn-primary" onClick={() => setShowAppDevModal(false)}>Close</button>
-              </div>
-            </div>
-          </div>
-        )}
 
         <div className="auth-footer">
           <button type="button" className="btn btn-ghost" onClick={onBack} disabled={loading}>
