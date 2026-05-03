@@ -4,19 +4,20 @@ import ManageTerminals from '../components/ApplicationSupport/ManageTerminals';
 import '../styles/applicationSupport.css';
 
 export default function ApplicationSupport() {
-  const { user } = useApp();
+  const { user, supportMode } = useApp();
   const [activeTab, setActiveTab] = useState('terminals');
 
   // Role-based access control
   const isAppSupportAdmin = user?.role === 'admin' && user?.support_type === 'application';
   const isAppSupportUser = user?.support_type === 'application';
   const isSuperAdmin = user?.role === 'super_admin';
+  const isTechnicalSupport = user?.support_type === 'technical';
 
   // Super admin gets all access, app support admin gets admin features, app support users get user features
   const canAccessAdminFeatures = isSuperAdmin || isAppSupportAdmin;
-  const canAccessUserFeatures = isSuperAdmin || isAppSupportUser;
+  const canAccessUserFeatures = isSuperAdmin || isAppSupportUser || (isTechnicalSupport && supportMode === 'application');
 
-  if (!isAppSupportUser) {
+  if (supportMode !== 'application' || !canAccessUserFeatures) {
     return (
       <div className="app-support-error">
         <h2>Access Denied</h2>

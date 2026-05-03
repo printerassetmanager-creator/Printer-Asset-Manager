@@ -49,7 +49,7 @@ function LogoutIcon() {
 }
 
 function AppInner() {
-  const { currentScreen, isAuthenticated, user, logout, loginUser } = useApp();
+  const { currentScreen, setCurrentScreen, isAuthenticated, user, logout, loginUser, supportMode, setSupportMode } = useApp();
   const [authScreen, setAuthScreen] = useState('login');
   const [time, setTime] = useState('');
   const [showUserProfile, setShowUserProfile] = useState(false);
@@ -81,6 +81,15 @@ function AppInner() {
     const t = setInterval(tick, 1000);
     return () => clearInterval(t);
   }, []);
+
+  // Handle support mode changes
+  React.useEffect(() => {
+    if (supportMode === 'application' && currentScreen !== 'appsupport') {
+      setCurrentScreen('appsupport');
+    } else if (supportMode === 'desktop' && currentScreen === 'appsupport') {
+      setCurrentScreen('dashboard');
+    }
+  }, [supportMode, currentScreen, setCurrentScreen]);
 
   const handleLoginSuccess = (result) => {
     if (result && result.screen) {

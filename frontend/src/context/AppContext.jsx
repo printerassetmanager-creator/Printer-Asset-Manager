@@ -44,6 +44,15 @@ const getInitialScreen = () => {
 export function AppProvider({ children }) {
   const [currentScreen, setCurrentScreen] = useState(getInitialScreen);
   const [openIssues, setOpenIssues] = useState(0);
+  const [supportMode, setSupportMode] = useState(() => {
+    try {
+      const saved = localStorage.getItem('supportMode');
+      return saved || 'desktop';
+    } catch (e) {
+      console.warn('supportMode parsing error:', e);
+      return 'desktop';
+    }
+  });
   const [selectedPlants, setSelectedPlants] = useState(() => {
     try {
       const saved = localStorage.getItem('selectedPlants');
@@ -101,6 +110,15 @@ export function AppProvider({ children }) {
     }
   }, [selectedPlants]);
 
+  // Persist support mode to localStorage
+  useEffect(() => {
+    try {
+      localStorage.setItem('supportMode', supportMode);
+    } catch (e) {
+      console.warn('localStorage setItem error:', e);
+    }
+  }, [supportMode]);
+
   const refreshIssueCount = async () => {
     try {
       const { data } = await issuesAPI.getAll();
@@ -155,6 +173,8 @@ export function AppProvider({ children }) {
       setCurrentScreen,
       openIssues,
       refreshIssueCount,
+      supportMode,
+      setSupportMode,
       selectedPlants,
       setSelectedPlants,
       togglePlant,

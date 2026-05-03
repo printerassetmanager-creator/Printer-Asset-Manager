@@ -42,8 +42,9 @@ const screenMeta = {
 };
 
 export default function Topbar() {
-  const { currentScreen } = useApp();
+  const { currentScreen, user, supportMode, setSupportMode } = useApp();
   const [time, setTime] = useState('');
+  const [showSupportDropdown, setShowSupportDropdown] = useState(false);
 
   useEffect(() => {
     const tick = () => setTime(new Date().toLocaleTimeString('en-GB'));
@@ -52,12 +53,68 @@ export default function Topbar() {
     return () => clearInterval(t);
   }, []);
 
+  const isSuperAdmin = user?.role === 'super_admin';
+  const isTechnicalSupport = user?.supportType === 'technical';
+  const isApplicationSupport = user?.supportType === 'application';
+
+  // Show dropdown if super admin or if user has both support types access
+  const canSwitchSupportMode = isSuperAdmin || isTechnicalSupport || isApplicationSupport;
+
+  const handleSupportModeChange = (mode) => {
+    // Allow super admin to switch to any mode
+    if (isSuperAdmin) {
+      setSupportMode(mode);
+    } else if (isTechnicalSupport && mode === 'application') {
+      setSupportMode(mode);
+    } else if (isApplicationSupport && mode === 'desktop') {
+      setSupportMode(mode);
+    }
+    setShowSupportDropdown(false);
+  };
+
   return (
     <div className="topbar">
       <div>
         <div className="tb-title">{screenTitles[currentScreen] || currentScreen}</div>
         <div className="tb-meta">{screenMeta[currentScreen] || ''}</div>
       </div>
+      
+      {canSwitchSupportMode && (
+        <div className="tb-center">
+          <div className="support-mode-selector">
+            <button 
+              className="support-mode-button"
+              onClick={() => setShowSupportDropdown(!showSupportDropdown)}
+            >
+              <span>{supportMode === 'desktop' ? 'Desktop Support' : 'Application Support'}</span>
+              <svg className={`support-caret ${showSupportDropdown ? 'open' : ''}`} viewBox="0 0 16 16" fill="none">
+                <path d="M4 6l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            </button>
+            {showSupportDropdown && (
+              <div className="support-mode-menu">
+                {(isSuperAdmin || isApplicationSupport) && (
+                  <button 
+                    className={`support-mode-item ${supportMode === 'desktop' ? 'active' : ''}`}
+                    onClick={() => handleSupportModeChange('desktop')}
+                  >
+                    Desktop Support
+                  </button>
+                )}
+                {(isSuperAdmin || isTechnicalSupport) && (
+                  <button 
+                    className={`support-mode-item ${supportMode === 'application' ? 'active' : ''}`}
+                    onClick={() => handleSupportModeChange('application')}
+                  >
+                    Application Support
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+      
       <div className="tb-right">
         <div className="tb-signature">Developed by :- Aniket Bhosale</div>
         <div className="time-chip">{time}</div>

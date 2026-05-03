@@ -142,112 +142,110 @@ export default function Register({ onBack }) {
           {error && <div className="auth-error">{error}</div>}
           {success && <div className="auth-success">{success}</div>}
 
-          {supportType === 'application' ? null : (
-            <>
-              <div className="form-group">
-                <label>Full Name (Optional)</label>
-                <input
-                  type="text"
-                  value={fullName}
-                  onChange={(e) => setFullName(e.target.value)}
-                  placeholder="Enter your full name"
-                  disabled={loading}
-                />
-              </div>
+          <>
+            <div className="form-group">
+              <label>Full Name (Optional)</label>
+              <input
+                type="text"
+                value={fullName}
+                onChange={(e) => setFullName(e.target.value)}
+                placeholder="Enter your full name"
+                disabled={loading}
+              />
+            </div>
 
-              <div className="form-group">
-                <label>Email Address *</label>
+            <div className="form-group">
+              <label>Email Address *</label>
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => handleEmailChange(e.target.value)}
+                placeholder="Enter your email"
+                disabled={loading}
+                required
+              />
+              {otpSent ? <small>If you change the email, a new OTP will be required.</small> : null}
+            </div>
+
+            <div className="form-group">
+              <label>Password (min 6 characters) *</label>
+              <div className="password-input">
                 <input
-                  type="email"
-                  value={email}
-                  onChange={(e) => handleEmailChange(e.target.value)}
-                  placeholder="Enter your email"
+                  type={showPassword ? 'text' : 'password'}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="Enter password"
                   disabled={loading}
                   required
                 />
-                {otpSent ? <small>If you change the email, a new OTP will be required.</small> : null}
+                <button
+                  type="button"
+                  className="toggle-password"
+                  onClick={() => setShowPassword(!showPassword)}
+                >
+                  {showPassword ? 'Show' : 'Hide'}
+                </button>
               </div>
-
-              <div className="form-group">
-                <label>Password (min 6 characters) *</label>
-                <div className="password-input">
-                  <input
-                    type={showPassword ? 'text' : 'password'}
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder="Enter password"
-                    disabled={loading}
-                    required
-                  />
-              <button
-                type="button"
-                className="toggle-password"
-                onClick={() => setShowPassword(!showPassword)}
-              >
-                {showPassword ? 'Show' : 'Hide'}
-              </button>
             </div>
-          </div>
 
-          <div className="form-group">
-            <label>Confirm Password *</label>
-            <div className="password-input">
-              <input
-                type={showConfirmPassword ? 'text' : 'password'}
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                placeholder="Confirm password"
-                disabled={loading}
-                required
-              />
-              <button
-                type="button"
-                className="toggle-password"
-                onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-              >
-                {showConfirmPassword ? 'Show' : 'Hide'}
-              </button>
-            </div>
-          </div>
-
-          {otpSent ? (
             <div className="form-group">
-              <label>Email Verification OTP *</label>
-              <input
-                type="text"
-                value={otp}
-                onChange={(e) => setOtp(e.target.value)}
-                placeholder="Enter the 6-digit OTP"
-                disabled={loading}
-                maxLength={6}
-                required
-              />
-              <small>Check your email inbox for the OTP. It is valid for 10 minutes.</small>
+              <label>Confirm Password *</label>
+              <div className="password-input">
+                <input
+                  type={showConfirmPassword ? 'text' : 'password'}
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  placeholder="Confirm password"
+                  disabled={loading}
+                  required
+                />
+                <button
+                  type="button"
+                  className="toggle-password"
+                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                >
+                  {showConfirmPassword ? 'Show' : 'Hide'}
+                </button>
+              </div>
             </div>
-          ) : null}
 
-          <button type="submit" className="btn btn-primary btn-block" disabled={loading}>
-            {loading
-              ? otpSent
-                ? 'Verifying OTP...'
-                : 'Sending OTP...'
-              : otpSent
-                ? 'Verify OTP & Create Account'
-                : 'Send OTP'}
-          </button>
+            {otpSent ? (
+              <div className="form-group">
+                <label>Email Verification OTP *</label>
+                <input
+                  type="text"
+                  value={otp}
+                  onChange={(e) => setOtp(e.target.value)}
+                  placeholder="Enter the 6-digit OTP"
+                  disabled={loading}
+                  maxLength={6}
+                  required
+                />
+                <small>Check your email inbox for the OTP. It is valid for 10 minutes.</small>
+              </div>
+            ) : null}
 
-          {otpSent ? (
-            <button
-              type="button"
-              className="btn btn-ghost btn-block"
-              onClick={handleSendOtp}
-              disabled={loading}
-            >
-              Resend OTP
+            <button type="submit" className="btn btn-primary btn-block" disabled={loading}>
+              {loading
+                ? otpSent
+                  ? 'Verifying OTP...'
+                  : 'Sending OTP...'
+                : otpSent
+                  ? 'Verify OTP & Create Account'
+                  : 'Send OTP'}
             </button>
-          ) : null}
-            </>
-          )}
+
+            {otpSent ? (
+              <button
+                type="button"
+                className="btn btn-ghost btn-block"
+                onClick={handleSendOtp}
+                disabled={loading}
+              >
+                Resend OTP
+              </button>
+            ) : null}
+          </>
         </form>
 
         <div className="auth-footer">
