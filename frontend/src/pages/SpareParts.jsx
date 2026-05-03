@@ -2,6 +2,8 @@ import React, { useEffect, useState, useMemo } from 'react';
 import { sparePartsAPI } from '../utils/api';
 import { useApp, PLANT_LOCATIONS } from '../context/AppContext';
 import { toSentenceCase } from '../utils/textFormat';
+import PartCatalogMenu from '../components/PartCatalogMenu';
+import { findCatalogPart, getCatalogMatches } from '../utils/sparePartCatalog';
 
 const empty = {code:'',name:'',compat:'All',loc:'',serial:'',condition:'New',plant_location:'B26',printer_model:'',category:''};
 
@@ -19,6 +21,7 @@ export default function SpareParts() {
   const [showReqModal, setShowReqModal] = useState(false);
   const [availabilityList, setAvailabilityList] = useState([]);
   const [requirements, setRequirements] = useState([]);
+  const [activePartPicker, setActivePartPicker] = useState(null);
 
   const normalizePartKey = (name, make, model) => {
     const raw = `${name || ''}`.toLowerCase();
@@ -54,6 +57,27 @@ export default function SpareParts() {
     return { text: 'Out of Stock', class: 'b-out' };
   };
   const fld = (k,v) => setForm(f=>({...f,[k]:v}));
+  const applyCatalogPart = (part, overrides = {}) => {
+    if (!part) return setForm(f=>({...f,...overrides}));
+    setForm(f=>({
+      ...f,
+      code: part.code,
+      name: part.name,
+      category: part.category
+    }));
+    setActivePartPicker(null);
+  };
+  const setPartCode = (value) => {
+    const part = findCatalogPart(value);
+    applyCatalogPart(part, { code: value });
+  };
+  const setPartName = (value) => {
+    const part = findCatalogPart(value);
+    applyCatalogPart(part, { name: value });
+  };
+  const isCatalogPartSelected = Boolean(findCatalogPart(form.name) || findCatalogPart(form.code));
+  const nameCatalogMatches = useMemo(() => getCatalogMatches(form.name), [form.name]);
+  const codeCatalogMatches = useMemo(() => getCatalogMatches(form.code), [form.code]);
 
   const load = () => { sparePartsAPI.getAll(selectedPlants).then(r=>setData(r.data)).catch(()=>{}); sparePartsAPI.getUsageLog().then(r=>setUsageLog(r.data)).catch(()=>{}); sparePartsAPI.getRequirements().then(r=>setRequirements(r.data)).catch(()=>{}); };
   useEffect(()=>{ load(); },[selectedPlants]);
@@ -61,16 +85,22 @@ export default function SpareParts() {
   const save = async () => {
     if (!form.code || !form.name) { setMsg('Code and Name required'); return; }
     try {
+      const selectedCatalogPart = findCatalogPart(form.code) || findCatalogPart(form.name);
       const payload = {
         ...form,
-        name: toSentenceCase(form.name),
+        code: selectedCatalogPart?.code || form.code.trim().toUpperCase(),
+        name: selectedCatalogPart?.name || toSentenceCase(form.name),
+        category: selectedCatalogPart?.category || form.category,
         loc: toSentenceCase(form.loc),
         serial: toSentenceCase(form.serial)
       };
       if (editId) await sparePartsAPI.update(editId, payload);
       else await sparePartsAPI.create(payload);
       load(); clear(); setOpen(false); setMsg('Saved'); setTimeout(()=>setMsg(''),2000);
-    } catch { setMsg('Error'); }
+    } catch (error) {
+      setMsg(error.response?.data?.error || 'Error saving spare part');
+      setTimeout(()=>setMsg(''),3000);
+    }
   };
 
   const del = async () => { if (!editId) return; await sparePartsAPI.delete(editId); load(); clear(); setOpen(false); };
@@ -90,8 +120,8 @@ export default function SpareParts() {
       load();
       setMsg('Usage logged successfully');
       setTimeout(() => setMsg(''), 2000);
-    } catch {
-      setMsg('Error logging usage');
+    } catch (error) {
+      setMsg(error.response?.data?.error || 'Error logging usage');
       setTimeout(() => setMsg(''), 2000);
     }
   };
@@ -155,8 +185,16 @@ export default function SpareParts() {
           <button className="btn btn-ghost btn-sm" onClick={()=>{setOpen(false);clear();}}>Cancel</button>
         </div>
         <div className="fgrid fg4" style={{marginBottom:'10px'}}>
-          <div className="field"><label>Part Code *</label><input value={form.code} onChange={e=>fld('code',e.target.value)} placeholder="e.g. PH-HW-001"/></div>
-          <div className="field"><label>Part Name *</label><input value={form.name} onChange={e=>fld('name',e.target.value)} placeholder="e.g. Print Head 203dpi"/></div>
+          <div className="field part-picker">
+            <label>Part Name *</label>
+            <input value={form.name} onFocus={()=>setActivePartPicker('name')} onBlur={()=>setTimeout(()=>setActivePartPicker(null),120)} onChange={e=>setPartName(e.target.value)} placeholder="Search part name"/>
+            {activePartPicker === 'name' && <PartCatalogMenu items={nameCatalogMatches} onSelect={applyCatalogPart} />}
+          </div>
+          <div className="field part-picker">
+            <label>Part Code *</label>
+            <input className={isCatalogPartSelected ? 'af' : ''} value={form.code} readOnly={isCatalogPartSelected} onFocus={()=>{if(!isCatalogPartSelected)setActivePartPicker('code')}} onBlur={()=>setTimeout(()=>setActivePartPicker(null),120)} onChange={e=>setPartCode(e.target.value)} placeholder="Auto generated code"/>
+            {activePartPicker === 'code' && <PartCatalogMenu items={codeCatalogMatches} onSelect={applyCatalogPart} />}
+          </div>
           <div className="field"><label>Compatible With</label>
             <select value={form.compat} onChange={e=>fld('compat',e.target.value)}><option>All</option><option>Honeywell</option><option>Zebra</option></select>
           </div>

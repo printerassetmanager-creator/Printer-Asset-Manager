@@ -21,14 +21,16 @@ const assertEmailConfig = () => {
   }
 };
 
-// Verify transporter connection
-transporter.verify((error, success) => {
-  if (error) {
-    console.warn('Email service warning:', error.message);
-  } else {
-    console.log('Email service ready:', success);
-  }
-});
+if (process.env.NODE_ENV !== 'test') {
+  // Verify transporter connection
+  transporter.verify((error, success) => {
+    if (error) {
+      console.warn('Email service warning:', error.message);
+    } else {
+      console.log('Email service ready:', success);
+    }
+  });
+}
 
 const sendOTP = async (email, otp) => {
   try {

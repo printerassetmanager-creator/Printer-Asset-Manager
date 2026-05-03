@@ -3,8 +3,37 @@ const router = express.Router();
 const pool = require('../db/pool');
 const { adminMiddleware } = require('../middleware/auth');
 
+const cleanText = (value) => (typeof value === 'string' ? value.trim() : value);
+const cleanOptionalText = (value) => cleanText(value) || null;
+
+const ensureSparePartsSchema = async (db = pool) => {
+  await db.query(`
+    ALTER TABLE spare_parts
+    ADD COLUMN IF NOT EXISTS serial VARCHAR(50),
+    ADD COLUMN IF NOT EXISTS condition VARCHAR(20) DEFAULT 'New',
+    ADD COLUMN IF NOT EXISTS plant_location VARCHAR(50) DEFAULT 'B26',
+    ADD COLUMN IF NOT EXISTS printer_model VARCHAR(100),
+    ADD COLUMN IF NOT EXISTS category VARCHAR(100)
+  `);
+
+  await db.query(`
+    UPDATE spare_parts
+    SET condition = COALESCE(condition, 'New'),
+        plant_location = COALESCE(plant_location, 'B26')
+    WHERE condition IS NULL
+       OR plant_location IS NULL
+  `);
+};
+
+const sparePartsSchemaReady = process.env.NODE_ENV === 'test'
+  ? Promise.resolve()
+  : ensureSparePartsSchema().catch((e) => {
+      console.error('Failed to initialize spare_parts schema:', e.message);
+    });
+
 router.get('/', async (req, res) => {
   try {
+    await sparePartsSchemaReady;
     const { plants } = req.query;
     let query = 'SELECT * FROM spare_parts';
     const params = [];
@@ -17,6 +46,19 @@ router.get('/', async (req, res) => {
 
     query += ' ORDER BY code';
     const { rows } = await pool.query(query, params);
+    res.json(rows);
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+router.get('/usage-log', async (req, res) => {
+  try {
+    await sparePartsSchemaReady;
+    const { rows } = await pool.query(`
+      SELECT id, code, name, qty, pmno, serial, wc, used_by, used_at
+      FROM parts_usage_log
+      ORDER BY used_at DESC, id DESC
+      LIMIT 200
+    `);
     res.json(rows);
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
@@ -42,14 +84,37 @@ router.get('/requirements', async (req, res) => {
 });
 
 router.post('/', adminMiddleware, async (req, res) => {
-  const { code, name, compat, loc, serial, condition, plant_location, printer_model, category } = req.body;
+  const {
+    code: rawCode,
+    name: rawName,
+    compat: rawCompat,
+    loc: rawLoc,
+    serial: rawSerial,
+    condition: rawCondition,
+    plant_location: rawPlantLocation,
+    printer_model: rawPrinterModel,
+    category: rawCategory
+  } = req.body;
+  const code = cleanText(rawCode);
+  const name = cleanText(rawName);
+  const compat = cleanText(rawCompat) || 'All';
+  const loc = cleanOptionalText(rawLoc);
+  const serial = cleanOptionalText(rawSerial);
+  const condition = cleanText(rawCondition) || 'New';
+  const plant = cleanText(rawPlantLocation) || 'B26';
+  const printer_model = cleanOptionalText(rawPrinterModel);
+  const category = cleanOptionalText(rawCategory);
   const quantity = 1;
-  const plant = plant_location || 'B26';
   let client;
+
+  if (!code || !name) {
+    return res.status(400).json({ error: 'Part code and part name are required' });
+  }
 
   try {
     client = await pool.connect();
     await client.query('BEGIN');
+    await ensureSparePartsSchema(client);
 
     if (code) {
       const result = await client.query(
@@ -114,6 +179,9 @@ router.post('/', adminMiddleware, async (req, res) => {
     res.status(201).json(insertResult.rows[0]);
   } catch (e) {
     if (client) await client.query('ROLLBACK');
+    if (e.code === '23505') {
+      return res.status(409).json({ error: 'A spare part with this code already exists' });
+    }
     res.status(500).json({ error: e.message });
   } finally {
     if (client) client.release();
@@ -121,7 +189,25 @@ router.post('/', adminMiddleware, async (req, res) => {
 });
 
 router.post('/use', adminMiddleware, async (req, res) => {
-  const { code, name, model, printer_model, qty, pmno, serial, wc, used_by } = req.body;
+  const {
+    code: rawCode,
+    name: rawName,
+    model: rawModel,
+    printer_model: rawPrinterModel,
+    qty,
+    pmno: rawPmno,
+    serial: rawSerial,
+    wc: rawWc,
+    used_by: rawUsedBy
+  } = req.body;
+  const code = cleanOptionalText(rawCode);
+  const name = cleanOptionalText(rawName);
+  const model = cleanOptionalText(rawModel);
+  const printer_model = cleanOptionalText(rawPrinterModel);
+  const pmno = cleanText(rawPmno);
+  const serial = cleanOptionalText(rawSerial);
+  const wc = cleanOptionalText(rawWc);
+  const used_by = cleanOptionalText(rawUsedBy);
   if ((!code && !name) || !pmno) {
     return res.status(400).json({ error: 'Part code or part name plus PM number are required' });
   }
@@ -131,6 +217,7 @@ router.post('/use', adminMiddleware, async (req, res) => {
 
   try {
     await client.query('BEGIN');
+    await ensureSparePartsSchema(client);
     await client.query(
       `INSERT INTO parts_usage_log (code,name,qty,pmno,serial,wc,used_by) VALUES ($1,$2,$3,$4,$5,$6,$7)`,
       [code, name, quantity, pmno, serial, wc, used_by]
@@ -172,6 +259,7 @@ router.post('/use', adminMiddleware, async (req, res) => {
 router.put('/:id', async (req, res) => {
   const { code, name, compat, loc, serial, condition, printer_model, category } = req.body;
   try {
+    await sparePartsSchemaReady;
     const { rows } = await pool.query(
       `UPDATE spare_parts SET code=$1,name=$2,compat=$3,loc=$4,serial=$5,condition=$6,printer_model=$7,category=$8,updated_at=NOW() WHERE id=$9 RETURNING *`,
       [code, name, compat, loc, serial, condition, printer_model, category, req.params.id]

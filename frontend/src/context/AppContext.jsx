@@ -9,11 +9,13 @@ export const PLANT_LOCATIONS = ['B26', 'B1600', 'B1700', 'B1800'];
 let CURRENT_USER = 'guest';
 let IS_ADMIN = false;
 try {
-  const userData = localStorage.getItem('user');
-  if (userData) {
-    const parsed = JSON.parse(userData);
-    CURRENT_USER = parsed.email || 'guest';
-    IS_ADMIN = parsed.role === 'admin';
+  if (typeof localStorage !== 'undefined') {
+    const userData = localStorage.getItem('user');
+    if (userData) {
+      const parsed = JSON.parse(userData);
+      CURRENT_USER = parsed.email || 'guest';
+      IS_ADMIN = parsed.role === 'admin';
+    }
   }
 } catch (e) {
   console.warn('localStorage parsing error:', e);

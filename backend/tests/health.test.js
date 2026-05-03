@@ -1,5 +1,10 @@
 const request = require('supertest');
 const app = require('../src/app');
+const pool = require('../src/db/pool');
+
+afterAll(async () => {
+  await pool.end();
+});
 
 describe('Health endpoint', () => {
   test('GET /health should respond (may fail if DB not available)', async () => {

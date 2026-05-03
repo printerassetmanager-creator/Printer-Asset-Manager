@@ -1,8 +1,10 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { printersAPI, healthAPI } from '../utils/api';
 import { PLANT_LOCATIONS } from '../context/AppContext';
 import { buildLoftwareValue, getDefaultLoftwareForSap, LOFTWARE_OPTIONS, parseLoftwareValue } from '../utils/loftware';
 import { toSentenceCase } from '../utils/textFormat';
+import PartCatalogMenu from '../components/PartCatalogMenu';
+import { findCatalogPart, getCatalogMatches } from '../utils/sparePartCatalog';
 
 const CURRENT_USER = 'Admin';
 
@@ -77,9 +79,23 @@ export default function HealthCheckup() {
   const [loadingActivity, setLoadingActivity] = useState(false);
   const [msg, setMsg] = useState('');
   const [secondaryLoftware, setSecondaryLoftware] = useState('');
+  const [activeDmgPartPicker, setActiveDmgPartPicker] = useState(false);
 
   const fld = (k, v) => setForm((f) => ({ ...f, [k]: v }));
   const allowTwoLoftware = Boolean(form.sapno && form.mesno);
+  const dmgPartMatches = useMemo(() => getCatalogMatches(dmgForm.name), [dmgForm.name]);
+  const selectedDmgPart = findCatalogPart(dmgForm.name) || findCatalogPart(dmgForm.code);
+
+  const setDamagedPartName = (value) => {
+    const part = findCatalogPart(value);
+    setDmgForm((f) => part ? { ...f, name: part.name, code: part.code } : { ...f, name: value });
+    if (part) setActiveDmgPartPicker(false);
+  };
+
+  const applyDamagedCatalogPart = (part) => {
+    setDmgForm((f) => ({ ...f, name: part.name, code: part.code }));
+    setActiveDmgPartPicker(false);
+  };
 
   const loadActivityLog = async () => {
     setLoadingActivity(true);
@@ -160,8 +176,8 @@ export default function HealthCheckup() {
       await loadActivityLog();
       setMsg('Saved');
       setTimeout(() => setMsg(''), 2500);
-    } catch {
-      setMsg('Error saving');
+    } catch (error) {
+      setMsg(error.response?.data?.error || 'Error saving');
     }
   };
 
@@ -318,12 +334,12 @@ export default function HealthCheckup() {
       </div>
 
       {showDmgModal && <div className="modal-bg show" onClick={(e) => { if (e.target === e.currentTarget) setShowDmgModal(false); }}>
-        <div className="modal">
+        <div className="modal part-picker-modal">
           <div className="modal-title">Add Damaged Part</div>
           <button className="modal-close" onClick={() => setShowDmgModal(false)}>X</button>
           <div className="fgrid fg2" style={{ gap: '12px' }}>
-            <div className="field"><label>Part Name</label><input value={dmgForm.name} onChange={(e) => setDmgForm((f) => ({ ...f, name: e.target.value }))} placeholder="e.g. Print Head" /></div>
-            <div className="field"><label>Part Code</label><input value={dmgForm.code} onChange={(e) => setDmgForm((f) => ({ ...f, code: e.target.value }))} placeholder="e.g. PM43-PH-001" /></div>
+            <div className="field part-picker"><label>Part Name</label><input value={dmgForm.name} onFocus={() => setActiveDmgPartPicker(true)} onBlur={() => setTimeout(() => setActiveDmgPartPicker(false), 120)} onChange={(e) => setDamagedPartName(e.target.value)} placeholder="Search spare part" />{activeDmgPartPicker && <PartCatalogMenu items={dmgPartMatches} onSelect={applyDamagedCatalogPart} />}</div>
+            <div className="field"><label>Part Code</label><input className={selectedDmgPart ? 'af' : ''} readOnly={Boolean(selectedDmgPart)} value={dmgForm.code} onChange={(e) => setDmgForm((f) => ({ ...f, code: e.target.value }))} placeholder="Auto generated code" /></div>
             <div className="field"><label>Qty</label><input type="number" value={dmgForm.qty} onChange={(e) => setDmgForm((f) => ({ ...f, qty: e.target.value }))} min="1" /></div>
             <div className="field"><label>Condition</label><select value={dmgForm.cond} onChange={(e) => setDmgForm((f) => ({ ...f, cond: e.target.value }))}><option>Worn</option><option>Dirty</option><option>Damaged</option><option>Broken</option><option>Faulty</option></select></div>
           </div>

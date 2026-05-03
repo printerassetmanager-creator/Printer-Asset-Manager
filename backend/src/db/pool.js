@@ -35,17 +35,21 @@ pool.on('error', (err, client) => {
 });
 
 pool.on('remove', () => {
-  console.log('[DB] Client removed from pool');
-});
-
-// Test connection on startup
-pool.query('SELECT NOW()', (err, result) => {
-  if (err) {
-    console.error('[DB] Connection test failed:', err.message);
-  } else {
-    console.log('[DB] Connection successful at:', result.rows[0].now);
+  if (process.env.NODE_ENV !== 'test') {
+    console.log('[DB] Client removed from pool');
   }
 });
+
+if (process.env.NODE_ENV !== 'test') {
+  // Test connection on startup
+  pool.query('SELECT NOW()', (err, result) => {
+    if (err) {
+      console.error('[DB] Connection test failed:', err.message);
+    } else {
+      console.log('[DB] Connection successful at:', result.rows[0].now);
+    }
+  });
+}
 
 // Graceful shutdown
 process.on('SIGTERM', async () => {
