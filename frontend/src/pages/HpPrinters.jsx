@@ -66,9 +66,15 @@ export default function HpPrinters() {
   const [fetchingPrinterInfo, setFetchingPrinterInfo] = useState(false);
   const [printerInfo, setPrinterInfo] = useState(null);
 
-  const loadPrinters = () => hpPrintersAPI.getAll(selectedPlants).then((r) => setPrinters(r.data)).catch(() => {});
-  const loadCarts = () => cartridgesAPI.getAll().then((r) => setCarts(r.data)).catch(() => {});
-  const loadUsageLog = () => cartridgesAPI.getUsageLog().then((r) => setUsageLog(r.data)).catch(() => {});
+  const loadPrinters = () => hpPrintersAPI.getAll(selectedPlants)
+    .then((r) => setPrinters(Array.isArray(r.data) ? r.data : []))
+    .catch(() => setPrinters([]));
+  const loadCarts = () => cartridgesAPI.getAll()
+    .then((r) => setCarts(Array.isArray(r.data) ? r.data : []))
+    .catch(() => setCarts([]));
+  const loadUsageLog = () => cartridgesAPI.getUsageLog()
+    .then((r) => setUsageLog(Array.isArray(r.data) ? r.data : []))
+    .catch(() => setUsageLog([]));
 
   const fetchPrinterInfoByIp = async (ip) => {
     if (!ip) {

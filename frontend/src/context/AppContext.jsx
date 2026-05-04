@@ -41,10 +41,10 @@ const getInitialScreen = () => {
     const screen = params.get('screen');
     if (screen === 'issues') return 'issues';
     if (screen === 'printmonitarbot') return 'printmonitarbot';
-    return 'dashboard';
+    return 'login'; // Default to login page on first launch
   } catch (e) {
     console.warn('URL parsing error:', e);
-    return 'dashboard';
+    return 'login';
   }
 };
 
