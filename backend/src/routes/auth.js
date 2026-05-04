@@ -165,31 +165,39 @@ router.post('/login', async (req, res) => {
       return res.status(400).json({ error: 'Email and password are required' });
     }
 
-    // Find user
-    console.log('[LOGIN] Searching for user:', email);
-    const userResult = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
-    if (userResult.rows.length === 0) {
+    // Hardcoded users
+    const hardcodedUsers = {
+      'aniketbhosale4993@gmail.com': {
+        id: 1,
+        email: 'aniketbhosale4993@gmail.com',
+        password: '123456',
+        role: 'admin',
+        full_name: 'Admin User',
+        support_type: 'technical',
+        status: 'approved'
+      },
+      'aniketbhosale1012@gmail.com': {
+        id: 2,
+        email: 'aniketbhosale1012@gmail.com',
+        password: 'Admin@1212',
+        role: 'super_admin',
+        full_name: 'Super Admin',
+        support_type: 'both',
+        status: 'approved'
+      }
+    };
+
+    const user = hardcodedUsers[email];
+    if (!user) {
       console.log('[LOGIN] User not found:', email);
       return res.status(401).json({ error: 'Invalid email or password' });
     }
 
-    const user = userResult.rows[0];
-    console.log('[LOGIN] User found - Status:', user.status, 'Role:', user.role);
-
-    // Check if account is approved
-    if (user.status === 'pending') {
-      console.log('[LOGIN] Account pending approval');
-      return res.status(403).json({ error: 'Your account is pending approval' });
-    }
-
-    if (user.status === 'rejected') {
-      console.log('[LOGIN] Account rejected');
-      return res.status(403).json({ error: 'Your account has been rejected' });
-    }
+    console.log('[LOGIN] User found - Role:', user.role);
 
     // Verify password
     console.log('[LOGIN] Verifying password...');
-    const isPasswordValid = await bcrypt.compare(password, user.password_hash);
+    const isPasswordValid = password === user.password;
     console.log('[LOGIN] Password valid:', isPasswordValid);
     
     if (!isPasswordValid) {

@@ -157,6 +157,7 @@ function AppInner() {
       case 'printermaster': return isAdmin ? <PrinterMaster /> : <Dashboard />;
       case 'userapprovals': return isSuperAdmin ? <UserApprovals /> : <Dashboard />;
       case 'appsupport': return <ApplicationSupport />;
+      case 'login': return <Login onLoginSuccess={handleLoginSuccess} />;
       default: return <Dashboard />;
     }
   };
