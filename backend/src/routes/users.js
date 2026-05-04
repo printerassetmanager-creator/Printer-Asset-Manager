@@ -5,11 +5,32 @@ const { sendAccountApprovalNotification, sendAccountRejectionNotification } = re
 
 const router = express.Router();
 
+const ensureUserManagementSchema = async () => {
+  await pool.query(`
+    ALTER TABLE users
+      ADD COLUMN IF NOT EXISTS support_type VARCHAR(30) DEFAULT 'technical'
+  `);
+
+  await pool.query(`
+    UPDATE users
+    SET support_type = 'technical'
+    WHERE support_type IS NULL
+  `);
+
+  await pool.query(`
+    ALTER TABLE user_approvals
+      ADD COLUMN IF NOT EXISTS approved_by VARCHAR(100),
+      ADD COLUMN IF NOT EXISTS approved_at TIMESTAMP
+  `);
+};
+
 // ═══ GET ALL USERS (Admin only) ═══
 router.get('/users', superAdminMiddleware, async (req, res) => {
   try {
+    await ensureUserManagementSchema();
+
     const result = await pool.query(
-      `SELECT id, email, COALESCE(NULLIF(full_name, ''), email) AS full_name, role, status, created_at
+      `SELECT id, email, COALESCE(NULLIF(full_name, ''), email) AS full_name, support_type, role, status, created_at
        FROM users
        ORDER BY created_at DESC`
     );
@@ -23,11 +44,14 @@ router.get('/users', superAdminMiddleware, async (req, res) => {
 // ═══ GET PENDING USER APPROVALS (Admin only) ═══
 router.get('/pending-approvals', superAdminMiddleware, async (req, res) => {
   try {
+    await ensureUserManagementSchema();
+
     const result = await pool.query(`
       SELECT ua.id,
              u.id as user_id,
              u.email,
              COALESCE(NULLIF(u.full_name, ''), u.email) AS full_name,
+             u.support_type,
              u.created_at,
              ua.requested_at,
              ua.status,
@@ -59,6 +83,8 @@ router.post('/approve-user/:userId', superAdminMiddleware, async (req, res) => {
   const { role = 'user' } = req.body;
 
   try {
+    await ensureUserManagementSchema();
+
     if (!['user', 'admin', 'super_admin'].includes(role)) {
       return res.status(400).json({ error: 'Invalid role. Must be "user", "admin", or "super_admin"' });
     }
@@ -104,6 +130,8 @@ router.post('/reject-user/:userId', superAdminMiddleware, async (req, res) => {
   const { reason } = req.body;
 
   try {
+    await ensureUserManagementSchema();
+
     // Get user details
     const userResult = await pool.query('SELECT * FROM users WHERE id = $1', [userId]);
     if (userResult.rows.length === 0) {
@@ -138,6 +166,8 @@ router.post('/change-user-role/:userId', superAdminMiddleware, async (req, res) 
   const { role } = req.body;
 
   try {
+    await ensureUserManagementSchema();
+
     if (!['user', 'admin', 'super_admin'].includes(role)) {
       return res.status(400).json({ error: 'Invalid role. Must be "user", "admin", or "super_admin"' });
     }
@@ -160,6 +190,8 @@ router.delete('/users/:userId', superAdminMiddleware, async (req, res) => {
   const { userId } = req.params;
 
   try {
+    await ensureUserManagementSchema();
+
     // Prevent deleting self
     if (userId == req.user.id) {
       return res.status(400).json({ error: 'Cannot delete your own account' });

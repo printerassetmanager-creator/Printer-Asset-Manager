@@ -49,12 +49,13 @@ function LogoutIcon() {
 }
 
 function AppInner() {
-  const { currentScreen, isAuthenticated, user, logout, loginUser } = useApp();
+  const { currentScreen, setCurrentScreen, isAuthenticated, user, logout, loginUser, supportMode, setSupportMode } = useApp();
   const [authScreen, setAuthScreen] = useState('login');
   const [time, setTime] = useState('');
   const [showUserProfile, setShowUserProfile] = useState(false);
   const isAdmin = user?.role === 'admin';
   const isSuperAdmin = user?.role === 'super_admin';
+  const userSupportType = user?.support_type || user?.supportType;
 
   const closeUserProfile = () => {
     setShowUserProfile(false);
@@ -81,6 +82,27 @@ function AppInner() {
     const t = setInterval(tick, 1000);
     return () => clearInterval(t);
   }, []);
+
+  // Handle support mode changes
+  React.useEffect(() => {
+    if (!isSuperAdmin && userSupportType === 'application' && supportMode !== 'application') {
+      setSupportMode('application');
+      return;
+    }
+
+    if (!isSuperAdmin && userSupportType === 'technical' && supportMode !== 'desktop') {
+      setSupportMode('desktop');
+      return;
+    }
+
+    const allowedApplicationModeScreens = ['appsupport', 'userapprovals'];
+
+    if (supportMode === 'application' && !allowedApplicationModeScreens.includes(currentScreen)) {
+      setCurrentScreen('appsupport');
+    } else if (supportMode === 'desktop' && currentScreen === 'appsupport') {
+      setCurrentScreen('dashboard');
+    }
+  }, [supportMode, currentScreen, setCurrentScreen, setSupportMode, isSuperAdmin, userSupportType]);
 
   const handleLoginSuccess = (result) => {
     if (result && result.screen) {
@@ -143,7 +165,7 @@ function AppInner() {
     <div className="app">
       <Sidebar />
       <div className="main-area">
-        <Topbar onUserClick={() => setShowUserProfile(true)} />
+        <Topbar onUserClick={() => setShowUserProfile(true)} onLogout={handleLogout} />
         {renderScreen()}
         <div className="act-bar">
           <div className="act-info">

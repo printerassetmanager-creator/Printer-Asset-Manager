@@ -1,22 +1,57 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useApp } from '../context/AppContext';
 import ManageTerminals from '../components/ApplicationSupport/ManageTerminals';
+import LiveTerminalChart from '../components/ApplicationSupport/LiveTerminalChart';
+import TerminalManagement from '../components/ApplicationSupport/TerminalManagement';
+import { applicationSupportAPI } from '../utils/api';
 import '../styles/applicationSupport.css';
 
 export default function ApplicationSupport() {
-  const { user } = useApp();
-  const [activeTab, setActiveTab] = useState('terminals');
+  const { user, supportMode, appSupportTab, setAppSupportTab } = useApp();
+  const [dashboard, setDashboard] = useState(null);
+  const [loadingDashboard, setLoadingDashboard] = useState(false);
+  const [dashboardError, setDashboardError] = useState('');
+  const [isChartFullscreen, setIsChartFullscreen] = useState(false);
+  const userSupportType = user?.support_type || user?.supportType;
 
   // Role-based access control
-  const isAppSupportAdmin = user?.role === 'admin' && user?.support_type === 'application';
-  const isAppSupportUser = user?.support_type === 'application';
+  const isAppSupportAdmin = user?.role === 'admin' && (userSupportType === 'application' || userSupportType === 'both');
+  const isAppSupportUser = userSupportType === 'application' || userSupportType === 'both';
   const isSuperAdmin = user?.role === 'super_admin';
 
   // Super admin gets all access, app support admin gets admin features, app support users get user features
   const canAccessAdminFeatures = isSuperAdmin || isAppSupportAdmin;
   const canAccessUserFeatures = isSuperAdmin || isAppSupportUser;
 
-  if (!isAppSupportUser) {
+  const loadDashboard = async () => {
+    setLoadingDashboard(true);
+    setDashboardError('');
+    try {
+      const { data } = await applicationSupportAPI.getDashboard();
+      setDashboard(data);
+    } catch (error) {
+      setDashboardError(error.response?.data?.error || 'Failed to load application support dashboard');
+    } finally {
+      setLoadingDashboard(false);
+    }
+  };
+
+  useEffect(() => {
+    if (supportMode === 'application' && canAccessUserFeatures) {
+      loadDashboard();
+      const intervalId = setInterval(loadDashboard, 60000);
+      return () => clearInterval(intervalId);
+    }
+    return undefined;
+  }, [supportMode, canAccessUserFeatures]);
+
+  useEffect(() => {
+    if (appSupportTab === 'admin-users' || appSupportTab === 'admin-settings') {
+      setAppSupportTab('dashboard');
+    }
+  }, [appSupportTab, setAppSupportTab]);
+
+  if (supportMode !== 'application' || !canAccessUserFeatures) {
     return (
       <div className="app-support-error">
         <h2>Access Denied</h2>
@@ -25,86 +60,78 @@ export default function ApplicationSupport() {
     );
   }
 
+  if (isChartFullscreen) {
+    return <LiveTerminalChart onExit={() => setIsChartFullscreen(false)} />;
+  }
+
   return (
     <div className="app-support-container">
-      <div className="app-support-header">
-        <h1>Application Support Management</h1>
-        <p>Manage and monitor application support operations</p>
-      </div>
-
-      {/* Tab Navigation */}
-      <div className="app-support-tabs">
-        <button
-          className={`tab-btn ${activeTab === 'terminals' ? 'active' : ''}`}
-          onClick={() => setActiveTab('terminals')}
-        >
-          <svg viewBox="0 0 16 16" fill="none">
-            <rect x="1.5" y="2" width="13" height="11" rx="1.2" stroke="currentColor" strokeWidth="1.2"/>
-            <path d="M4 6h8M4 8h6M4 10h7" stroke="currentColor" strokeWidth="1" strokeLinecap="round"/>
-          </svg>
-          <span>Manage Terminals</span>
-        </button>
-
-        {canAccessAdminFeatures && (
-          <>
-            <button
-              className={`tab-btn ${activeTab === 'admin-users' ? 'active' : ''}`}
-              onClick={() => setActiveTab('admin-users')}
-            >
-              <svg viewBox="0 0 16 16" fill="none">
-                <circle cx="8" cy="5" r="2.5" stroke="currentColor" strokeWidth="1.2"/>
-                <path d="M2 13.5c0-2 2.5-3.5 6-3.5s6 1.5 6 3.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
-              </svg>
-              <span>Admin Users</span>
-            </button>
-
-            <button
-              className={`tab-btn ${activeTab === 'admin-settings' ? 'active' : ''}`}
-              onClick={() => setActiveTab('admin-settings')}
-            >
-              <svg viewBox="0 0 16 16" fill="none">
-                <circle cx="8" cy="8" r="5.5" stroke="currentColor" strokeWidth="1.2"/>
-                <path d="M8 5v3l2.5 1.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
-              </svg>
-              <span>Settings</span>
-            </button>
-          </>
-        )}
-
-        {canAccessUserFeatures && (
-          <button
-            className={`tab-btn ${activeTab === 'user-workspace' ? 'active' : ''}`}
-            onClick={() => setActiveTab('user-workspace')}
-          >
-            <svg viewBox="0 0 16 16" fill="none">
-              <path d="M1 4h14v10a1 1 0 01-1 1H2a1 1 0 01-1-1V4z" stroke="currentColor" strokeWidth="1.2"/>
-              <path d="M1 4h14v2H1z" fill="currentColor" fillOpacity="0.3"/>
-              <path d="M4 9h8M4 11.5h6" stroke="currentColor" strokeWidth="1" strokeLinecap="round"/>
-            </svg>
-            <span>User Workspace</span>
-          </button>
-        )}
-      </div>
-
       {/* Tab Content */}
       <div className="app-support-content">
-        {activeTab === 'terminals' && <ManageTerminals />}
-        
-        {activeTab === 'admin-users' && canAccessAdminFeatures && (
+        {appSupportTab === 'dashboard' && (
+          <div className="app-dashboard">
+            <div className="app-dashboard-header">
+              <div>
+                <h2>Dashboard</h2>
+                <p>Active users refresh automatically every 1 minute</p>
+              </div>
+              <div className="dashboard-header-actions">
+                <span className="app-dashboard-role">{canAccessAdminFeatures ? 'Admin Access' : 'User Access'}</span>
+              </div>
+            </div>
+
+            {dashboardError && <div className="alert alert-error">{dashboardError}</div>}
+
+            {loadingDashboard && !dashboard ? (
+              <div className="app-dashboard-empty">Loading dashboard...</div>
+            ) : (
+              <LiveTerminalChart
+                inline
+                onFullScreen={() => {
+                  if (document.documentElement.requestFullscreen) {
+                    document.documentElement.requestFullscreen().catch(() => {});
+                  }
+                  setIsChartFullscreen(true);
+                }}
+              />
+            )}
+
+            <div className="app-dashboard-panel">
+              <h3>Server Load</h3>
+              {(dashboard?.servers || []).length ? (
+                <div className="app-dashboard-list">
+                  {(dashboard?.servers || []).map((server) => {
+                    const isHigh = Number(server.active_users || 0) >= Number(server.max_users || 30);
+                    return (
+                    <div key={server.id} className={`app-dashboard-row ${isHigh ? 'server-row-high' : ''}`}>
+                      <div>
+                        <strong>{server.name}</strong>
+                        <span>{server.terminal_code} - {server.status || 'unknown'}{server.last_error ? ` - ${server.last_error}` : ''}</span>
+                      </div>
+                      <em>{server.active_users || 0}/{server.max_users || 30}</em>
+                    </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="app-dashboard-empty">No server data available yet.</div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {appSupportTab === 'terminals' && <ManageTerminals canManage={canAccessAdminFeatures} onInventoryChange={loadDashboard} />}
+
+        {appSupportTab === 'terminal-management' && <TerminalManagement canManage={canAccessUserFeatures} dashboard={dashboard} />}
+
+        {appSupportTab === 'monitor-terminal' && (
           <div className="tab-content">
-            <h2>Admin Users Management</h2>
+            <h2>Monitor Terminal</h2>
             <p className="coming-soon">Coming soon...</p>
           </div>
         )}
 
-        {activeTab === 'admin-settings' && canAccessAdminFeatures && (
-          <div className="tab-content">
-            <h2>Application Support Settings</h2>
-            <p className="coming-soon">Coming soon...</p>
-          </div>
-        )}
-
-        {activeTab === 'user-workspace' && canAccessUserFeatures && (
+        {appSupportTab === 'user-workspace' && canAccessUserFeatures && (
           <div className="tab-content">
             <h2>User Workspace</h2>
             <p className="coming-soon">Coming soon...</p>

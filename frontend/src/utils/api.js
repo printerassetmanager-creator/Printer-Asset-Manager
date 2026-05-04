@@ -56,6 +56,19 @@ export const adminAPI = {
     api.get('/admin/all-users', { headers: { Authorization: `Bearer ${token}` } }).then(res => res.data),
 };
 
+export const applicationSupportAPI = {
+  getDashboard: () => api.get('/application-support/dashboard'),
+  getDashboardHistory: (hours) => api.get('/application-support/dashboard/history', { params: { hours } }),
+  getInventory: () => api.get('/application-support/inventory'),
+  createTerminal: (data) => api.post('/application-support/terminals', data),
+  createServer: (data) => api.post('/application-support/servers', data),
+  refresh: () => api.post('/application-support/refresh'),
+  deployTerminal: (data) => api.post('/application-support/terminal-management/deploy', data),
+  getTerminalHistory: () => api.get('/application-support/terminal-management/history'),
+  getTerminalFailedDevices: () => api.get('/application-support/terminal-management/failed-devices'),
+  rollbackTerminal: (data) => api.post('/application-support/terminal-management/rollback', data),
+};
+
 export const printersAPI = {
   getAll: (plants) => api.get('/printers', { params: plants ? { plants: plants.join(',') } : {} }),
   getDashboardLive: (plants) => api.get('/printers/dashboard-live', { params: plants ? { plants: plants.join(',') } : {} }),

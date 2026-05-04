@@ -1,344 +1,254 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
+import { applicationSupportAPI } from '../../utils/api';
 
-export default function ManageTerminals() {
+const emptyForm = {
+  mode: 'server',
+  terminalId: '',
+  terminalCode: '',
+  terminalName: '',
+  serverName: '',
+};
+
+export default function ManageTerminals({ canManage = false, onInventoryChange }) {
   const [terminals, setTerminals] = useState([]);
-  const [selectedTerminal, setSelectedTerminal] = useState(null);
-  const [terminalName, setTerminalName] = useState('');
-  const [terminalUrl, setTerminalUrl] = useState('');
+  const [expandedTerminalId, setExpandedTerminalId] = useState(null);
   const [showForm, setShowForm] = useState(false);
-  const [editingId, setEditingId] = useState(null);
+  const [form, setForm] = useState(emptyForm);
   const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
-  const [connectionStatus, setConnectionStatus] = useState({});
 
-  // Load terminals from localStorage
-  useEffect(() => {
-    const stored = localStorage.getItem('appSupportTerminals');
-    if (stored) {
-      try {
-        setTerminals(JSON.parse(stored));
-      } catch (e) {
-        console.error('Error loading terminals:', e);
-      }
-    }
-  }, []);
-
-  // Save terminals to localStorage
-  const saveTerminals = (updated) => {
-    localStorage.setItem('appSupportTerminals', JSON.stringify(updated));
-    setTerminals(updated);
-  };
-
-  const validateForm = () => {
-    if (!terminalName.trim()) {
-      setError('Terminal name is required');
-      return false;
-    }
-    if (!terminalUrl.trim()) {
-      setError('Terminal URL is required');
-      return false;
-    }
-    if (!terminalUrl.match(/^https?:\/\/.+/)) {
-      setError('Please enter a valid URL (http:// or https://)');
-      return false;
-    }
-    return true;
-  };
-
-  const handleAddTerminal = () => {
-    setError('');
-    setSuccess('');
-    setEditingId(null);
-    setTerminalName('');
-    setTerminalUrl('');
-    setShowForm(true);
-  };
-
-  const handleEditTerminal = (terminal) => {
-    setError('');
-    setSuccess('');
-    setEditingId(terminal.id);
-    setTerminalName(terminal.name);
-    setTerminalUrl(terminal.url);
-    setShowForm(true);
-  };
-
-  const handleSaveTerminal = async (e) => {
-    e.preventDefault();
-    
-    if (!validateForm()) {
-      return;
-    }
-
+  const loadInventory = async () => {
     setLoading(true);
-
+    setError('');
     try {
-      // Simulate API delay
-      await new Promise(resolve => setTimeout(resolve, 500));
-
-      let updated;
-      if (editingId) {
-        // Update existing
-        updated = terminals.map(t =>
-          t.id === editingId
-            ? { ...t, name: terminalName.trim(), url: terminalUrl.trim(), updatedAt: new Date().toISOString() }
-            : t
-        );
-        setSuccess('Terminal updated successfully');
-      } else {
-        // Add new
-        const newTerminal = {
-          id: Date.now(),
-          name: terminalName.trim(),
-          url: terminalUrl.trim(),
-          createdAt: new Date().toISOString(),
-          status: 'disconnected',
-        };
-        updated = [...terminals, newTerminal];
-        setSuccess('Terminal added successfully');
-      }
-
-      saveTerminals(updated);
-      setShowForm(false);
-      setTerminalName('');
-      setTerminalUrl('');
-      setEditingId(null);
-
-      setTimeout(() => setSuccess(''), 3000);
+      const { data } = await applicationSupportAPI.getInventory();
+      setTerminals(Array.isArray(data) ? data : []);
+      onInventoryChange?.();
     } catch (err) {
-      setError('Failed to save terminal');
+      setError(err.response?.data?.error || 'Failed to load terminals and servers');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleDeleteTerminal = (id) => {
-    if (window.confirm('Are you sure you want to delete this terminal?')) {
-      const updated = terminals.filter(t => t.id !== id);
-      saveTerminals(updated);
-      if (selectedTerminal?.id === id) {
-        setSelectedTerminal(null);
-      }
-      setSuccess('Terminal deleted successfully');
-      setTimeout(() => setSuccess(''), 3000);
-    }
+  useEffect(() => {
+    loadInventory();
+  }, []);
+
+  const openAddForm = (mode, terminal = null) => {
+    setForm({
+      ...emptyForm,
+      mode,
+      terminalId: terminal?.id || '',
+      terminalCode: terminal?.code || '',
+    });
+    setShowForm(true);
+    setError('');
+    setSuccess('');
   };
 
-  const handleTestConnection = async (terminal) => {
-    setConnectionStatus(prev => ({
-      ...prev,
-      [terminal.id]: 'testing'
-    }));
+  const closeForm = () => {
+    setShowForm(false);
+    setForm(emptyForm);
+  };
+
+  const setField = (field, value) => {
+    setForm((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const handleSave = async (event) => {
+    event.preventDefault();
+    setSaving(true);
+    setError('');
+    setSuccess('');
 
     try {
-      // Simulate connection test
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      setConnectionStatus(prev => ({
-        ...prev,
-        [terminal.id]: 'connected'
-      }));
+      if (form.mode === 'terminal') {
+        await applicationSupportAPI.createTerminal({
+          code: form.terminalCode,
+          name: form.terminalName,
+        });
+        setSuccess('Terminal added successfully');
+      } else {
+        await applicationSupportAPI.createServer({
+          terminalId: form.terminalId,
+          name: form.serverName,
+        });
+        setSuccess('Server added successfully');
+      }
 
-      setTimeout(() => {
-        setConnectionStatus(prev => ({
-          ...prev,
-          [terminal.id]: null
-        }));
-      }, 3000);
+      closeForm();
+      await loadInventory();
+      setTimeout(() => setSuccess(''), 3000);
     } catch (err) {
-      setConnectionStatus(prev => ({
-        ...prev,
-        [terminal.id]: 'failed'
-      }));
-
-      setTimeout(() => {
-        setConnectionStatus(prev => ({
-          ...prev,
-          [terminal.id]: null
-        }));
-      }, 3000);
+      setError(err.response?.data?.error || 'Failed to save');
+    } finally {
+      setSaving(false);
     }
-  };
-
-  const handleSelectTerminal = (terminal) => {
-    setSelectedTerminal(selectedTerminal?.id === terminal.id ? null : terminal);
   };
 
   return (
     <div className="manage-terminals">
       <div className="terminals-header">
         <div>
-          <h2>Manage Terminals</h2>
-          <p>Create and manage terminal connections for application monitoring</p>
+          <h2>Terminal and Server</h2>
+          <p>View terminal groups, server capacity, and active user load</p>
         </div>
-        <button
-          className="btn btn-primary"
-          onClick={handleAddTerminal}
-          disabled={loading}
-        >
-          <svg viewBox="0 0 16 16" fill="none">
-            <path d="M8 1v14M1 8h14" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-          </svg>
-          Add Terminal
-        </button>
+        {canManage && (
+          <div className="terminal-header-actions">
+            <button className="btn btn-primary" onClick={() => openAddForm('terminal')} disabled={loading}>
+              <svg viewBox="0 0 16 16" fill="none">
+                <path d="M8 1v14M1 8h14" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+              </svg>
+              Add Terminal
+            </button>
+            <button className="btn btn-primary" onClick={() => openAddForm('server')} disabled={loading || terminals.length === 0}>
+              <svg viewBox="0 0 16 16" fill="none">
+                <path d="M8 1v14M1 8h14" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+              </svg>
+              Add Server
+            </button>
+          </div>
+        )}
       </div>
 
       {error && <div className="alert alert-error">{error}</div>}
       {success && <div className="alert alert-success">{success}</div>}
 
-      {/* Add/Edit Form */}
       {showForm && (
         <div className="terminal-form-container">
           <div className="terminal-form">
-            <h3>{editingId ? 'Edit Terminal' : 'Add New Terminal'}</h3>
-            
-            <form onSubmit={handleSaveTerminal}>
+            <h3>{form.mode === 'terminal' ? 'Add Terminal' : 'Add Server'}</h3>
+
+            <form onSubmit={handleSave}>
               <div className="form-group">
-                <label>Terminal Name *</label>
-                <input
-                  type="text"
-                  value={terminalName}
-                  onChange={(e) => setTerminalName(e.target.value)}
-                  placeholder="e.g., Production Server, Dev Terminal"
-                  disabled={loading}
-                />
+                <label>Type</label>
+                <select value={form.mode} onChange={(e) => setField('mode', e.target.value)} disabled={saving}>
+                  <option value="terminal">Terminal</option>
+                  <option value="server">Server</option>
+                </select>
               </div>
 
-              <div className="form-group">
-                <label>Terminal URL *</label>
-                <input
-                  type="url"
-                  value={terminalUrl}
-                  onChange={(e) => setTerminalUrl(e.target.value)}
-                  placeholder="https://terminal.example.com"
-                  disabled={loading}
-                />
-              </div>
+              {form.mode === 'terminal' ? (
+                <>
+                  <div className="form-group">
+                    <label>Terminal Code *</label>
+                    <input value={form.terminalCode} onChange={(e) => setField('terminalCode', e.target.value)} placeholder="e.g., P02" disabled={saving} />
+                  </div>
+                  <div className="form-group">
+                    <label>Terminal Name *</label>
+                    <input value={form.terminalName} onChange={(e) => setField('terminalName', e.target.value)} placeholder="e.g., P02" disabled={saving} />
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="form-group">
+                    <label>Terminal *</label>
+                    <select value={form.terminalId} onChange={(e) => setField('terminalId', e.target.value)} disabled={saving}>
+                      <option value="">Select terminal</option>
+                      {terminals.map((terminal) => (
+                        <option key={terminal.id} value={terminal.id}>{terminal.code} - {terminal.name}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="form-group">
+                    <label>Server Name *</label>
+                    <input value={form.serverName} onChange={(e) => setField('serverName', e.target.value)} placeholder="e.g., INRJNM0RDSHP55" disabled={saving} />
+                  </div>
+                </>
+              )}
 
               <div className="form-actions">
-                <button
-                  type="submit"
-                  className="btn btn-primary"
-                  disabled={loading}
-                >
-                  {loading ? (editingId ? 'Updating...' : 'Adding...') : (editingId ? 'Update' : 'Add')}
-                </button>
-                <button
-                  type="button"
-                  className="btn btn-secondary"
-                  onClick={() => {
-                    setShowForm(false);
-                    setEditingId(null);
-                    setTerminalName('');
-                    setTerminalUrl('');
-                  }}
-                  disabled={loading}
-                >
-                  Cancel
-                </button>
+                <button type="submit" className="btn btn-primary" disabled={saving}>{saving ? 'Saving...' : 'Save'}</button>
+                <button type="button" className="btn btn-secondary" onClick={closeForm} disabled={saving}>Cancel</button>
               </div>
             </form>
           </div>
         </div>
       )}
 
-      {/* Terminals List */}
-      <div className="terminals-list">
-        {terminals.length === 0 ? (
-          <div className="empty-state">
-            <svg viewBox="0 0 64 64" fill="none">
-              <rect x="8" y="16" width="48" height="32" rx="2" stroke="currentColor" strokeWidth="2"/>
-              <path d="M16 24h32M16 32h20M16 40h28" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-            </svg>
-            <p>No terminals configured yet</p>
-            <p style={{ fontSize: '13px', color: '#666' }}>Click "Add Terminal" to create your first terminal connection</p>
-          </div>
-        ) : (
-          terminals.map(terminal => (
-            <div key={terminal.id} className={`terminal-card ${selectedTerminal?.id === terminal.id ? 'active' : ''}`}>
-              <div className="terminal-card-header" onClick={() => handleSelectTerminal(terminal)}>
-                <div className="terminal-card-title">
-                  <svg viewBox="0 0 16 16" fill="none">
-                    <rect x="1.5" y="2" width="13" height="11" rx="1.2" stroke="currentColor" strokeWidth="1.2"/>
-                    <path d="M4 6h8M4 8h6M4 10h7" stroke="currentColor" strokeWidth="1" strokeLinecap="round"/>
-                  </svg>
-                  <div>
-                    <h3>{terminal.name}</h3>
-                    <p className="terminal-url">{terminal.url}</p>
+      {loading ? (
+        <div className="empty-state">Loading terminals and servers...</div>
+      ) : terminals.length === 0 ? (
+        <div className="empty-state">
+          <p>No terminals configured yet</p>
+          <p style={{ fontSize: '13px', color: '#666' }}>Admins can add terminals and servers here.</p>
+        </div>
+      ) : (
+        <div className="terminals-list">
+          {terminals.map((terminal) => {
+            const activeUsers = terminal.servers.reduce((sum, server) => sum + Number(server.active_users || 0), 0);
+            const capacity = terminal.servers.reduce((sum, server) => sum + Number(server.max_users || 30), 0);
+            const isExpanded = expandedTerminalId === terminal.id;
+
+            return (
+              <div key={terminal.id} className={`terminal-card ${isExpanded ? 'active' : ''}`}>
+                <div className="terminal-card-header" onClick={() => setExpandedTerminalId(isExpanded ? null : terminal.id)}>
+                  <div className="terminal-card-title">
+                    <svg viewBox="0 0 16 16" fill="none">
+                      <rect x="1.5" y="2" width="13" height="11" rx="1.2" stroke="currentColor" strokeWidth="1.2"/>
+                      <path d="M4 6h8M4 8h6M4 10h7" stroke="currentColor" strokeWidth="1" strokeLinecap="round"/>
+                    </svg>
+                    <div>
+                      <h3>{terminal.code}</h3>
+                      <p className="terminal-url">{terminal.servers.length} servers, {activeUsers}/{capacity} active users</p>
+                    </div>
+                  </div>
+                  <div className="terminal-status">
+                    <span className="status-badge connected">{activeUsers} Active</span>
                   </div>
                 </div>
-                <div className="terminal-status">
-                  {connectionStatus[terminal.id] === 'testing' && (
-                    <span className="status-badge testing">Testing...</span>
-                  )}
-                  {connectionStatus[terminal.id] === 'connected' && (
-                    <span className="status-badge connected">Connected</span>
-                  )}
-                  {connectionStatus[terminal.id] === 'failed' && (
-                    <span className="status-badge failed">Connection Failed</span>
-                  )}
-                  {!connectionStatus[terminal.id] && (
-                    <span className="status-badge disconnected">Disconnected</span>
-                  )}
-                </div>
-              </div>
 
-              {selectedTerminal?.id === terminal.id && (
-                <div className="terminal-card-details">
-                  <div className="terminal-info">
-                    <div className="info-item">
-                      <span className="label">Created:</span>
-                      <span className="value">{new Date(terminal.createdAt).toLocaleString()}</span>
+                {isExpanded && (
+                  <div className="terminal-card-details">
+                    <div className="server-table-wrap">
+                      <table className="server-table">
+                        <thead>
+                          <tr>
+                            <th>Server</th>
+                            <th>Active Users</th>
+                            <th>Limit</th>
+                            <th>Status</th>
+                            <th>Last Checked</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {terminal.servers.map((server) => {
+                            const isNearLimit = Number(server.active_users || 0) >= Number(server.max_users || 30);
+                            return (
+                              <tr key={server.id}>
+                                <td>{server.name}</td>
+                                <td className={isNearLimit ? 'server-load-high' : ''}>{server.active_users || 0}</td>
+                                <td>{server.max_users || 30}</td>
+                                <td>
+                                  <span className={`status-badge ${server.status === 'online' ? 'connected' : 'failed'}`}>
+                                    {server.status || 'unknown'}
+                                  </span>
+                                </td>
+                                <td>{server.last_checked_at ? new Date(server.last_checked_at).toLocaleString() : '-'}</td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
                     </div>
-                    {terminal.updatedAt && (
-                      <div className="info-item">
-                        <span className="label">Updated:</span>
-                        <span className="value">{new Date(terminal.updatedAt).toLocaleString()}</span>
+
+                    {canManage && (
+                      <div className="terminal-actions">
+                        <button className="btn btn-sm btn-outline" onClick={() => openAddForm('server', terminal)}>
+                          Add Server to {terminal.code}
+                        </button>
                       </div>
                     )}
                   </div>
-
-                  <div className="terminal-actions">
-                    <button
-                      className="btn btn-sm btn-outline"
-                      onClick={() => handleTestConnection(terminal)}
-                      disabled={loading || connectionStatus[terminal.id] === 'testing'}
-                    >
-                      <svg viewBox="0 0 16 16" fill="none">
-                        <path d="M2 8s2.5-5 6-5 6 5 6 5-2.5 5-6 5-6-5-6-5z" stroke="currentColor" strokeWidth="1.2"/>
-                        <circle cx="8" cy="8" r="2" stroke="currentColor" strokeWidth="1.2"/>
-                      </svg>
-                      Test Connection
-                    </button>
-                    <button
-                      className="btn btn-sm btn-outline"
-                      onClick={() => handleEditTerminal(terminal)}
-                      disabled={loading}
-                    >
-                      <svg viewBox="0 0 16 16" fill="none">
-                        <path d="M2 14h2l8.5-8.5m1.5-1.5l-2-2m0 0l2-2m-2 2l-2-2" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
-                      </svg>
-                      Edit
-                    </button>
-                    <button
-                      className="btn btn-sm btn-danger"
-                      onClick={() => handleDeleteTerminal(terminal.id)}
-                      disabled={loading}
-                    >
-                      <svg viewBox="0 0 16 16" fill="none">
-                        <path d="M2 4h12M6 4V2.5a1 1 0 011-1h2a1 1 0 011 1V4m1 0v9.5a1 1 0 01-1 1H4a1 1 0 01-1-1V4h10z" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
-                        <path d="M6 8v4M10 8v4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
-                      </svg>
-                      Delete
-                    </button>
-                  </div>
-                </div>
-              )}
-            </div>
-          ))
-        )}
-      </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

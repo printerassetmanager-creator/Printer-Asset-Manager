@@ -1,7 +1,6 @@
 const express = require('express');
 const cors = require('cors');
 const pool = require('./db/pool');
-require('dotenv').config();
 
 const app = express();
 app.use(cors());
@@ -27,6 +26,7 @@ app.use('/api/pm-pasted', require('./routes/pmPasted'));
 app.use('/api/i-learn', require('./routes/iLearn'));
 app.use('/api/grammar', require('./routes/grammar'));
 app.use('/api/dashboard', require('./routes/dashboard'));
+app.use('/api/application-support', require('./routes/applicationSupport'));
 
 app.get('/health', async (req, res) => {
   try {

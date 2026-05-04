@@ -10,6 +10,12 @@ const router = express.Router();
 // Helper function to generate 6-digit OTP
 const generateOTP = () => Math.floor(100000 + Math.random() * 900000).toString();
 
+const ALLOWED_SUPPORT_TYPES = ['technical', 'application', 'both'];
+const normalizeSupportType = (supportType) => {
+  const requestedType = String(supportType || 'technical').trim().toLowerCase();
+  return ALLOWED_SUPPORT_TYPES.includes(requestedType) ? requestedType : 'technical';
+};
+
 const ensureRegistrationOtpsTable = async () => {
   await pool.query(`
     CREATE TABLE IF NOT EXISTS registration_otps (
@@ -113,7 +119,7 @@ router.post('/register', async (req, res) => {
     const hashedPassword = await bcrypt.hash(password, 10);
 
     // Determine support type (default to technical)
-    const support_type = (supportType === 'application') ? 'application' : 'technical';
+    const support_type = normalizeSupportType(supportType);
 
     // Create user with 'pending' status and support_type
     const result = await pool.query(
@@ -135,11 +141,16 @@ router.post('/register', async (req, res) => {
         email: user.email,
         fullName: user.full_name,
         status: user.status,
+        support_type: user.support_type,
+        supportType: user.support_type,
       },
     });
   } catch (error) {
     console.error('Register error:', error);
-    res.status(500).json({ error: 'Registration failed' });
+    const message = error.code === '23505'
+      ? 'A user with this email already exists'
+      : error.message || 'Registration failed';
+    res.status(500).json({ error: message });
   }
 });
 
@@ -203,6 +214,7 @@ router.post('/login', async (req, res) => {
         fullName: user.full_name,
         role: user.role,
         support_type: user.support_type,
+        supportType: user.support_type,
       },
     });
   } catch (error) {
@@ -312,7 +324,7 @@ router.post('/reset-password', async (req, res) => {
 // ═══ GET CURRENT USER ═══
 router.get('/me', authMiddleware, async (req, res) => {
   try {
-    const userResult = await pool.query('SELECT id, email, full_name, role FROM users WHERE id = $1', [req.user.id]);
+    const userResult = await pool.query('SELECT id, email, full_name, role, support_type FROM users WHERE id = $1', [req.user.id]);
     if (userResult.rows.length === 0) {
       return res.status(404).json({ error: 'User not found' });
     }
@@ -323,6 +335,8 @@ router.get('/me', authMiddleware, async (req, res) => {
       email: user.email,
       fullName: user.full_name,
       role: user.role,
+      support_type: user.support_type,
+      supportType: user.support_type,
     });
   } catch (error) {
     console.error('Get user error:', error);

@@ -37,11 +37,11 @@ export default function Login({ onLoginSuccess }) {
   };
 
   return (
-    <div className="auth-container">
+    <div className="auth-container login-page">
       <div className="auth-box">
         <div className="auth-header">
           <div className="logo-container">
-            <img src="/jabil-logo.svg" alt="JABIL Logo" className="auth-logo" />
+            <img src="/jabil-logo-auth.svg" alt="JABIL Logo" className="auth-logo" />
           </div>
           <h1>IT Support Activities</h1>
           <p>Login to your account</p>

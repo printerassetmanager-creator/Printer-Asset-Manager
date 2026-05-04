@@ -237,6 +237,63 @@ const sendHighSeverityIssueAlert = async (emails, issueDetails) => {
   }
 };
 
+const sendApplicationSupportTerminalLoadAlert = async (emails, alertDetails) => {
+  try {
+    assertEmailConfig();
+    const emailList = Array.isArray(emails) ? emails.filter(Boolean) : [emails].filter(Boolean);
+    if (emailList.length === 0) {
+      return;
+    }
+
+    const hotTerminalRows = alertDetails.terminals.map((terminal) => {
+      const serverRows = terminal.servers.map((server) => `
+        <tr>
+          <td style="padding: 8px; border: 1px solid #ddd;">${server.name}</td>
+          <td style="padding: 8px; border: 1px solid #ddd; text-align: right; font-weight: bold;">${server.active_users || 0}</td>
+          <td style="padding: 8px; border: 1px solid #ddd;">${server.status || 'unknown'}</td>
+        </tr>
+      `).join('');
+
+      return `
+        <h3 style="color: #d32f2f; margin: 22px 0 8px;">${terminal.code} - ${terminal.name}</h3>
+        <p style="margin: 0 0 10px;"><strong>Total Active Users:</strong> ${terminal.total_users}</p>
+        <table style="border-collapse: collapse; width: 100%; margin-bottom: 18px;">
+          <thead>
+            <tr style="background: #f2f2f2;">
+              <th style="padding: 8px; border: 1px solid #ddd; text-align: left;">Server</th>
+              <th style="padding: 8px; border: 1px solid #ddd; text-align: right;">Active Users</th>
+              <th style="padding: 8px; border: 1px solid #ddd; text-align: left;">Status</th>
+            </tr>
+          </thead>
+          <tbody>${serverRows}</tbody>
+        </table>
+      `;
+    }).join('');
+
+    const mailOptions = {
+      from: process.env.EMAIL_USER || 'aniketbhosale1012@gmail.com',
+      to: emailList.join(','),
+      subject: `Terminal Load Needs Attention - ${alertDetails.terminals.length} terminal(s) at 30+ users`,
+      html: `
+        <h2 style="color: #d32f2f;">Terminal Load Needs Attention</h2>
+        <p>One or more application support terminals have reached 30+ active users.</p>
+        <p><strong>Alert Time:</strong> ${alertDetails.alertTime}</p>
+        <p><strong>Total Active Users Across Hot Terminals:</strong> ${alertDetails.totalUsers}</p>
+        ${hotTerminalRows}
+        <p style="color: #d32f2f; font-weight: bold;">Please review terminal load and take necessary action.</p>
+        <hr style="border: none; border-top: 1px solid #ddd; margin: 20px 0;">
+        <p style="font-size: 12px; color: #999;">This scheduled alert is sent at 6:00 AM, 2:00 PM, 6:00 PM, and 10:00 PM when terminal load is 30+ users.</p>
+      `,
+    };
+
+    await transporter.sendMail(mailOptions);
+    console.log(`Application support terminal load alert sent to ${emailList.length} users`);
+  } catch (error) {
+    console.error('Error sending application support terminal load alert:', error);
+    throw error;
+  }
+};
+
 module.exports = {
   sendOTP,
   sendRegistrationOTP,
@@ -244,4 +301,5 @@ module.exports = {
   sendAccountRejectionNotification,
   sendIssueAssignmentNotification,
   sendHighSeverityIssueAlert,
+  sendApplicationSupportTerminalLoadAlert,
 };

@@ -43,7 +43,17 @@ const getInitialScreen = () => {
 
 export function AppProvider({ children }) {
   const [currentScreen, setCurrentScreen] = useState(getInitialScreen);
+  const [appSupportTab, setAppSupportTab] = useState('dashboard');
   const [openIssues, setOpenIssues] = useState(0);
+  const [supportMode, setSupportMode] = useState(() => {
+    try {
+      const saved = localStorage.getItem('supportMode');
+      return saved || 'desktop';
+    } catch (e) {
+      console.warn('supportMode parsing error:', e);
+      return 'desktop';
+    }
+  });
   const [selectedPlants, setSelectedPlants] = useState(() => {
     try {
       const saved = localStorage.getItem('selectedPlants');
@@ -56,14 +66,7 @@ export function AppProvider({ children }) {
   const [user, setUser] = useState(() => {
     try {
       const saved = localStorage.getItem('user');
-      if (!saved) return null;
-      const parsed = JSON.parse(saved);
-      // Prevent auto-authenticating a stored super-admin on first launch
-      if (parsed && parsed.role === 'super_admin') {
-        try { localStorage.removeItem('user'); localStorage.removeItem('authToken'); } catch (e) {}
-        return null;
-      }
-      return parsed;
+      return saved ? JSON.parse(saved) : null;
     } catch (e) {
       console.warn('user parsing error:', e);
       return null;
@@ -100,6 +103,15 @@ export function AppProvider({ children }) {
       console.warn('localStorage setItem error:', e);
     }
   }, [selectedPlants]);
+
+  // Persist support mode to localStorage
+  useEffect(() => {
+    try {
+      localStorage.setItem('supportMode', supportMode);
+    } catch (e) {
+      console.warn('localStorage setItem error:', e);
+    }
+  }, [supportMode]);
 
   const refreshIssueCount = async () => {
     try {
@@ -153,8 +165,12 @@ export function AppProvider({ children }) {
     <AppContext.Provider value={{
       currentScreen,
       setCurrentScreen,
+      appSupportTab,
+      setAppSupportTab,
       openIssues,
       refreshIssueCount,
+      supportMode,
+      setSupportMode,
       selectedPlants,
       setSelectedPlants,
       togglePlant,
