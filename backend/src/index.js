@@ -1,8 +1,9 @@
+require('dotenv').config();
 const app = require('./app');
 const pool = require('./db/pool');
 const { startPrinterMonitor } = require('./services/printerMonitor');
 const { startHPPrinterMonitor } = require('./services/hpPrinterMonitor');
-require('dotenv').config();
+const { startApplicationSupportMonitor } = require('./services/applicationSupportMonitor');
 
 const PORT = process.env.PORT || 5000;
 
@@ -72,6 +73,13 @@ async function startServer() {
       }
     } catch (err) {
       console.warn('⚠️  HP Printer monitor failed to start:', err.message);
+    }
+
+    try {
+      await startApplicationSupportMonitor();
+      console.log('Application support server monitor started');
+    } catch (err) {
+      console.warn('Application support monitor failed to start:', err.message);
     }
 
   } catch (error) {

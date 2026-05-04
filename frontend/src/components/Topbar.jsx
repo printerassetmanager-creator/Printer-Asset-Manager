@@ -19,6 +19,7 @@ const screenTitles = {
   ilearn: 'i Learn',
   printermaster: 'Printer Master',
   userapprovals: 'User Management',
+  appsupport: 'Application Support',
 };
 
 const screenMeta = {
@@ -39,9 +40,29 @@ const screenMeta = {
   ilearn: 'Learning platform - search issues and follow step-by-step guides with images',
   printermaster: 'Admin - add / edit / delete printers from master database',
   userapprovals: 'Super admin - approve, reject, delete and manage user accounts',
+  appsupport: 'Manage application support terminals and servers',
 };
 
-export default function Topbar() {
+function ProfileIcon() {
+  return (
+    <svg viewBox="0 0 16 16" aria-hidden="true">
+      <circle cx="8" cy="5" r="2.5" fill="currentColor" />
+      <path d="M3 13c0-2.2 2.2-3.8 5-3.8s5 1.6 5 3.8" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function LogoutIcon() {
+  return (
+    <svg viewBox="0 0 16 16" aria-hidden="true">
+      <path d="M6 2.5H3.8A1.3 1.3 0 0 0 2.5 3.8v8.4a1.3 1.3 0 0 0 1.3 1.3H6" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+      <path d="M9 4.5 12.5 8 9 11.5" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M6 8h6" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+export default function Topbar({ onUserClick, onLogout }) {
   const { currentScreen, user, supportMode, setSupportMode } = useApp();
   const [time, setTime] = useState('');
   const [showSupportDropdown, setShowSupportDropdown] = useState(false);
@@ -54,23 +75,20 @@ export default function Topbar() {
   }, []);
 
   const isSuperAdmin = user?.role === 'super_admin';
-  const isTechnicalSupport = user?.supportType === 'technical';
-  const isApplicationSupport = user?.supportType === 'application';
+  const userSupportType = user?.support_type || user?.supportType;
+  const hasTechnicalAccess = isSuperAdmin || userSupportType === 'technical' || userSupportType === 'both';
+  const hasApplicationAccess = isSuperAdmin || userSupportType === 'application' || userSupportType === 'both';
 
-  // Show dropdown if super admin or if user has both support types access
-  const canSwitchSupportMode = isSuperAdmin || isTechnicalSupport || isApplicationSupport;
+  const canSwitchSupportMode = hasTechnicalAccess && hasApplicationAccess;
 
   const handleSupportModeChange = (mode) => {
-    // Allow super admin to switch to any mode
-    if (isSuperAdmin) {
-      setSupportMode(mode);
-    } else if (isTechnicalSupport && mode === 'application') {
-      setSupportMode(mode);
-    } else if (isApplicationSupport && mode === 'desktop') {
+    if ((mode === 'desktop' && hasTechnicalAccess) || (mode === 'application' && hasApplicationAccess)) {
       setSupportMode(mode);
     }
     setShowSupportDropdown(false);
   };
+
+  const showAccountActions = supportMode === 'application';
 
   return (
     <div className="topbar">
@@ -93,7 +111,7 @@ export default function Topbar() {
             </button>
             {showSupportDropdown && (
               <div className="support-mode-menu">
-                {(isSuperAdmin || isApplicationSupport) && (
+                {hasTechnicalAccess && (
                   <button 
                     className={`support-mode-item ${supportMode === 'desktop' ? 'active' : ''}`}
                     onClick={() => handleSupportModeChange('desktop')}
@@ -101,7 +119,7 @@ export default function Topbar() {
                     Desktop Support
                   </button>
                 )}
-                {(isSuperAdmin || isTechnicalSupport) && (
+                {hasApplicationAccess && (
                   <button 
                     className={`support-mode-item ${supportMode === 'application' ? 'active' : ''}`}
                     onClick={() => handleSupportModeChange('application')}
@@ -116,6 +134,18 @@ export default function Topbar() {
       )}
       
       <div className="tb-right">
+        {showAccountActions && (
+          <div className="topbar-account-actions">
+            <button type="button" className="topbar-account-btn topbar-profile-btn" onClick={onUserClick}>
+              <span><ProfileIcon /></span>
+              Profile
+            </button>
+            <button type="button" className="topbar-account-btn topbar-logout-btn" onClick={onLogout}>
+              <span><LogoutIcon /></span>
+              Logout
+            </button>
+          </div>
+        )}
         <div className="tb-signature">Developed by :- Aniket Bhosale</div>
         <div className="time-chip">{time}</div>
         <div className="live-pill"><div className="live-dot"></div>Live</div>

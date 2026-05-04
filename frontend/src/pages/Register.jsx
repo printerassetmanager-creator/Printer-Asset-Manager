@@ -104,7 +104,7 @@ export default function Register({ onBack }) {
       <div className="auth-box">
         <div className="auth-header">
           <div className="logo-container">
-            <img src="/jabil-logo.svg" alt="JABIL Logo" className="auth-logo" />
+            <img src="/jabil-logo-auth.svg" alt="JABIL Logo" className="auth-logo" />
           </div>
           <h1>Create Account</h1>
           <p>Verify your email before creating your account</p>
@@ -113,7 +113,7 @@ export default function Register({ onBack }) {
         <form onSubmit={otpSent ? handleRegister : handleSendOtp} className="auth-form">
           <div className="form-group">
             <label>Register As</label>
-            <div style={{ display: 'flex', gap: '12px' }}>
+            <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
               <label style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                 <input
                   type="radio"
@@ -135,6 +135,17 @@ export default function Register({ onBack }) {
                   disabled={loading}
                 />
                 Application Support
+              </label>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <input
+                  type="radio"
+                  name="supportType"
+                  value="both"
+                  checked={supportType === 'both'}
+                  onChange={() => setSupportType('both')}
+                  disabled={loading}
+                />
+                Both Support Types
               </label>
             </div>
           </div>

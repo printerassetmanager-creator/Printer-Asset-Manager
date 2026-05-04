@@ -1,22 +1,24 @@
-<svg viewBox="0 0 600 140" xmlns="http://www.w3.org/2000/svg" fill="none">
+<svg viewBox="210 118 1180 260" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
+  <title id="title">Jabil Logo</title>
+  <desc id="desc">High contrast JABIL logo with transparent background</desc>
   <defs>
+    <linearGradient id="letterFill" x1="0" x2="0" y1="0" y2="1">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="0.55" stop-color="#f7fbff"/>
+      <stop offset="1" stop-color="#d8e6f7"/>
+    </linearGradient>
+    <filter id="logoShadow" x="-8%" y="-20%" width="116%" height="150%">
+      <feDropShadow dx="0" dy="8" stdDeviation="6" flood-color="#001b3d" flood-opacity="0.42"/>
+    </filter>
     <style>
-      .jabil-text { font-family: 'Arial Black', 'Arial', sans-serif; font-weight: 900; letter-spacing: -3px; }
-      .tagline-text { font-family: 'Arial', sans-serif; font-weight: 400; letter-spacing: 0.5px; }
-      .tagline-bold { font-family: 'Arial', sans-serif; font-weight: 700; letter-spacing: 0.5px; }
+      .word {
+        font-family: Arial Black, Arial, Helvetica, sans-serif;
+        font-weight: 900;
+        letter-spacing: 14px;
+      }
     </style>
   </defs>
-  
-  <!-- JABIL Text - Main Logo -->
-  <text x="20" y="95" class="jabil-text" font-size="85" fill="#0D4B87">JABIL</text>
-  
-  <!-- Blue accent triangle under A -->
-  <polygon fill="#18A9E1" points="115,62 152,62 133,85 98,85" />
-  
-  <!-- Tagline -->
-  <text x="10" y="128" class="tagline-text" font-size="23" fill="#0D4B87" font-weight="400">MADE</text>
-  <text x="87" y="128" class="tagline-bold" font-size="23" fill="#0D4B87" font-weight="700">POSSIBLE.</text>
-  <text x="265" y="128" class="tagline-text" font-size="23" fill="#0D4B87" font-weight="400">MADE</text>
-  <text x="343" y="128" class="tagline-bold" font-size="23" fill="#0D4B87" font-weight="700">BETTER.</text>
-
+  <g filter="url(#logoShadow)">
+    <text x="245" y="328" class="word" font-size="270" fill="url(#letterFill)" stroke="#062d63" stroke-width="12" paint-order="stroke fill">JABIL</text>
+  </g>
 </svg>

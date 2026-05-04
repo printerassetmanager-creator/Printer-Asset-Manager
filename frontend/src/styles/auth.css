@@ -10,9 +10,13 @@
   overflow-y: auto;
 }
 
+.login-page {
+  background: linear-gradient(135deg, #0f4ea3 0%, #3d7ddd 100%);
+}
+
 .auth-box {
   background: white;
-  padding: 40px;
+  padding: 22px 40px 40px;
   border-radius: 12px;
   box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
   width: 100%;
@@ -23,16 +27,16 @@
 
 .auth-header {
   text-align: center;
-  margin-bottom: 40px;
+  margin-bottom: 24px;
 }
 
 .logo-container {
   display: flex;
   justify-content: center;
   align-items: center;
-  margin-bottom: 28px;
-  margin-top: 6px;
-  padding: 8px 0 4px;
+  margin-bottom: 14px;
+  margin-top: 0;
+  padding: 0;
   background: transparent;
   border-radius: 16px;
   position: relative;
@@ -50,7 +54,7 @@
 }
 
 .auth-logo {
-  width: min(100%, 320px);
+  width: min(100%, 370px);
   height: auto;
   max-width: 100%;
   display: block;

@@ -24,10 +24,10 @@ html,body,#root{height:100%;overflow:hidden;font-family:'Inter',system-ui,sans-s
 
 /* SIDEBAR */
 .sidebar{width:230px;min-width:230px;background:var(--bg2);border-right:1px solid var(--border);display:flex;flex-direction:column;flex-shrink:0;overflow:hidden}
-.sb-brand{padding:16px 10px 12px;border-bottom:1px solid var(--border);background:linear-gradient(180deg, rgba(74,127,212,.05), transparent)}
-.sb-logo-container{display:flex;justify-content:center;align-items:center;margin-bottom:14px;margin-top:8px;height:55px;border-radius:10px;background:transparent;position:relative;transition:all .3s ease}
+.sb-brand{padding:4px 10px 10px;border-bottom:1px solid var(--border);background:linear-gradient(180deg, rgba(74,127,212,.05), transparent)}
+.sb-logo-container{display:flex;justify-content:center;align-items:center;margin-bottom:8px;margin-top:0;height:74px;border-radius:10px;background:transparent;position:relative;transition:all .3s ease}
 .sb-logo-container:hover{background:rgba(255,255,255,.06);box-shadow:0 4px 12px rgba(255,255,255,.08)}
-.sb-logo{height:35px;width:auto;max-width:90%;display:block;object-fit:contain;filter:drop-shadow(0 2px 4px rgba(0,0,0,.15));transition:transform .3s ease;position:relative;z-index:1}
+.sb-logo{height:auto;width:100%;max-width:218px;display:block;object-fit:contain;filter:drop-shadow(0 2px 4px rgba(0,0,0,.15));transition:transform .3s ease;position:relative;z-index:1}
 .sb-logo-container:hover .sb-logo{transform:scale(1.08)}
 .sb-brand .co{font-size:10px;color:var(--text3);letter-spacing:.07em;text-transform:uppercase;font-weight:700;margin-top:6px}
 .sb-brand .ti{font-size:14px;color:var(--text);font-weight:700;margin-top:5px;letter-spacing:-.01em}
@@ -87,6 +87,14 @@ html,body,#root{height:100%;overflow:hidden;font-family:'Inter',system-ui,sans-s
 .tb-meta{font-size:11px;color:var(--text3);margin-top:2px;font-weight:700}
 .tb-center{flex:1;display:flex;justify-content:center}
 .tb-right{display:flex;align-items:center;gap:10px}
+.topbar-account-actions{display:flex;align-items:center;gap:8px}
+.topbar-account-btn{height:30px;display:inline-flex;align-items:center;gap:7px;border:1px solid var(--border);border-radius:8px;background:var(--bg3);color:var(--text2);font-size:11px;font-weight:800;padding:0 10px;cursor:pointer;transition:all .12s;font-family:"Inter",sans-serif}
+.topbar-account-btn:hover{transform:translateY(-1px);color:var(--text);border-color:rgba(74,127,212,.42)}
+.topbar-account-btn span{width:18px;height:18px;border-radius:6px;display:inline-flex;align-items:center;justify-content:center;color:#fff}
+.topbar-account-btn svg{width:12px;height:12px;display:block}
+.topbar-profile-btn span{background:linear-gradient(135deg, rgba(168,127,250,.95), rgba(81,101,255,.95))}
+.topbar-logout-btn{border-color:rgba(230,104,122,.28)}
+.topbar-logout-btn span{background:linear-gradient(135deg, rgba(255,185,120,.95), rgba(234,112,88,.95))}
 .support-mode-selector{position:relative}
 .support-mode-button{display:flex;align-items:center;gap:8px;padding:6px 12px;background:var(--bg);border:1px solid var(--border);border-radius:var(--r);font-size:12px;color:var(--text);font-weight:500;cursor:pointer;transition:all .12s}
 .support-mode-button:hover{border-color:rgba(74,127,212,.5)}
@@ -176,6 +184,7 @@ html,body,#root{height:100%;overflow:hidden;font-family:'Inter',system-ui,sans-s
 .b-scheduled{background:var(--green-bg);color:var(--green)}
 .b-admin{background:var(--amber-bg);color:var(--amber)}
 .b-user{background:var(--blue-bg);color:var(--blue)}
+.b-info{background:var(--cyan-bg);color:var(--cyan)}
 .b-low{background:var(--amber-bg);color:var(--amber)}
 .b-out{background:var(--red-bg);color:var(--red)}
 .b-instock{background:var(--green-bg);color:var(--green)}

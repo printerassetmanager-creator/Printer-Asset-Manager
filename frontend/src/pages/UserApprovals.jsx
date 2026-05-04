@@ -9,6 +9,12 @@ const roleLabel = (role) => {
   return 'User';
 };
 
+const supportTypeLabel = (supportType) => {
+  if (supportType === 'application') return 'Application Support';
+  if (supportType === 'both') return 'Application + Technical Support';
+  return 'Technical Support';
+};
+
 const formatDate = (dateString) => {
   if (!dateString) return '-';
 
@@ -190,6 +196,7 @@ export default function UserApprovals() {
             <tr>
               <th>Full Name</th>
               <th>Email</th>
+              <th>Access Needed</th>
               <th>Requested At</th>
               <th>Approved By</th>
               <th>Approved At</th>
@@ -201,6 +208,11 @@ export default function UserApprovals() {
               <tr key={user.user_id}>
                 <td className="em approvals-name-cell">{getDisplayName(user)}</td>
                 <td className="mono approvals-email-cell">{user.email || '-'}</td>
+                <td>
+                  <span className={`badge ${user.support_type === 'application' ? 'b-info' : user.support_type === 'both' ? 'b-success' : 'b-online'}`}>
+                    {supportTypeLabel(user.support_type)}
+                  </span>
+                </td>
                 <td>{formatDate(user.requested_at)}</td>
                 <td>
                   {user.approved_by ? (
@@ -312,6 +324,7 @@ export default function UserApprovals() {
             <tr>
               <th>Full Name</th>
               <th>Email</th>
+              <th>Access Section</th>
               <th>Role</th>
               <th>Status</th>
               <th>Created At</th>
@@ -327,6 +340,11 @@ export default function UserApprovals() {
                 <tr key={user.id}>
                   <td className="em approvals-name-cell">{getDisplayName(user)}</td>
                   <td className="mono approvals-email-cell">{user.email || '-'}</td>
+                  <td>
+                    <span className={`badge ${user.support_type === 'application' ? 'b-info' : user.support_type === 'both' ? 'b-success' : 'b-online'}`}>
+                      {supportTypeLabel(user.support_type)}
+                    </span>
+                  </td>
                   <td>
                     <select
                       className="approvals-role-select"
