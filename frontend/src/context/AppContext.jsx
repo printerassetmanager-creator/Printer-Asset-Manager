@@ -28,6 +28,13 @@ export const displayName = (user) => String(user || '')
   .map((part) => part[0].toUpperCase() + part.slice(1))
   .join(' ');
 
+const normalizeSelectedPlants = (value) => {
+  if (Array.isArray(value) && value.length > 0) {
+    return value;
+  }
+  return PLANT_LOCATIONS;
+};
+
 const getInitialScreen = () => {
   try {
     const params = new URLSearchParams(window.location.search);
@@ -57,7 +64,8 @@ export function AppProvider({ children }) {
   const [selectedPlants, setSelectedPlants] = useState(() => {
     try {
       const saved = localStorage.getItem('selectedPlants');
-      return saved ? JSON.parse(saved) : PLANT_LOCATIONS;
+      const parsed = saved ? JSON.parse(saved) : null;
+      return normalizeSelectedPlants(parsed);
     } catch (e) {
       console.warn('selectedPlants parsing error:', e);
       return PLANT_LOCATIONS;
@@ -95,8 +103,13 @@ export function AppProvider({ children }) {
     }
   }, [user, authToken]);
 
-  // Persist selected plants to localStorage
+  // Ensure selectedPlants always contains valid plant options.
   useEffect(() => {
+    if (!Array.isArray(selectedPlants) || selectedPlants.length === 0) {
+      setSelectedPlants(PLANT_LOCATIONS);
+      return;
+    }
+
     try {
       localStorage.setItem('selectedPlants', JSON.stringify(selectedPlants));
     } catch (e) {

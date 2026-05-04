@@ -13,6 +13,16 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
+const buildPlantParams = (plants) => {
+  const cleanPlants = Array.isArray(plants)
+    ? plants.map((p) => String(p || '').trim()).filter(Boolean)
+    : [];
+  if (cleanPlants.length === 0) {
+    return {};
+  }
+  return { params: { plants: cleanPlants.join(',') } };
+};
+
 // Auth API
 export const authAPI = {
   sendRegistrationOtp: (email) => api.post('/auth/send-registration-otp', { email }),
@@ -70,8 +80,8 @@ export const applicationSupportAPI = {
 };
 
 export const printersAPI = {
-  getAll: (plants) => api.get('/printers', { params: plants ? { plants: plants.join(',') } : {} }),
-  getDashboardLive: (plants) => api.get('/printers/dashboard-live', { params: plants ? { plants: plants.join(',') } : {} }),
+  getAll: (plants) => api.get('/printers', buildPlantParams(plants)),
+  getDashboardLive: (plants) => api.get('/printers/dashboard-live', buildPlantParams(plants)),
   refreshDashboardLive: () => api.post('/printers/dashboard-live/refresh'),
   getStatusLogs: (pmno) => api.get(`/printers/status-logs/${encodeURIComponent(pmno)}`),
   getLocationLogs: (pmno) => api.get(`/printers/location-logs/${encodeURIComponent(pmno)}`),
@@ -83,7 +93,7 @@ export const printersAPI = {
 };
 
 export const backupPrintersAPI = {
-  getAll: (plants) => api.get('/backup-printers', { params: plants ? { plants: plants.join(',') } : {} }),
+  getAll: (plants) => api.get('/backup-printers', buildPlantParams(plants)),
   getMatches: (pmno) => api.get(`/backup-printers/match-for-issue/${encodeURIComponent(pmno)}`),
   create: (data) => api.post('/backup-printers', data),
   update: (id, data) => api.put(`/backup-printers/${id}`, data),
@@ -91,7 +101,7 @@ export const backupPrintersAPI = {
 };
 
 export const sparePartsAPI = {
-  getAll: (plants) => api.get('/spare-parts', { params: plants ? { plants: plants.join(',') } : {} }),
+  getAll: (plants) => api.get('/spare-parts', buildPlantParams(plants)),
   getUsageLog: () => api.get('/spare-parts/usage-log'),
   getRequirements: () => api.get('/spare-parts/requirements'),
   create: (data) => api.post('/spare-parts', data),
@@ -101,7 +111,7 @@ export const sparePartsAPI = {
 };
 
 export const hpPrintersAPI = {
-  getAll: (plants) => api.get('/hp-printers', { params: plants ? { plants: plants.join(',') } : {} }),
+  getAll: (plants) => api.get('/hp-printers', buildPlantParams(plants)),
   create: (data) => api.post('/hp-printers', data),
   update: (id, data) => api.put(`/hp-printers/${id}`, data),
   delete: (id) => api.delete(`/hp-printers/${id}`),
@@ -128,7 +138,7 @@ export const printerPushAPI = {
 };
 
 export const issuesAPI = {
-  getAll: (plants) => api.get('/issues', { params: plants ? { plants: plants.join(',') } : {} }),
+  getAll: (plants) => api.get('/issues', buildPlantParams(plants)),
   create: (data) => api.post('/issues', data),
   update: (id, data) => api.put(`/issues/${id}`, data),
   resolve: (id, data) => api.put(`/issues/${id}/resolve`, data),
@@ -152,8 +162,8 @@ export const pmPastedAPI = {
 };
 
 export const dashboardAPI = {
-  getStats: (plants) => api.get('/dashboard/stats', { params: plants ? { plants: plants.join(',') } : {} }),
-  getDueOverdue: (plants) => api.get('/dashboard/due-overdue', { params: plants ? { plants: plants.join(',') } : {} }),
+  getStats: (plants) => api.get('/dashboard/stats', buildPlantParams(plants)),
+  getDueOverdue: (plants) => api.get('/dashboard/due-overdue', buildPlantParams(plants)),
 };
 
 export const iLearnAPI = {
