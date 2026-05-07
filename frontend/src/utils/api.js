@@ -77,6 +77,21 @@ export const applicationSupportAPI = {
   getTerminalHistory: () => api.get('/application-support/terminal-management/history'),
   getTerminalFailedDevices: () => api.get('/application-support/terminal-management/failed-devices'),
   rollbackTerminal: (data) => api.post('/application-support/terminal-management/rollback', data),
+  getMonitorStatus: () => api.get('/application-support/monitor-terminal/status'),
+  getMonitorLogs: () => api.get('/application-support/monitor-terminal/logs'),
+  getMonitorRdpFiles: () => api.get('/application-support/monitor-terminal/rdp-files'),
+  uploadMonitorRdpFile: (data) => api.post('/application-support/monitor-terminal/rdp-files', data),
+  deleteMonitorRdpFile: (id) => api.delete(`/application-support/monitor-terminal/rdp-files/${id}`),
+  startMonitorTerminal: (credentials) => api.post('/application-support/monitor-terminal/start', credentials),
+  stopMonitorTerminal: () => api.post('/application-support/monitor-terminal/stop'),
+  getServerPerformanceStatus: () => api.get('/application-support/server-performance/status'),
+  getServerPerformanceLogs: () => api.get('/application-support/server-performance/logs'),
+  startServerPerformance: (credentials) => api.post('/application-support/server-performance/start', credentials),
+  stopServerPerformance: () => api.post('/application-support/server-performance/stop'),
+  runServerPerformance: () => api.post('/application-support/server-performance/run'),
+  getServerCleanupStatus: () => api.get('/application-support/server-cleanup/status'),
+  getServerCleanupHistory: () => api.get('/application-support/server-cleanup/history'),
+  runServerCleanup: (data) => api.post('/application-support/server-cleanup', data),
 };
 
 export const printersAPI = {
@@ -164,6 +179,7 @@ export const pmPastedAPI = {
 export const dashboardAPI = {
   getStats: (plants) => api.get('/dashboard/stats', buildPlantParams(plants)),
   getDueOverdue: (plants) => api.get('/dashboard/due-overdue', buildPlantParams(plants)),
+  getActiveUsers: (plants) => api.get('/dashboard/active-users', buildPlantParams(plants)),
 };
 
 export const iLearnAPI = {

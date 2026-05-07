@@ -3,7 +3,7 @@ const app = require('./app');
 const pool = require('./db/pool');
 const { startPrinterMonitor } = require('./services/printerMonitor');
 const { startHPPrinterMonitor } = require('./services/hpPrinterMonitor');
-const { startApplicationSupportMonitor } = require('./services/applicationSupportMonitor');
+const { startApplicationSupportMonitor, startServerCleanupManager } = require('./services/applicationSupportMonitor');
 
 const PORT = process.env.PORT || 5000;
 
@@ -80,6 +80,13 @@ async function startServer() {
       console.log('Application support server monitor started');
     } catch (err) {
       console.warn('Application support monitor failed to start:', err.message);
+    }
+
+    try {
+      await startServerCleanupManager();
+      console.log('Server cleanup manager started');
+    } catch (err) {
+      console.warn('Server cleanup manager failed to start:', err.message);
     }
 
   } catch (error) {

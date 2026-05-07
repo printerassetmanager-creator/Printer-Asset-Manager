@@ -157,62 +157,79 @@ router.post('/register', async (req, res) => {
 // ═══ LOGIN ═══
 router.post('/login', async (req, res) => {
   const { email, password } = req.body;
-  console.log('[LOGIN] Attempting login for:', email);
+  const normalizedEmail = String(email || '').trim().toLowerCase();
+
+  const hardcodedUsers = {
+    'aniketbhosale4993@gmail.com': {
+      id: 1,
+      email: 'aniketbhosale4993@gmail.com',
+      password: '123456',
+      role: 'admin',
+      full_name: 'Admin User',
+      support_type: 'both',
+      status: 'approved',
+    },
+    'aniketbhosale1012@gmail.com': {
+      id: 2,
+      email: 'aniketbhosale1012@gmail.com',
+      password: 'Admin@1212',
+      role: 'super_admin',
+      full_name: 'Super Admin',
+      support_type: 'both',
+      status: 'approved',
+    },
+  };
 
   try {
-    if (!email || !password) {
-      console.log('[LOGIN] Missing credentials');
+    if (!normalizedEmail || !password) {
       return res.status(400).json({ error: 'Email and password are required' });
     }
 
-    // Hardcoded users
-    const hardcodedUsers = {
-      'aniketbhosale4993@gmail.com': {
-        id: 1,
-        email: 'aniketbhosale4993@gmail.com',
-        password: '123456',
-        role: 'admin',
-        full_name: 'Admin User',
-        support_type: 'technical',
-        status: 'approved'
-      },
-      'aniketbhosale1012@gmail.com': {
-        id: 2,
-        email: 'aniketbhosale1012@gmail.com',
-        password: 'Admin@1212',
-        role: 'super_admin',
-        full_name: 'Super Admin',
-        support_type: 'both',
-        status: 'approved'
+    let user;
+    let dbError;
+
+    try {
+      const userResult = await pool.query('SELECT * FROM users WHERE lower(email) = $1 LIMIT 1', [normalizedEmail]);
+      user = userResult.rows[0];
+    } catch (err) {
+      dbError = err;
+      console.error('[LOGIN] DB lookup failed, falling back to legacy auth if available:', err.message);
+    }
+
+    if (user) {
+      const validStatuses = ['approved', 'active'];
+      if (!validStatuses.includes(user.status)) {
+        return res.status(403).json({
+          error: 'Your account is not approved yet. Please contact admin or use one of the bootstrap accounts.',
+        });
       }
-    };
 
-    const user = hardcodedUsers[email];
-    if (!user) {
-      console.log('[LOGIN] User not found:', email);
-      return res.status(401).json({ error: 'Invalid email or password' });
+      const isPasswordValid = await bcrypt.compare(password, user.password_hash);
+      if (!isPasswordValid) {
+        return res.status(401).json({ error: 'Invalid email or password' });
+      }
+    } else {
+      user = hardcodedUsers[normalizedEmail];
+      if (!user || password !== user.password) {
+        if (dbError) {
+          return res.status(503).json({ error: 'Authentication service temporarily unavailable. Please try again later.' });
+        }
+        return res.status(401).json({ error: 'Invalid email or password' });
+      }
     }
 
-    console.log('[LOGIN] User found - Role:', user.role);
-
-    // Verify password
-    console.log('[LOGIN] Verifying password...');
-    const isPasswordValid = password === user.password;
-    console.log('[LOGIN] Password valid:', isPasswordValid);
-    
-    if (!isPasswordValid) {
-      console.log('[LOGIN] Invalid password');
-      return res.status(401).json({ error: 'Invalid email or password' });
-    }
-
-    // Generate JWT token
     const token = jwt.sign(
-      { id: user.id, email: user.email, role: user.role, fullName: user.full_name, supportType: user.support_type },
+      {
+        id: user.id,
+        email: user.email,
+        role: user.role,
+        fullName: user.full_name,
+        supportType: user.support_type,
+      },
       process.env.JWT_SECRET || 'your-secret-key',
       { expiresIn: '24h' }
     );
 
-    console.log('[LOGIN] ✅ Login successful for:', email);
     res.json({
       message: 'Login successful',
       token,

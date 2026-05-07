@@ -103,7 +103,10 @@ export default function TerminalManagement({ canManage = false, dashboard = null
       setSuccess(data.message || 'Terminal deployment completed');
       setOutput((data.results || []).map((result) => {
         if (result.status === 'success') {
-          return `=== ${result.pcName} SUCCESS ===\n${result.output || ''}${result.warning ? `\n${result.warning}` : ''}`;
+          const duration = result.startedAt && result.completedAt
+            ? `${Math.max(1, Math.round((new Date(result.completedAt) - new Date(result.startedAt)) / 1000))} sec`
+            : 'n/a';
+          return `=== ${result.pcName} SUCCESS ===\nDuration: ${duration}\n${(result.progressLines || []).join('\n')}\n${result.output || ''}${result.warning ? `\n${result.warning}` : ''}`;
         }
         return `=== ${result.pcName} FAILED ===\n${result.error || 'Unknown error'}`;
       }).join('\n\n'));
@@ -140,7 +143,10 @@ export default function TerminalManagement({ canManage = false, dashboard = null
         if (result.status === 'success') {
           const previous = (result.previousTerminals || []).join(', ') || 'none';
           const removed = (result.removedTerminals || []).join(', ') || 'none';
-          return `=== ${result.pcName} ROLLBACK SUCCESS ===\nRestored: ${previous}\nRemoved: ${removed}\n${result.output || ''}${result.warning ? `\n${result.warning}` : ''}`;
+          const duration = result.startedAt && result.completedAt
+            ? `${Math.max(1, Math.round((new Date(result.completedAt) - new Date(result.startedAt)) / 1000))} sec`
+            : 'n/a';
+          return `=== ${result.pcName} ROLLBACK SUCCESS ===\nDuration: ${duration}\nRestored: ${previous}\nRemoved: ${removed}\n${(result.progressLines || []).join('\n')}\n${result.output || ''}${result.warning ? `\n${result.warning}` : ''}`;
         }
         return `=== ${result.pcName} ROLLBACK FAILED ===\n${result.error || 'Unknown error'}`;
       }).join('\n\n'));
@@ -169,7 +175,7 @@ export default function TerminalManagement({ canManage = false, dashboard = null
       <div className="terminals-header">
         <div>
           <h2>Terminal Management</h2>
-          <p>Deploy terminal shortcuts and cleanup target PC desktop/session files</p>
+          <p>Deploy terminal shortcuts with the live AD admin credential you enter here across one or many target PCs.</p>
         </div>
       </div>
 
@@ -207,16 +213,19 @@ export default function TerminalManagement({ canManage = false, dashboard = null
             <input
               value={targetUsername}
               onChange={(event) => setTargetUsername(event.target.value)}
-              placeholder="Admin ID"
+              placeholder="Admin ID used for remoting and share access"
               disabled={!canManage || busy}
             />
             <input
               type="password"
               value={targetPassword}
               onChange={(event) => setTargetPassword(event.target.value)}
-              placeholder="Admin Password"
+              placeholder="Current AD password"
               disabled={!canManage || busy}
             />
+            <div className="terminal-management-hint">
+              The same runtime credential is used for Invoke-Command, network share mapping, file copy, deployment, cleanup, and rollback.
+            </div>
           </div>
         </div>
 
@@ -301,6 +310,7 @@ export default function TerminalManagement({ canManage = false, dashboard = null
       {output && (
         <div className="terminal-output-panel">
           <div className="terminal-management-label">Deployment Output</div>
+          <div className="terminal-management-hint">Per-PC progress is grouped below. Parallel runs may complete in a different order than the PC list.</div>
           <pre>{output}</pre>
         </div>
       )}

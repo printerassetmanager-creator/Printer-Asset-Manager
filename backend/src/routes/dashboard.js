@@ -197,4 +197,42 @@ router.get('/due-overdue', async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+router.get('/active-users', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT t.code,
+             t.name,
+             COALESCE(SUM(s.active_users), 0)::int AS users,
+             COUNT(s.id)::int AS servers
+      FROM app_support_terminals t
+      LEFT JOIN app_support_servers s ON s.terminal_id = t.id AND s.is_active = TRUE
+      WHERE t.is_active = TRUE
+      GROUP BY t.code, t.name
+      ORDER BY CASE
+        WHEN t.code = 'P01' THEN 1
+        WHEN t.code = 'VA01' THEN 2
+        WHEN t.code = 'VAO01' THEN 2
+        WHEN t.code = 'M01' THEN 3
+        WHEN t.code = 'D01' THEN 4
+        WHEN t.code = 'E01' THEN 5
+        ELSE 99
+      END, t.code
+    `);
+
+    const payload = {};
+    result.rows.forEach((row) => {
+      payload[row.code] = {
+        name: row.name || row.code,
+        users: row.users,
+        servers: row.servers,
+      };
+    });
+
+    res.json(payload);
+  } catch (error) {
+    console.error('Dashboard active-users error:', error);
+    res.status(500).json({ error: 'Failed to fetch active user data' });
+  }
+});
+
 module.exports = router;

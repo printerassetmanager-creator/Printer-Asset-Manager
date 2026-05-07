@@ -7,6 +7,21 @@ const {
   ensureApplicationSupportTables,
   seedApplicationSupportDefaults,
   pollApplicationSupportServers,
+  getMonitorTerminalStatus,
+  getMonitorTerminalLogs,
+  getMonitorRdpFiles,
+  saveMonitorRdpFile,
+  deleteMonitorRdpFile,
+  startMonitorTerminal,
+  stopMonitorTerminal,
+  getServerPerformanceStatus,
+  getServerPerformanceLogs,
+  startServerPerformanceMonitor,
+  stopServerPerformanceMonitor,
+  runServerPerformanceNow,
+  getServerCleanupStatus,
+  getServerCleanupHistory,
+  runServerCleanupOnServers,
 } = require('../services/applicationSupportMonitor');
 
 const router = express.Router();
@@ -50,6 +65,11 @@ const parsePreviousTerminals = (output) => {
   if (!match || !match[1]) return [];
   return match[1].split(',').map((terminal) => terminal.trim()).filter(Boolean);
 };
+
+const buildProgressLines = (output) => String(output || '')
+  .split(/\r?\n/)
+  .map((line) => line.trim())
+  .filter((line) => line.startsWith('STATUS:['));
 
 async function ensureTerminalManagementTables() {
   await pool.query(`
@@ -132,7 +152,7 @@ const runWithConcurrency = async (items, limit, worker) => {
   return results;
 };
 
-const buildTerminalDeployScript = ({ pcName, terminals, removeTerminals = [], targetUsername, targetPassword, shareUsername, sharePassword, fastMode, mode = 'deploy' }) => {
+const buildTerminalDeployScript = ({ pcName, terminals, removeTerminals = [], targetUsername, targetPassword, fastMode, mode = 'deploy' }) => {
   const terminalList = terminals.map((terminal) => `'${escapePowerShellString(terminal)}'`).join(',');
   const removeTerminalList = removeTerminals.map((terminal) => `'${escapePowerShellString(terminal)}'`).join(',');
 
@@ -145,14 +165,16 @@ $fastMode = ${fastMode ? '$true' : '$false'}
 $mode = '${escapePowerShellString(mode)}'
 $targetUsername = '${escapePowerShellString(targetUsername)}'
 $targetPassword = '${escapePowerShellString(targetPassword)}'
-$shareUsername = '${escapePowerShellString(shareUsername)}'
-$sharePassword = '${escapePowerShellString(sharePassword)}'
 
 $securePassword = ConvertTo-SecureString $targetPassword -AsPlainText -Force
 $cred = New-Object System.Management.Automation.PSCredential ($targetUsername, $securePassword)
+$shareUsername = $cred.UserName
+$sharePassword = $cred.GetNetworkCredential().Password
 
-Invoke-Command -ComputerName $pcName -Credential $cred -ArgumentList (,$terminals), (,$removeTerminals), $shareUsername, $sharePassword, $fastMode, $mode -ScriptBlock {
-  param($terminals, $removeTerminals, $shareUsername, $sharePassword, $fastMode, $mode)
+Write-Host "STATUS:[$pcName] Starting $mode"
+
+Invoke-Command -ComputerName $pcName -Credential $cred -ArgumentList (,$terminals), (,$removeTerminals), $shareUsername, $sharePassword, $fastMode, $mode, $pcName -ScriptBlock {
+  param($terminals, $removeTerminals, $shareUsername, $sharePassword, $fastMode, $mode, $pcName)
 
   $share = "\\\\inrjnm0it012\\C$\\IT SOFTWARE\\New Farms\\All Farms"
   $desktop = "C:\\Users\\Public\\Desktop"
@@ -162,7 +184,7 @@ Invoke-Command -ComputerName $pcName -Credential $cred -ArgumentList (,$terminal
   $removeTargets = @($removeTerminals | ForEach-Object { [string]$_ } | Select-Object -Unique)
   $terminalChoices = @("M01", "P01", "VAO01", "D01", "E01")
 
-  Write-Host "Target terminals:" ($requiredTerminals -join ", ")
+  Write-Host "STATUS:[$pcName] Target terminals:" ($requiredTerminals -join ", ")
   net use $sourceDrive $share /user:$shareUsername $sharePassword /persistent:no | Out-Null
 
   try {
@@ -179,6 +201,17 @@ Invoke-Command -ComputerName $pcName -Credential $cred -ArgumentList (,$terminal
         throw "$terminal not found in source"
       }
       $filesByTerminal[$terminal] = $file
+    }
+
+    $userDesktopRoots = Get-ChildItem 'C:\Users' -Directory | Where-Object { $_.Name -notin @('Public', 'Default', 'Default User', 'All Users') }
+    $userDesktopPaths = $userDesktopRoots | ForEach-Object { Join-Path $_.FullName 'Desktop' } | Where-Object { Test-Path $_ }
+
+    foreach ($userDesktop in $userDesktopPaths) {
+      Write-Host "STATUS:[$pcName] Cleaning old terminal shortcuts from user desktop:" $userDesktop
+      Get-ChildItem $userDesktop -Filter "RJNMES*" -ErrorAction SilentlyContinue | ForEach-Object {
+        Write-Host "STATUS:[$pcName] Removing from user desktop:" $_.FullName
+        Remove-Item $_.FullName -Force -ErrorAction SilentlyContinue
+      }
     }
 
     $desktopFiles = Get-ChildItem $desktop -Filter "RJNMES*" -ErrorAction SilentlyContinue
@@ -200,37 +233,37 @@ Invoke-Command -ComputerName $pcName -Credential $cred -ArgumentList (,$terminal
       }
 
       if (-not $keep) {
-        Write-Host "Removing:" $_.Name
+        Write-Host "STATUS:[$pcName] Removing:" $_.Name
         Remove-Item $_.FullName -Force -ErrorAction SilentlyContinue
       }
     }
 
     foreach ($terminal in $removeTargets) {
       $desktopFiles | Where-Object { $_.Name -match $terminal } | ForEach-Object {
-        Write-Host "Removing deployed $terminal :" $_.Name
+        Write-Host "STATUS:[$pcName] Removing deployed $terminal :" $_.Name
         Remove-Item $_.FullName -Force -ErrorAction SilentlyContinue
       }
     }
 
     foreach ($terminal in $requiredTerminals) {
       $desktopFiles | Where-Object { $_.Name -match $terminal } | ForEach-Object {
-        Write-Host "Removing old $terminal :" $_.Name
+        Write-Host "STATUS:[$pcName] Removing old $terminal :" $_.Name
         Remove-Item $_.FullName -Force -ErrorAction SilentlyContinue
       }
 
-      Write-Host "Deploying $terminal :" $filesByTerminal[$terminal].Name
+      Write-Host "STATUS:[$pcName] Deploying $terminal :" $filesByTerminal[$terminal].Name
       Copy-Item $filesByTerminal[$terminal].FullName $desktop -Force
     }
 
     if ($fastMode) {
-      Write-Host "Fast mode enabled: skipping full TEMP cleanup"
+      Write-Host "STATUS:[$pcName] Fast mode enabled: skipping full TEMP cleanup"
     } else {
-      Write-Host "Cleaning TEMP files..."
+      Write-Host "STATUS:[$pcName] Cleaning TEMP files..."
       Remove-Item "$env:TEMP\\*" -Recurse -Force -ErrorAction SilentlyContinue
       Remove-Item "C:\\Windows\\Temp\\*" -Recurse -Force -ErrorAction SilentlyContinue
     }
 
-    Write-Host "Removing saved credentials..."
+    Write-Host "STATUS:[$pcName] Removing saved credentials..."
     cmdkey /list | ForEach-Object {
       if ($_ -match "TERMSRV" -or $_ -match "INRJNM") {
         $target = ($_ -split ":")[1].Trim()
@@ -238,7 +271,7 @@ Invoke-Command -ComputerName $pcName -Credential $cred -ArgumentList (,$terminal
       }
     }
 
-    Write-Host "DONE: Deployment + Cleanup Completed"
+    Write-Host "STATUS:[$pcName] DONE: Deployment + Cleanup Completed"
   } finally {
     net use $sourceDrive /delete | Out-Null
   }
@@ -492,6 +525,220 @@ router.post('/refresh', async (req, res) => {
   res.json({ message: 'Application support refresh started' });
 });
 
+router.get('/monitor-terminal/status', async (req, res) => {
+  try {
+    const status = await getMonitorTerminalStatus();
+    res.json(status);
+  } catch (error) {
+    console.error('Monitor terminal status error:', error);
+    res.status(500).json({ error: 'Failed to fetch monitor terminal status' });
+  }
+});
+
+router.get('/monitor-terminal/logs', async (req, res) => {
+  try {
+    const logs = await getMonitorTerminalLogs(100);
+    res.json(logs);
+  } catch (error) {
+    console.error('Monitor terminal logs error:', error);
+    res.status(500).json({ error: 'Failed to fetch monitor terminal logs' });
+  }
+});
+
+router.get('/monitor-terminal/rdp-files', async (req, res) => {
+  try {
+    const files = await getMonitorRdpFiles();
+    res.json(files);
+  } catch (error) {
+    console.error('Monitor terminal RDP file list error:', error);
+    res.status(500).json({ error: 'Failed to fetch RDP files' });
+  }
+});
+
+router.post('/monitor-terminal/rdp-files', async (req, res) => {
+  if (!canManageApplicationSupport(req.user)) {
+    return res.status(403).json({ error: 'Application support admin access required' });
+  }
+
+  const { terminalCode, fileName, contentBase64 } = req.body;
+  if (!fileName || !contentBase64) {
+    return res.status(400).json({ error: 'fileName and contentBase64 are required' });
+  }
+
+  try {
+    const file = await saveMonitorRdpFile({
+      terminalCode,
+      fileName,
+      contentBase64,
+      uploadedBy: req.user?.email || null,
+    });
+    res.status(201).json(file);
+  } catch (error) {
+    console.error('Save monitor RDP file error:', error);
+    res.status(500).json({ error: 'Failed to save RDP file', details: error.message });
+  }
+});
+
+router.delete('/monitor-terminal/rdp-files/:id', async (req, res) => {
+  if (!canManageApplicationSupport(req.user)) {
+    return res.status(403).json({ error: 'Application support admin access required' });
+  }
+
+  try {
+    await deleteMonitorRdpFile(Number(req.params.id));
+    res.json({ message: 'RDP file removed' });
+  } catch (error) {
+    console.error('Delete monitor RDP file error:', error);
+    res.status(500).json({ error: 'Failed to delete RDP file', details: error.message });
+  }
+});
+
+router.post('/monitor-terminal/start', async (req, res) => {
+  if (!canManageApplicationSupport(req.user)) {
+    return res.status(403).json({ error: 'Admin access required' });
+  }
+
+  const { username, password } = req.body;
+  try {
+    await startMonitorTerminal({ username, password });
+    res.json({ message: 'Monitor terminal process started' });
+  } catch (error) {
+    console.error('Start monitor terminal error:', error);
+    res.status(500).json({ error: 'Failed to start monitor terminal', details: error.message });
+  }
+});
+
+router.post('/monitor-terminal/stop', async (req, res) => {
+  if (!canManageApplicationSupport(req.user)) {
+    return res.status(403).json({ error: 'Admin access required' });
+  }
+
+  try {
+    await stopMonitorTerminal();
+    res.json({ message: 'Monitor terminal process stopped' });
+  } catch (error) {
+    console.error('Stop monitor terminal error:', error);
+    res.status(500).json({ error: 'Failed to stop monitor terminal', details: error.message });
+  }
+});
+
+router.get('/server-performance/status', async (req, res) => {
+  try {
+    const status = await getServerPerformanceStatus();
+    res.json(status);
+  } catch (error) {
+    console.error('Server performance status error:', error);
+    res.status(500).json({ error: 'Failed to fetch server performance status' });
+  }
+});
+
+router.get('/server-performance/logs', async (req, res) => {
+  try {
+    const logs = await getServerPerformanceLogs(200);
+    res.json(logs);
+  } catch (error) {
+    console.error('Server performance logs error:', error);
+    res.status(500).json({ error: 'Failed to fetch server performance logs' });
+  }
+});
+
+router.post('/server-performance/start', async (req, res) => {
+  if (!canManageApplicationSupport(req.user)) {
+    return res.status(403).json({ error: 'Admin access required' });
+  }
+
+  const { username, password } = req.body;
+  try {
+    await startServerPerformanceMonitor({ username, password });
+    res.json({ message: 'Server performance monitoring started' });
+  } catch (error) {
+    console.error('Start server performance error:', error);
+    res.status(500).json({ error: 'Failed to start server performance monitoring', details: error.message });
+  }
+});
+
+router.post('/server-performance/stop', async (req, res) => {
+  if (!canManageApplicationSupport(req.user)) {
+    return res.status(403).json({ error: 'Admin access required' });
+  }
+
+  try {
+    await stopServerPerformanceMonitor();
+    res.json({ message: 'Server performance monitoring stopped' });
+  } catch (error) {
+    console.error('Stop server performance error:', error);
+    res.status(500).json({ error: 'Failed to stop server performance monitoring', details: error.message });
+  }
+});
+
+router.post('/server-performance/run', async (req, res) => {
+  if (!canManageApplicationSupport(req.user)) {
+    return res.status(403).json({ error: 'Admin access required' });
+  }
+
+  try {
+    await runServerPerformanceNow();
+    res.json({ message: 'Server performance cycle completed' });
+  } catch (error) {
+    console.error('Run server performance cycle error:', error);
+    res.status(500).json({ error: 'Failed to run server performance cycle', details: error.message });
+  }
+});
+
+router.get('/server-cleanup/status', async (req, res) => {
+  if (!canViewApplicationSupport(req.user)) {
+    return res.status(403).json({ error: 'Application support access required' });
+  }
+
+  try {
+    const status = await getServerCleanupStatus();
+    res.json(status || {
+      server_name: null,
+      deleted_profiles: [],
+      space_freed_bytes: 0,
+      status: 'idle',
+      triggered_by: null,
+      details: null,
+      created_at: null,
+    });
+  } catch (error) {
+    console.error('Server cleanup status error:', error);
+    res.status(500).json({ error: 'Failed to fetch server cleanup status' });
+  }
+});
+
+router.get('/server-cleanup/history', async (req, res) => {
+  if (!canViewApplicationSupport(req.user)) {
+    return res.status(403).json({ error: 'Application support access required' });
+  }
+
+  try {
+    const history = await getServerCleanupHistory(50);
+    res.json(history);
+  } catch (error) {
+    console.error('Server cleanup history error:', error);
+    res.status(500).json({ error: 'Failed to fetch server cleanup history' });
+  }
+});
+
+router.post('/server-cleanup', async (req, res) => {
+  if (!isSuperAdmin(req.user)) {
+    return res.status(403).json({ error: 'Super admin access required to run cleanup' });
+  }
+
+  const requestedServers = Array.isArray(req.body.serverNames) ? req.body.serverNames : [req.body.serverName].filter(Boolean);
+  const serverNames = Array.from(new Set(requestedServers.map((name) => String(name || '').trim()).filter(Boolean)));
+
+  try {
+    await ensureApplicationSupportTables();
+    const cleanupResult = await runServerCleanupOnServers({ serverNames, triggeredBy: req.user?.email || 'super_admin' });
+    res.json(cleanupResult);
+  } catch (error) {
+    console.error('Server cleanup error:', error);
+    res.status(500).json({ error: 'Failed to run server cleanup', details: error.message });
+  }
+});
+
 router.post('/terminal-management/deploy', async (req, res) => {
   if (!canUseTerminalManagement(req.user)) {
     return res.status(403).json({ error: 'Application support access required' });
@@ -511,8 +758,6 @@ router.post('/terminal-management/deploy', async (req, res) => {
   const fastMode = req.body.fastMode !== false;
   const targetUsername = String(req.body.targetUsername || '').trim();
   const targetPassword = String(req.body.targetPassword || '');
-  const shareUsername = process.env.APP_SUPPORT_SHARE_USERNAME;
-  const sharePassword = process.env.APP_SUPPORT_SHARE_PASSWORD;
 
   const invalidTerminals = terminals.filter((terminal) => !terminalManagementChoices.includes(terminal));
   const uniqueTerminals = normalizeTerminals(terminals);
@@ -536,21 +781,17 @@ router.post('/terminal-management/deploy', async (req, res) => {
     if (!targetUsername || !targetPassword) {
       return res.status(400).json({ error: 'Target PC username and password are required' });
     }
-    if (!shareUsername || !sharePassword) {
-      return res.status(500).json({ error: 'Share credentials are not configured. Set APP_SUPPORT_SHARE_USERNAME and APP_SUPPORT_SHARE_PASSWORD in backend/.env' });
-    }
 
     const deployResults = await runWithConcurrency(
       pcNames,
       Math.max(1, TERMINAL_DEPLOY_CONCURRENCY),
       async (pcName) => {
+        const startedAt = new Date();
         const script = buildTerminalDeployScript({
           pcName,
           terminals: uniqueTerminals,
           targetUsername,
           targetPassword,
-          shareUsername,
-          sharePassword,
           fastMode,
         });
         const result = await runPowerShell(['-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', script]);
@@ -558,6 +799,9 @@ router.post('/terminal-management/deploy', async (req, res) => {
           pcName,
           previousTerminals: parsePreviousTerminals(result.stdout),
           output: result.stdout,
+          progressLines: buildProgressLines(result.stdout),
+          startedAt,
+          completedAt: new Date(),
           warning: result.stderr || null,
         };
       }
@@ -676,8 +920,6 @@ router.post('/terminal-management/rollback', async (req, res) => {
   const fastMode = req.body.fastMode !== false;
   const targetUsername = String(req.body.targetUsername || '').trim();
   const targetPassword = String(req.body.targetPassword || '');
-  const shareUsername = process.env.APP_SUPPORT_SHARE_USERNAME;
-  const sharePassword = process.env.APP_SUPPORT_SHARE_PASSWORD;
 
   try {
     await ensureTerminalManagementTables();
@@ -692,14 +934,12 @@ router.post('/terminal-management/rollback', async (req, res) => {
     if (!targetUsername || !targetPassword) {
       return res.status(400).json({ error: 'Admin ID and password are required' });
     }
-    if (!shareUsername || !sharePassword) {
-      return res.status(500).json({ error: 'Share credentials are not configured. Set APP_SUPPORT_SHARE_USERNAME and APP_SUPPORT_SHARE_PASSWORD in backend/.env' });
-    }
 
     const rollbackResults = await runWithConcurrency(
       pcNames,
       Math.max(1, TERMINAL_DEPLOY_CONCURRENCY),
       async (pcName) => {
+        const startedAt = new Date();
         const historyResult = await pool.query(
           `SELECT *
            FROM app_support_terminal_deploy_history
@@ -723,8 +963,6 @@ router.post('/terminal-management/rollback', async (req, res) => {
           removeTerminals: deployedTerminals,
           targetUsername,
           targetPassword,
-          shareUsername,
-          sharePassword,
           fastMode,
           mode: 'rollback',
         });
@@ -743,6 +981,9 @@ router.post('/terminal-management/rollback', async (req, res) => {
           previousTerminals,
           removedTerminals: deployedTerminals,
           output: result.stdout,
+          progressLines: buildProgressLines(result.stdout),
+          startedAt,
+          completedAt: new Date(),
           warning: result.stderr || null,
         };
       }

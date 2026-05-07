@@ -1,33 +1,33 @@
-import React, { useState } from 'react';
+import React, { useState, lazy, Suspense } from 'react';
 import { AppProvider, useApp } from './context/AppContext';
 import Sidebar from './components/Sidebar';
 import Topbar from './components/Topbar';
 import useSessionTimeout from './hooks/useSessionTimeout';
 
-import Dashboard from './pages/Dashboard';
-import PrinterDashboard from './pages/PrinterDashboard';
-import HealthCheckup from './pages/HealthCheckup';
-import PmForm from './pages/PmForm';
-import ViewPrinters from './pages/ViewPrinters';
-import VlanActivity from './pages/VlanActivity';
-import BackupPrinters from './pages/BackupPrinters';
-import SpareParts from './pages/SpareParts';
-import HpPrinters from './pages/HpPrinters';
-import LabelRecipes from './pages/LabelRecipes';
-import UpcomingPM from './pages/UpcomingPM';
-import DueOverdue from './pages/DueOverdue';
-import IssuesTracker from './pages/IssuesTracker';
-import ILearn from './pages/ILearn';
-import PrinterMaster from './pages/PrinterMaster';
-import UserApprovals from './pages/UserApprovals';
-import PrintMonitarBot from './pages/PrintMonitarBot';
-import ApplicationSupport from './pages/ApplicationSupport';
+const Dashboard = lazy(() => import('./pages/Dashboard'));
+const PrinterDashboard = lazy(() => import('./pages/PrinterDashboard'));
+const HealthCheckup = lazy(() => import('./pages/HealthCheckup'));
+const PmForm = lazy(() => import('./pages/PmForm'));
+const ViewPrinters = lazy(() => import('./pages/ViewPrinters'));
+const VlanActivity = lazy(() => import('./pages/VlanActivity'));
+const BackupPrinters = lazy(() => import('./pages/BackupPrinters'));
+const SpareParts = lazy(() => import('./pages/SpareParts'));
+const HpPrinters = lazy(() => import('./pages/HpPrinters'));
+const LabelRecipes = lazy(() => import('./pages/LabelRecipes'));
+const UpcomingPM = lazy(() => import('./pages/UpcomingPM'));
+const DueOverdue = lazy(() => import('./pages/DueOverdue'));
+const IssuesTracker = lazy(() => import('./pages/IssuesTracker'));
+const ILearn = lazy(() => import('./pages/ILearn'));
+const PrinterMaster = lazy(() => import('./pages/PrinterMaster'));
+const UserApprovals = lazy(() => import('./pages/UserApprovals'));
+const PrintMonitarBot = lazy(() => import('./pages/PrintMonitarBot'));
+const ApplicationSupport = lazy(() => import('./pages/ApplicationSupport'));
 
 // Auth Pages
-import Login from './pages/Login';
-import Register from './pages/Register';
-import ForgotPassword from './pages/ForgotPassword';
-import UserProfile from './pages/UserProfile';
+const Login = lazy(() => import('./pages/Login'));
+const Register = lazy(() => import('./pages/Register'));
+const ForgotPassword = lazy(() => import('./pages/ForgotPassword'));
+const UserProfile = lazy(() => import('./pages/UserProfile'));
 
 function ProfileIcon() {
   return (
@@ -51,7 +51,6 @@ function LogoutIcon() {
 function AppInner() {
   const { currentScreen, setCurrentScreen, isAuthenticated, user, logout, loginUser, supportMode, setSupportMode } = useApp();
   const [authScreen, setAuthScreen] = useState('login');
-  const [time, setTime] = useState('');
   const [showUserProfile, setShowUserProfile] = useState(false);
   const isAdmin = user?.role === 'admin';
   const isSuperAdmin = user?.role === 'super_admin';
@@ -67,21 +66,11 @@ function AppInner() {
   };
 
   const handleSessionExpire = (reason) => {
-    console.log(`Auto-logout triggered: ${reason}`);
     logout();
     closeUserProfile();
   };
 
   useSessionTimeout(handleSessionExpire, 20, isAuthenticated);
-
-  console.log('App rendering - isAuthenticated:', isAuthenticated, 'user:', user);
-
-  React.useEffect(() => {
-    const tick = () => setTime(new Date().toLocaleTimeString('en-GB'));
-    tick();
-    const t = setInterval(tick, 1000);
-    return () => clearInterval(t);
-  }, []);
 
   // Handle support mode changes
   React.useEffect(() => {
@@ -111,10 +100,12 @@ function AppInner() {
       } else if (result.screen === 'forgot-password') {
         setAuthScreen('forgot-password');
       }
-    } else {
-      const token = localStorage.getItem('authToken');
-      loginUser(result, token);
+      return;
     }
+
+    const token = localStorage.getItem('authToken');
+    loginUser(result, token);
+    setCurrentScreen('dashboard');
   };
 
   const handleBackToLogin = () => {
@@ -167,10 +158,12 @@ function AppInner() {
       <Sidebar />
       <div className="main-area">
         <Topbar onUserClick={() => setShowUserProfile(true)} onLogout={handleLogout} />
-        {renderScreen()}
+        <Suspense fallback={<div className="screen loading">Loading...</div>}>
+          {renderScreen()}
+        </Suspense>
         <div className="act-bar">
           <div className="act-info">
-            Logged in as <span>{user?.email}</span> · <span>{time}</span>
+            Logged in as <span>{user?.email}</span>
           </div>
           <div className="act-btns">
             <button className="btn btn-sm action-pill action-pill-profile" onClick={() => setShowUserProfile(true)}>
@@ -186,7 +179,9 @@ function AppInner() {
       </div>
 
       {showUserProfile && (
-        <UserProfile user={user} onClose={closeUserProfile} onLogout={handleLogout} />
+        <Suspense fallback={<div className="screen loading">Loading...</div>}>
+          <UserProfile user={user} onClose={closeUserProfile} onLogout={handleLogout} />
+        </Suspense>
       )}
     </div>
   );

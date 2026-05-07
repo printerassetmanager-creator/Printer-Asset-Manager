@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { printersAPI } from '../utils/api';
-import { IS_ADMIN, PLANT_LOCATIONS, useApp } from '../context/AppContext';
+import { PLANT_LOCATIONS, useApp } from '../context/AppContext';
 import CustomDatePicker from './DatePicker';
 import { buildLoftwareValue, getDefaultLoftwareForSap, LOFTWARE_OPTIONS, parseLoftwareValue } from '../utils/loftware';
 import { toSentenceCase } from '../utils/textFormat';
@@ -8,7 +8,8 @@ import { toSentenceCase } from '../utils/textFormat';
 const empty = {pmno:'',serial:'',make:'Honeywell',model:'',dpi:'203',ip:'',wc:'',stage:'',bay:'',pmdate:'',sapno:'',mesno:'',loftware:'',remarks:'',maintenance_type:'quarterly',plant_location:'B26'};
 
 export default function PrinterMaster() {
-  const { selectedPlants } = useApp();
+  const { selectedPlants, user } = useApp();
+  const isAdmin = user?.role === 'admin' || user?.role === 'super_admin';
   const [data, setData] = useState([]);
   const [form, setForm] = useState(empty);
   const [editId, setEditId] = useState(null);
@@ -97,7 +98,7 @@ export default function PrinterMaster() {
     const a = document.createElement('a'); a.href='data:text/csv;charset=utf-8,'+encodeURIComponent(hdr+rows); a.download='printers-master.csv'; a.click();
   };
 
-  if (!IS_ADMIN) return (
+  if (!isAdmin) return (
     <div className="screen">
       <div className="notice n-err">🔒 Admin access required to view this section.</div>
     </div>

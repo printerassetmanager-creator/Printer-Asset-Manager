@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { IS_ADMIN } from '../context/AppContext';
+import { useApp } from '../context/AppContext';
 import { printerPushAPI, recipesAPI } from '../utils/api';
 import {
   buildRecipeSummary,
@@ -150,6 +150,8 @@ function ZebraFields({ config, onChange }) {
 }
 
 export default function LabelRecipes() {
+  const { user } = useApp();
+  const isAdmin = user?.role === 'admin' || user?.role === 'super_admin';
   const [recipes, setRecipes] = useState([]);
   const [draft, setDraft] = useState(() => createEmptyDraft());
   const [editorOpen, setEditorOpen] = useState(false);
@@ -537,7 +539,7 @@ export default function LabelRecipes() {
 
       {errorState ? <div className="notice n-err">{errorState}</div> : null}
       {saveState ? <div className="notice n-ok">{saveState}</div> : null}
-      {!IS_ADMIN ? <div className="notice n-info">View and push saved recipes are available. Save and delete remain admin-only.</div> : null}
+{!isAdmin ? <div className="notice n-info">View and push saved recipes are available. Save and delete remain admin-only.</div> : null}
 
       <div className={`recipe-layout${editorOpen ? '' : ' recipe-layout-single'}`}>
         <div className="card recipe-list-card">
@@ -638,9 +640,9 @@ export default function LabelRecipes() {
             </div>
 
             <div className="recipe-builder-actions">
-              {IS_ADMIN ? <button className="btn btn-success" onClick={saveRecipe}>Save Recipe</button> : null}
+              {isAdmin ? <button className="btn btn-success" onClick={saveRecipe}>Save Recipe</button> : null}
               {draft.id ? <button className="btn btn-primary" onClick={() => openPushModal(draft)}>Push To Printer</button> : null}
-              {IS_ADMIN && draft.id ? <button className="btn btn-danger" onClick={deleteRecipe}>Delete Recipe</button> : null}
+              {isAdmin && draft.id ? <button className="btn btn-danger" onClick={deleteRecipe}>Delete Recipe</button> : null}
             </div>
           </div>
         ) : null}

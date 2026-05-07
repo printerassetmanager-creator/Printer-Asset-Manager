@@ -28,6 +28,8 @@ export default function Sidebar() {
   const userSupportType = user?.support_type || user?.supportType;
   const isApplicationSupportUser = userSupportType === 'application' || userSupportType === 'both';
   const appSupportNi = (tab) => `ni${currentScreen === 'appsupport' && appSupportTab === tab ? ' active' : ''}`;
+  const labelPrinterScreens = ['viewprinters', 'health', 'pmform', 'backupprinters', 'upcoming', 'dueoverdue'];
+  const isLabelPrinterActive = labelPrinterScreens.includes(currentScreen);
   const openAppSupportTab = (tab) => {
     setAppSupportTab(tab);
     setCurrentScreen('appsupport');
@@ -131,6 +133,14 @@ export default function Sidebar() {
               <svg className="ni-icon" viewBox="0 0 16 16" fill="none"><rect x="1.5" y="2" width="13" height="10" rx="1.2" stroke="#4a7fd4" strokeWidth="1.2"/><path d="M4 8h2l1-2 2 4 1-2h2" stroke="#4a7fd4" strokeWidth="1.1" strokeLinecap="round" strokeLinejoin="round"/><path d="M5 14h6" stroke="#4a7fd4" strokeWidth="1.2" strokeLinecap="round"/></svg>
               <span className="ni-label">Monitor Terminal</span>
             </div>
+            <div className={appSupportNi('server-performance')} onClick={() => openAppSupportTab('server-performance')}>
+              <svg className="ni-icon" viewBox="0 0 16 16" fill="none"><rect x="1.5" y="2" width="13" height="10" rx="1.2" stroke="#4a7fd4" strokeWidth="1.2"/><path d="M4 5.5h8M4 8h5M4 10.5h7" stroke="#4a7fd4" strokeWidth="1" strokeLinecap="round"/><path d="M5 14h6" stroke="#4a7fd4" strokeWidth="1.2" strokeLinecap="round"/></svg>
+              <span className="ni-label">Server Performance</span>
+            </div>
+            <div className={appSupportNi('cleanup-server')} onClick={() => openAppSupportTab('cleanup-server')}>
+              <svg className="ni-icon" viewBox="0 0 16 16" fill="none"><path d="M3 3.5h10v2H3v-2z" fill="#4a7fd4"/><path d="M4 6.5h8v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6z" stroke="#4a7fd4" strokeWidth="1.2"/><path d="M6 9h4" stroke="#4a7fd4" strokeWidth="1.2" strokeLinecap="round"/></svg>
+              <span className="ni-label">Cleanup Server</span>
+            </div>
             <div className={appSupportNi('user-workspace')} onClick={() => openAppSupportTab('user-workspace')}>
               <svg className="ni-icon" viewBox="0 0 16 16" fill="none"><path d="M1 4h14v10a1 1 0 01-1 1H2a1 1 0 01-1-1V4z" stroke="#4a7fd4" strokeWidth="1.2"/><path d="M1 4h14v2H1z" fill="#4a7fd4" fillOpacity="0.3"/><path d="M4 9h8M4 11.5h6" stroke="#4a7fd4" strokeWidth="1" strokeLinecap="round"/></svg>
               <span className="ni-label">User Workspace</span>
@@ -152,12 +162,14 @@ export default function Sidebar() {
             </div>
 
             {/* Label Printer Group */}
-            <div className="ni-group-header" onClick={() => setShowLabelPrinterGroup(!showLabelPrinterGroup)}>
+            <div className={`ni-group${isLabelPrinterActive ? ' active' : ''}`}>
+              <div className="ni-group-header" onClick={() => setShowLabelPrinterGroup(!showLabelPrinterGroup)}>
               <svg className="ni-icon" viewBox="0 0 16 16" fill="none"><path d="M3 2h10a1 1 0 011 1v10a1 1 0 01-1 1H3a1 1 0 01-1-1V3a1 1 0 011-1z" stroke="#4a7fd4" strokeWidth="1.2"/><path d="M5 6h6M5 9h6M5 12h3" stroke="#4a7fd4" strokeWidth="1" strokeLinecap="round"/></svg>
               <span className="ni-label">Label Printer</span>
               <svg className={`ni-group-caret ${showLabelPrinterGroup ? 'open' : ''}`} viewBox="0 0 16 16" fill="none" style={{marginLeft: 'auto', width: '14px', height: '14px'}}>
                 <path d="M4 6l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
               </svg>
+              </div>
             </div>
 
             {showLabelPrinterGroup && (
@@ -186,35 +198,35 @@ export default function Sidebar() {
                   <svg className="ni-icon" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6" stroke="#4a7fd4" strokeWidth="1.2"/><path d="M8 5v3" stroke="#e05252" strokeWidth="1.6" strokeLinecap="round"/><circle cx="8" cy="11.5" r=".9" fill="#e05252"/></svg>
                   <span className="ni-label">PM Due / Overdue</span>
                 </div>
-                <div className={ni('vlan')} onClick={() => setCurrentScreen('vlan')}>
-                  <svg className="ni-icon" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="2.5" r="2" stroke="#4a7fd4" strokeWidth="1.2"/><circle cx="2.5" cy="13" r="2" stroke="#4a7fd4" strokeWidth="1.2"/><circle cx="13.5" cy="13" r="2" stroke="#4a7fd4" strokeWidth="1.2"/><path d="M8 4.5v4M8 8.5L2.5 11M8 8.5l5.5 2.5" stroke="#4a7fd4" strokeWidth="1"/></svg>
-                  <span className="ni-label">VLAN Activity</span>
-                </div>
-                <div className={ni('spare')} onClick={() => setCurrentScreen('spare')}>
-                  <svg className="ni-icon" viewBox="0 0 16 16" fill="none"><rect x="1" y="5" width="14" height="9" rx="1.5" stroke="#4a7fd4" strokeWidth="1.2"/><path d="M5 5V4a3 3 0 016 0v1" stroke="#4a7fd4" strokeWidth="1.2"/><path d="M5 9.5h6M8 7.5v4" stroke="#4a7fd4" strokeWidth="1" strokeLinecap="round"/></svg>
-                  <span className="ni-label">Spare Parts</span>
-                </div>
-                <div className={ni('hp')} onClick={() => setCurrentScreen('hp')}>
-                  <svg className="ni-icon" viewBox="0 0 16 16" fill="none"><rect x="1" y="4" width="14" height="8" rx="1.5" stroke="#22d3ee" strokeWidth="1.2"/><path d="M4 4V3a1 1 0 012 0v1M10 4V3a1 1 0 012 0v1" stroke="#22d3ee" strokeWidth="1.2"/><circle cx="8" cy="8" r="1.5" fill="#22d3ee"/></svg>
-                  <span className="ni-label" style={{color:'#22d3ee'}}>HP Printers</span>
-                </div>
-                <div className={ni('recipe')} onClick={() => setCurrentScreen('recipe')}>
-                  <svg className="ni-icon" viewBox="0 0 16 16" fill="none"><path d="M3 2h10a1 1 0 011 1v10a1 1 0 01-1 1H3a1 1 0 01-1-1V3a1 1 0 011-1z" stroke="#4a7fd4" strokeWidth="1.2"/><path d="M5 6h6M5 9h6M5 12h3" stroke="#4a7fd4" strokeWidth="1" strokeLinecap="round"/></svg>
-                  <span className="ni-label">Label Recipes</span>
-                </div>
-
-                <div className={ni('ilearn')} onClick={() => setCurrentScreen('ilearn')}>
-                  <svg className="ni-icon" viewBox="0 0 16 16" fill="none"><path d="M8 1a7 7 0 100 14A7 7 0 008 1z" stroke="#3db87a" strokeWidth="1.2"/><path d="M7 5h2v4h-2zM8 11a.5.5 0 100-1 .5.5 0 000 1z" fill="#3db87a"/></svg>
-                  <span className="ni-label">i Learn</span>
-                </div>
-
-                <div className={ni('issues')} onClick={() => setCurrentScreen('issues')}>
-                  <svg className="ni-icon" viewBox="0 0 16 16" fill="none"><path d="M8 2L14 13H2L8 2Z" stroke="#e05252" strokeWidth="1.2" strokeLinejoin="round"/><path d="M8 6v3" stroke="#e05252" strokeWidth="1.4" strokeLinecap="round"/><circle cx="8" cy="11" r=".8" fill="#e05252"/></svg>
-                  <span className="ni-label">Issues Tracker</span>
-                  {openIssues > 0 && <span className="nb">{openIssues}</span>}
-                </div>
               </>
             )}
+            <div className={ni('vlan')} onClick={() => setCurrentScreen('vlan')}>
+              <svg className="ni-icon" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="2.5" r="2" stroke="#4a7fd4" strokeWidth="1.2"/><circle cx="2.5" cy="13" r="2" stroke="#4a7fd4" strokeWidth="1.2"/><circle cx="13.5" cy="13" r="2" stroke="#4a7fd4" strokeWidth="1.2"/><path d="M8 4.5v4M8 8.5L2.5 11M8 8.5l5.5 2.5" stroke="#4a7fd4" strokeWidth="1"/></svg>
+              <span className="ni-label">VLAN Activity</span>
+            </div>
+            <div className={ni('spare')} onClick={() => setCurrentScreen('spare')}>
+              <svg className="ni-icon" viewBox="0 0 16 16" fill="none"><rect x="1" y="5" width="14" height="9" rx="1.5" stroke="#4a7fd4" strokeWidth="1.2"/><path d="M5 5V4a3 3 0 016 0v1" stroke="#4a7fd4" strokeWidth="1.2"/><path d="M5 9.5h6M8 7.5v4" stroke="#4a7fd4" strokeWidth="1" strokeLinecap="round"/></svg>
+              <span className="ni-label">Spare Parts</span>
+            </div>
+            <div className={ni('hp')} onClick={() => setCurrentScreen('hp')}>
+              <svg className="ni-icon" viewBox="0 0 16 16" fill="none"><rect x="1" y="4" width="14" height="8" rx="1.5" stroke="#22d3ee" strokeWidth="1.2"/><path d="M4 4V3a1 1 0 012 0v1M10 4V3a1 1 0 012 0v1" stroke="#22d3ee" strokeWidth="1.2"/><circle cx="8" cy="8" r="1.5" fill="#22d3ee"/></svg>
+              <span className="ni-label" style={{color:'#22d3ee'}}>HP Printers</span>
+            </div>
+            <div className={ni('recipe')} onClick={() => setCurrentScreen('recipe')}>
+              <svg className="ni-icon" viewBox="0 0 16 16" fill="none"><path d="M3 2h10a1 1 0 011 1v10a1 1 0 01-1 1H3a1 1 0 01-1-1V3a1 1 0 011-1z" stroke="#4a7fd4" strokeWidth="1.2"/><path d="M5 6h6M5 9h6M5 12h3" stroke="#4a7fd4" strokeWidth="1" strokeLinecap="round"/></svg>
+              <span className="ni-label">Label Recipes</span>
+            </div>
+
+            <div className={ni('ilearn')} onClick={() => setCurrentScreen('ilearn')}>
+              <svg className="ni-icon" viewBox="0 0 16 16" fill="none"><path d="M8 1a7 7 0 100 14A7 7 0 008 1z" stroke="#3db87a" strokeWidth="1.2"/><path d="M7 5h2v4h-2zM8 11a.5.5 0 100-1 .5.5 0 000 1z" fill="#3db87a"/></svg>
+              <span className="ni-label">i Learn</span>
+            </div>
+
+            <div className={ni('issues')} onClick={() => setCurrentScreen('issues')}>
+              <svg className="ni-icon" viewBox="0 0 16 16" fill="none"><path d="M8 2L14 13H2L8 2Z" stroke="#e05252" strokeWidth="1.2" strokeLinejoin="round"/><path d="M8 6v3" stroke="#e05252" strokeWidth="1.4" strokeLinecap="round"/><circle cx="8" cy="11" r=".8" fill="#e05252"/></svg>
+              <span className="ni-label">Issues Tracker</span>
+              {openIssues > 0 && <span className="nb">{openIssues}</span>}
+            </div>
           </>
         )}
       </div>

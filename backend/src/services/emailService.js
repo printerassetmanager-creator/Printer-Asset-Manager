@@ -237,6 +237,61 @@ const sendHighSeverityIssueAlert = async (emails, issueDetails) => {
   }
 };
 
+const sendApplicationSupportMonitorAlert = async (emails, alertDetails) => {
+  try {
+    assertEmailConfig();
+    const emailList = Array.isArray(emails) ? emails.filter(Boolean) : [emails].filter(Boolean);
+    if (emailList.length === 0) {
+      return;
+    }
+
+    const resultRows = `
+      <tr style="background: #f2f2f2;">
+        <th style="padding: 10px; border: 1px solid #ddd; text-align: left;">Terminal</th>
+        <th style="padding: 10px; border: 1px solid #ddd; text-align: left;">Status</th>
+        <th style="padding: 10px; border: 1px solid #ddd; text-align: right;">Attempts</th>
+        <th style="padding: 10px; border: 1px solid #ddd; text-align: right;">Elapsed ms</th>
+        <th style="padding: 10px; border: 1px solid #ddd; text-align: left;">Error</th>
+      </tr>
+      ${alertDetails.results.map(result => `
+        <tr>
+          <td style="padding: 10px; border: 1px solid #ddd;">${result.terminalLabel || result.terminalCode || 'N/A'}</td>
+          <td style="padding: 10px; border: 1px solid #ddd;">${result.status}</td>
+          <td style="padding: 10px; border: 1px solid #ddd; text-align: right;">${result.attemptCount || 0}</td>
+          <td style="padding: 10px; border: 1px solid #ddd; text-align: right;">${result.elapsedMs || 0}</td>
+          <td style="padding: 10px; border: 1px solid #ddd;">${result.error || '-'}</td>
+        </tr>
+      `).join('')}
+    `;
+
+    const mailOptions = {
+      from: process.env.EMAIL_USER || 'aniketbhosale1012@gmail.com',
+      to: emailList.join(','),
+      subject: alertDetails.critical
+        ? `Critical Monitor Terminal Alert - ${alertDetails.status || 'issue detected'}`
+        : `Monitor Terminal Alert - ${alertDetails.status || 'issue detected'}`,
+      html: `
+        <h2 style="color: #d32f2f;">${alertDetails.critical ? 'Critical Monitor Terminal Alert' : 'Monitor Terminal Alert'}</h2>
+        <p>Monitor terminal automation detected an issue at <strong>${alertDetails.alertTime || new Date().toLocaleString()}</strong>.</p>
+        <p><strong>Status:</strong> ${alertDetails.status || 'unknown'}</p>
+        <p><strong>Attempt Count:</strong> ${alertDetails.attemptCount || 0}</p>
+        <p><strong>Elapsed Time:</strong> ${alertDetails.elapsedMs || 0} ms</p>
+        ${alertDetails.message ? `<p style="font-weight: 700; color: #d32f2f;">${alertDetails.message}</p>` : ''}
+        <table style="border-collapse: collapse; width: 100%; margin: 20px 0;">${resultRows}</table>
+        <p style="color: #555;">Please verify RDP credentials and remote desktop configuration.</p>
+        <hr style="border: none; border-top: 1px solid #ddd; margin: 20px 0;">
+        <p style="font-size: 12px; color: #999;">This alert is sent when the monitor terminal process detects a terminal open failure.</p>
+      `,
+    };
+
+    await transporter.sendMail(mailOptions);
+    console.log(`Monitor terminal alert sent to ${emailList.length} users`);
+  } catch (error) {
+    console.error('Error sending application support monitor alert:', error);
+    throw error;
+  }
+};
+
 const sendApplicationSupportTerminalLoadAlert = async (emails, alertDetails) => {
   try {
     assertEmailConfig();
@@ -294,6 +349,52 @@ const sendApplicationSupportTerminalLoadAlert = async (emails, alertDetails) => 
   }
 };
 
+const sendApplicationSupportTerminalRecoveryAlert = async (emails, recoveryDetails) => {
+  try {
+    assertEmailConfig();
+    const emailList = Array.isArray(emails) ? emails.filter(Boolean) : [emails].filter(Boolean);
+    if (emailList.length === 0) {
+      return;
+    }
+
+    const recoveryRows = recoveryDetails.terminals.map((terminal) => `
+      <tr>
+        <td style="padding: 8px; border: 1px solid #ddd;">${terminal.code}</td>
+        <td style="padding: 8px; border: 1px solid #ddd; text-align: right;">${terminal.total_users}</td>
+      </tr>
+    `).join('');
+
+    const mailOptions = {
+      from: process.env.EMAIL_USER || 'aniketbhosale1012@gmail.com',
+      to: emailList.join(','),
+      subject: `Terminal Load Normalized - ${recoveryDetails.terminals.length} terminal(s) back to normal`,
+      html: `
+        <h2 style="color: #22c55e;">Terminal Load Normalized</h2>
+        <p>The following application support terminal(s) are now below the 30-user max limit again:</p>
+        <p><strong>Recovery Time:</strong> ${recoveryDetails.recoveryTime}</p>
+        <table style="border-collapse: collapse; width: 100%; margin: 20px 0;">
+          <thead>
+            <tr style="background: #f2fdf6;">
+              <th style="padding: 10px; border: 1px solid #ddd; text-align: left;">Terminal</th>
+              <th style="padding: 10px; border: 1px solid #ddd; text-align: right;">Total Active Users</th>
+            </tr>
+          </thead>
+          <tbody>${recoveryRows}</tbody>
+        </table>
+        <p style="color: #16a34a; font-weight: bold;">This terminal load has returned to normal levels and server performance should no longer be affected.</p>
+        <hr style="border: none; border-top: 1px solid #ddd; margin: 20px 0;">
+        <p style="font-size: 12px; color: #999;">This notification is sent once when terminal load returns below the configured threshold.</p>
+      `,
+    };
+
+    await transporter.sendMail(mailOptions);
+    console.log(`Application support terminal recovery alert sent to ${emailList.length} users`);
+  } catch (error) {
+    console.error('Error sending application support terminal recovery alert:', error);
+    throw error;
+  }
+};
+
 module.exports = {
   sendOTP,
   sendRegistrationOTP,
@@ -301,5 +402,7 @@ module.exports = {
   sendAccountRejectionNotification,
   sendIssueAssignmentNotification,
   sendHighSeverityIssueAlert,
+  sendApplicationSupportMonitorAlert,
   sendApplicationSupportTerminalLoadAlert,
+  sendApplicationSupportTerminalRecoveryAlert,
 };

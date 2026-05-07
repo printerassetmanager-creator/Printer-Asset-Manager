@@ -207,12 +207,13 @@
   border-top: 1px solid #eee;
   text-align: center;
   font-size: 12px;
-  color: #374151;
+  color: #1f2937;
   font-weight: 700;
 }
 
 .auth-footer p {
   margin: 5px 0;
+  color: inherit;
 }
 
 .auth-under-dev {
@@ -505,4 +506,118 @@
   .modal-content {
     margin: 20px;
   }
+}
+
+/* NeoNOC Dark auth alignment */
+.auth-container,
+.login-page,
+.register-page {
+  background:
+    radial-gradient(circle at 18% 0%, rgba(61, 130, 255, .2), transparent 34%),
+    radial-gradient(circle at 84% 0%, rgba(139, 92, 255, .16), transparent 30%),
+    linear-gradient(180deg, #020716 0%, #050b1d 56%, #020716 100%);
+  color: #f7fbff;
+}
+
+.auth-box,
+.auth-card,
+.modal-content,
+.profile-modal {
+  border: 1px solid rgba(95, 130, 210, .36);
+  border-radius: 10px;
+  background:
+    radial-gradient(circle at 100% 0%, rgba(61, 130, 255, .13), transparent 28%),
+    linear-gradient(180deg, rgba(10, 23, 48, .96), rgba(5, 12, 30, .98));
+  color: #f7fbff;
+  box-shadow: 0 24px 80px rgba(0, 0, 0, .45), 0 0 40px rgba(61, 130, 255, .12);
+}
+
+.auth-header h1,
+.auth-title,
+.modal-header h2,
+.profile-item p {
+  color: #f8fbff;
+}
+
+.auth-header p,
+.auth-subtitle,
+.auth-divider,
+.auth-footer,
+.profile-item label,
+.form-group label {
+  color: #b9c8e4;
+}
+
+.form-group input,
+.password-input input,
+.auth-box input,
+.auth-card input {
+  border: 1px solid rgba(95, 130, 210, .38);
+  border-radius: 8px;
+  background: rgba(3, 9, 24, .86);
+  color: #f8fbff;
+}
+
+.form-group input::placeholder,
+.password-input input::placeholder,
+.auth-box input::placeholder,
+.auth-card input::placeholder {
+  color: #8194b8;
+}
+
+.form-group input:focus,
+.password-input input:focus,
+.auth-box input:focus,
+.auth-card input:focus {
+  border-color: rgba(32, 216, 255, .72);
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(32, 216, 255, .12), 0 0 22px rgba(61, 130, 255, .16);
+}
+
+.modal-overlay {
+  background: rgba(1, 5, 15, .76);
+  backdrop-filter: blur(8px);
+}
+
+.auth-error,
+.error-message {
+  border-color: rgba(255, 79, 97, .36);
+  border-left-color: #ff4f61;
+  background: rgba(255, 79, 97, .12);
+  color: #ff9aa5;
+}
+
+.auth-success,
+.success-message {
+  border-color: rgba(40, 224, 125, .36);
+  border-left-color: #28e07d;
+  background: rgba(40, 224, 125, .12);
+  color: #7dffb5;
+}
+
+.close-btn,
+.password-toggle {
+  color: #9fb2d4;
+}
+
+.btn,
+.auth-links .btn {
+  border: 1px solid rgba(95, 130, 210, .36);
+  border-radius: 8px;
+  background: linear-gradient(180deg, rgba(15, 31, 61, .94), rgba(8, 18, 40, .94));
+  color: #f7fbff !important;
+  text-shadow: none;
+}
+
+.btn-primary {
+  border-color: rgba(139, 92, 255, .62);
+  background: linear-gradient(135deg, #2f57ff, #7c3dff);
+  box-shadow: 0 12px 28px rgba(61, 130, 255, .22);
+}
+
+.btn-secondary,
+.btn-ghost {
+  border-color: rgba(61, 130, 255, .45);
+  background: rgba(61, 130, 255, .12);
+  color: #dceaff !important;
 }

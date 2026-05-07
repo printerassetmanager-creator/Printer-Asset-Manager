@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { hpPrintersAPI, cartridgesAPI } from '../utils/api';
-import { useApp, IS_ADMIN, PLANT_LOCATIONS, CURRENT_USER, displayName } from '../context/AppContext';
+import { useApp, PLANT_LOCATIONS, displayName } from '../context/AppContext';
 import { toSentenceCase } from '../utils/textFormat';
 
 function CartGauge({ pct }) {
@@ -48,8 +48,9 @@ const emptyCart = {
 };
 
 export default function HpPrinters() {
-  const { selectedPlants } = useApp();
-  const loggedInUser = displayName(CURRENT_USER);
+  const { selectedPlants, user } = useApp();
+  const isAdmin = user?.role === 'admin' || user?.role === 'super_admin';
+  const loggedInUser = displayName(user?.email || 'guest');
 
   const [tab, setTab] = useState('overview');
   const [printers, setPrinters] = useState([]);
@@ -64,6 +65,7 @@ export default function HpPrinters() {
   const [showUseCart, setShowUseCart] = useState(false);
   const [useCartForm, setUseCartForm] = useState({ dn: '', model: '', qty: 1, wc: '', ip: '', printer_location: '', printer_tag: '', used_by: loggedInUser });
   const [fetchingPrinterInfo, setFetchingPrinterInfo] = useState(false);
+  const [fetchingCartridge, setFetchingCartridge] = useState(false);
   const [printerInfo, setPrinterInfo] = useState(null);
 
   const loadPrinters = () => hpPrintersAPI.getAll(selectedPlants)
@@ -312,14 +314,14 @@ export default function HpPrinters() {
                 <div className="kpi-sub">No ping</div>
               </div>
             </div>
-            {IS_ADMIN && (
+            {isAdmin && (
               <div style={{ marginLeft: '14px', flexShrink: 0 }}>
                 <button className="btn btn-primary" onClick={() => setPOpen((open) => !open)}>+ Add HP Printer</button>
               </div>
             )}
           </div>
 
-          {IS_ADMIN && (
+          {isAdmin && (
             <div className={`collapse-form${pOpen ? ' open' : ''}`}>
               <div className="cf-header">
                 <div className="cf-title">Add HP Printer</div>
@@ -409,11 +411,11 @@ export default function HpPrinters() {
             <div style={{ fontSize: '13px', color: 'var(--text2)' }}>Cartridge stock, model numbers, usage log and availability</div>
             <div style={{ display: 'flex', gap: '8px' }}>
               <button className="btn btn-amber btn-sm" onClick={() => setShowUseCart(true)}>Use Cartridge</button>
-              {IS_ADMIN && <button className="btn btn-primary" onClick={() => { setEditCartId(null); setCForm(emptyCart); setCOpen((open) => !open); }}>+ Add Cartridge</button>}
+              {isAdmin && <button className="btn btn-primary" onClick={() => { setEditCartId(null); setCForm(emptyCart); setCOpen((open) => !open); }}>+ Add Cartridge</button>}
             </div>
           </div>
 
-          {IS_ADMIN && (
+          {isAdmin && (
             <div className={`collapse-form${cOpen ? ' open' : ''}`}>
               <div className="cf-header">
                 <div className="cf-title">Add / Edit Cartridge Details</div>

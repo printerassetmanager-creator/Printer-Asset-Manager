@@ -1,19 +1,19 @@
 /**
- * Create Super Admin Account
- * Run this script to create the super admin user in the database
+ * Create admin account for both desktop support and application support
+ * Run this script to create the admin user in the database
  * Node: node setup-admin.js
  */
 
 const bcrypt = require('bcrypt');
 const pool = require('./src/db/pool');
 
-async function createSuperAdmin() {
-  const email = 'aniketbhosale1012@gmail.com';
-  const password = 'Admin@1212';
-  const fullName = 'Super Admin';
+async function createAdmin() {
+  const email = 'aniketbhosale4993@gmail.com';
+  const password = '123456';
+  const fullName = 'Admin User';
   
   try {
-    console.log('Creating super admin account...');
+    console.log('Creating admin account...');
     
     // Hash the password
     const hashedPassword = await bcrypt.hash(password, 10);
@@ -33,28 +33,29 @@ async function createSuperAdmin() {
     // Insert user
     const result = await pool.query(
       'INSERT INTO users (email, password_hash, full_name, support_type, role, status) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
-      [email, hashedPassword, fullName, 'technical', 'super_admin', 'active']
+      [email, hashedPassword, fullName, 'both', 'admin', 'active']
     );
     
     const user = result.rows[0];
-    console.log('✅ Super Admin account created successfully!');
+    console.log('✅ Admin account created successfully!');
     console.log('\nAccount Details:');
     console.log('Id:', user.id);
     console.log('Email:', user.email);
     console.log('Full Name:', user.full_name);
     console.log('Role:', user.role);
+    console.log('Support Type:', user.support_type);
     console.log('Status:', user.status);
     console.log('Created At:', user.created_at);
     
     console.log('\n✅ You can now login with:');
-    console.log('Email: aniketbhosale1012@gmail.com');
-    console.log('Password: Admin@1212');
+    console.log('Email: aniketbhosale4993@gmail.com');
+    console.log('Password: 123456');
     
     process.exit(0);
   } catch (error) {
-    console.error('❌ Error creating super admin:', error.message);
+    console.error('❌ Error creating admin:', error.message);
     process.exit(1);
   }
 }
 
-createSuperAdmin();
+createAdmin();

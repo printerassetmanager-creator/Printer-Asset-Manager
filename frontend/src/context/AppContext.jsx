@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import { issuesAPI } from '../utils/api';
 
 const AppContext = createContext(null);
@@ -27,6 +27,8 @@ export const displayName = (user) => String(user || '')
   .filter(Boolean)
   .map((part) => part[0].toUpperCase() + part.slice(1))
   .join(' ');
+
+const isTestEnv = typeof import.meta !== 'undefined' && import.meta.env?.MODE === 'test';
 
 const normalizeSelectedPlants = (value) => {
   if (Array.isArray(value) && value.length > 0) {
@@ -126,29 +128,29 @@ export function AppProvider({ children }) {
     }
   }, [supportMode]);
 
-  const refreshIssueCount = async () => {
+  const refreshIssueCount = useCallback(async () => {
     try {
       const { data } = await issuesAPI.getAll();
       setOpenIssues(data.filter(i => i.status === 'open').length);
     } catch (e) {
       console.warn('refreshIssueCount error:', e);
     }
-  };
+  }, []);
 
-  const togglePlant = (plant) => {
+  const togglePlant = useCallback((plant) => {
     setSelectedPlants((prev) => {
       const updated = prev.includes(plant)
         ? prev.filter((p) => p !== plant)
         : [...prev, plant];
       return updated.length === 0 ? prev : updated; // Prevent deselecting all
     });
-  };
+  }, []);
 
-  const selectAllPlants = () => {
+  const selectAllPlants = useCallback(() => {
     setSelectedPlants(PLANT_LOCATIONS);
-  };
+  }, []);
 
-  const logout = () => {
+  const logout = useCallback(() => {
     try {
       localStorage.removeItem('authToken');
       localStorage.removeItem('user');
@@ -158,9 +160,9 @@ export function AppProvider({ children }) {
     setUser(null);
     setAuthToken(null);
     setIsAuthenticated(false);
-  };
+  }, []);
 
-  const loginUser = (userData, token) => {
+  const loginUser = useCallback((userData, token) => {
     try {
       localStorage.setItem('user', JSON.stringify(userData));
       localStorage.setItem('authToken', token);
@@ -170,33 +172,51 @@ export function AppProvider({ children }) {
     setUser(userData);
     setAuthToken(token);
     setIsAuthenticated(!!userData && !!token);
-  };
+  }, []);
 
-  useEffect(() => { refreshIssueCount(); }, []);
+  useEffect(() => {
+    if (!isTestEnv) {
+      refreshIssueCount();
+    }
+  }, [refreshIssueCount]);
+
+  const contextValue = useMemo(() => ({
+    currentScreen,
+    setCurrentScreen,
+    appSupportTab,
+    setAppSupportTab,
+    openIssues,
+    refreshIssueCount,
+    supportMode,
+    setSupportMode,
+    selectedPlants,
+    setSelectedPlants,
+    togglePlant,
+    selectAllPlants,
+    user,
+    authToken,
+    setUser,
+    setAuthToken,
+    isAuthenticated,
+    setIsAuthenticated,
+    logout,
+    loginUser,
+  }), [
+    currentScreen,
+    appSupportTab,
+    openIssues,
+    refreshIssueCount,
+    supportMode,
+    selectedPlants,
+    user,
+    authToken,
+    isAuthenticated,
+    logout,
+    loginUser,
+  ]);
 
   return (
-    <AppContext.Provider value={{
-      currentScreen,
-      setCurrentScreen,
-      appSupportTab,
-      setAppSupportTab,
-      openIssues,
-      refreshIssueCount,
-      supportMode,
-      setSupportMode,
-      selectedPlants,
-      setSelectedPlants,
-      togglePlant,
-      selectAllPlants,
-      user,
-      authToken,
-      setUser,
-      setAuthToken,
-      isAuthenticated,
-      setIsAuthenticated,
-      logout,
-      loginUser
-    }}>
+    <AppContext.Provider value={contextValue}>
       {children}
     </AppContext.Provider>
   );

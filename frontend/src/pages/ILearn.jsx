@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { iLearnAPI } from '../utils/api';
-import { useApp, CURRENT_USER, displayName, IS_ADMIN } from '../context/AppContext';
+import { useApp, displayName } from '../context/AppContext';
 import { getWritingSuggestion, improveWriting } from '../utils/textFormat';
 
 const emptyIssue = { title: '', category: 'General' };
@@ -19,7 +19,7 @@ const applyStepWritingSuggestions = (step) => ({
 
 export default function ILearn() {
   const { user } = useApp();
-  const loggedInUser = displayName(CURRENT_USER);
+  const loggedInUser = displayName(user?.email || 'guest');
   const isAdmin = user?.role === 'admin' || user?.role === 'super_admin';
 
   const [view, setView] = useState('list'); // list, detail, add

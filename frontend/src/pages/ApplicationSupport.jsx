@@ -1,10 +1,16 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useApp } from '../context/AppContext';
-import ManageTerminals from '../components/ApplicationSupport/ManageTerminals';
-import LiveTerminalChart from '../components/ApplicationSupport/LiveTerminalChart';
-import TerminalManagement from '../components/ApplicationSupport/TerminalManagement';
 import { applicationSupportAPI } from '../utils/api';
 import '../styles/applicationSupport.css';
+
+import ManageTerminals from '../components/ApplicationSupport/ManageTerminals';
+import LiveTerminalChart from '../components/ApplicationSupport/LiveTerminalChart';
+import MonitorTerminal from '../components/ApplicationSupport/MonitorTerminal';
+import ServerPerformance from '../components/ApplicationSupport/ServerPerformance';
+import ServerCleanup from '../components/ApplicationSupport/ServerCleanup';
+import TerminalManagement from '../components/ApplicationSupport/TerminalManagement';
+
+const LoadingSection = () => <div className="app-dashboard-empty">Loading...</div>;
 
 export default function ApplicationSupport() {
   const { user, supportMode, appSupportTab, setAppSupportTab } = useApp();
@@ -14,16 +20,28 @@ export default function ApplicationSupport() {
   const [isChartFullscreen, setIsChartFullscreen] = useState(false);
   const userSupportType = user?.support_type || user?.supportType;
 
-  // Role-based access control
-  const isAppSupportAdmin = user?.role === 'admin' && (userSupportType === 'application' || userSupportType === 'both');
-  const isAppSupportUser = userSupportType === 'application' || userSupportType === 'both';
+  const isAppSupportAdmin = useMemo(
+    () => user?.role === 'admin' && (userSupportType === 'application' || userSupportType === 'both'),
+    [user?.role, userSupportType]
+  );
+  const isAppSupportUser = useMemo(
+    () => userSupportType === 'application' || userSupportType === 'both',
+    [userSupportType]
+  );
   const isSuperAdmin = user?.role === 'super_admin';
 
-  // Super admin gets all access, app support admin gets admin features, app support users get user features
-  const canAccessAdminFeatures = isSuperAdmin || isAppSupportAdmin;
-  const canAccessUserFeatures = isSuperAdmin || isAppSupportUser;
+  const canAccessAdminFeatures = useMemo(
+    () => isSuperAdmin || isAppSupportAdmin,
+    [isSuperAdmin, isAppSupportAdmin]
+  );
+  const canAccessUserFeatures = useMemo(
+    () => isSuperAdmin || isAppSupportUser,
+    [isSuperAdmin, isAppSupportUser]
+  );
+  const [cleanupStatus, setCleanupStatus] = useState(null);
+  const [cleanupError, setCleanupError] = useState('');
 
-  const loadDashboard = async () => {
+  const loadDashboard = useCallback(async () => {
     setLoadingDashboard(true);
     setDashboardError('');
     try {
@@ -34,16 +52,30 @@ export default function ApplicationSupport() {
     } finally {
       setLoadingDashboard(false);
     }
-  };
+  }, []);
+
+  const loadCleanupStatus = useCallback(async () => {
+    setCleanupError('');
+    try {
+      const { data } = await applicationSupportAPI.getServerCleanupStatus();
+      setCleanupStatus(data);
+    } catch (error) {
+      setCleanupError(error.response?.data?.error || 'Failed to load server cleanup status');
+    }
+  }, []);
 
   useEffect(() => {
     if (supportMode === 'application' && canAccessUserFeatures) {
       loadDashboard();
-      const intervalId = setInterval(loadDashboard, 60000);
+      loadCleanupStatus();
+      const intervalId = setInterval(() => {
+        loadDashboard();
+        loadCleanupStatus();
+      }, 60000);
       return () => clearInterval(intervalId);
     }
     return undefined;
-  }, [supportMode, canAccessUserFeatures]);
+  }, [supportMode, canAccessUserFeatures, loadDashboard, loadCleanupStatus]);
 
   useEffect(() => {
     if (appSupportTab === 'admin-users' || appSupportTab === 'admin-settings') {
@@ -60,10 +92,6 @@ export default function ApplicationSupport() {
     );
   }
 
-  if (isChartFullscreen) {
-    return <LiveTerminalChart onExit={() => setIsChartFullscreen(false)} />;
-  }
-
   return (
     <div className="app-support-container">
       {/* Tab Content */}
@@ -72,11 +100,8 @@ export default function ApplicationSupport() {
           <div className="app-dashboard">
             <div className="app-dashboard-header">
               <div>
-                <h2>Dashboard</h2>
-                <p>Active users refresh automatically every 1 minute</p>
-              </div>
-              <div className="dashboard-header-actions">
-                <span className="app-dashboard-role">{canAccessAdminFeatures ? 'Admin Access' : 'User Access'}</span>
+                <h2>Application Support</h2>
+                <p>Manage application support terminals and servers</p>
               </div>
             </div>
 
@@ -85,50 +110,63 @@ export default function ApplicationSupport() {
             {loadingDashboard && !dashboard ? (
               <div className="app-dashboard-empty">Loading dashboard...</div>
             ) : (
-              <LiveTerminalChart
-                inline
-                onFullScreen={() => {
-                  if (document.documentElement.requestFullscreen) {
-                    document.documentElement.requestFullscreen().catch(() => {});
-                  }
-                  setIsChartFullscreen(true);
-                }}
-              />
-            )}
-
-            <div className="app-dashboard-panel">
-              <h3>Server Load</h3>
-              {(dashboard?.servers || []).length ? (
-                <div className="app-dashboard-list">
-                  {(dashboard?.servers || []).map((server) => {
-                    const isHigh = Number(server.active_users || 0) >= Number(server.max_users || 30);
-                    return (
-                    <div key={server.id} className={`app-dashboard-row ${isHigh ? 'server-row-high' : ''}`}>
-                      <div>
-                        <strong>{server.name}</strong>
-                        <span>{server.terminal_code} - {server.status || 'unknown'}{server.last_error ? ` - ${server.last_error}` : ''}</span>
+              <>
+                <LiveTerminalChart
+                  inline
+                  onFullScreen={() => setIsChartFullscreen(true)}
+                />
+                <div className="app-dashboard-grid" style={{ marginTop: '22px' }}>
+                  <div className="app-dashboard-panel" style={{ minHeight: '180px' }}>
+                    <h3>Cleanup Manager</h3>
+                    {cleanupError ? (
+                      <div className="alert alert-error">{cleanupError}</div>
+                    ) : (
+                      <div style={{ display: 'grid', gap: '10px' }}>
+                        <div style={{ color: '#94a3b8', fontSize: '13px' }}>Last cleanup</div>
+                        <div style={{ color: '#f8fafc', fontSize: '18px', fontWeight: '700' }}>
+                          {cleanupStatus?.created_at ? new Date(cleanupStatus.created_at).toLocaleString() : 'No cleanup run yet'}
+                        </div>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: '10px' }}>
+                          <div>
+                            <div className="app-dashboard-label">Server</div>
+                            <div style={{ color: '#e2e8f0' }}>{cleanupStatus?.server_name || '--'}</div>
+                          </div>
+                          <div>
+                            <div className="app-dashboard-label">Status</div>
+                            <div style={{ color: cleanupStatus?.status === 'success' ? '#22c55e' : '#f97316' }}>{cleanupStatus?.status || 'idle'}</div>
+                          </div>
+                          <div>
+                            <div className="app-dashboard-label">Space freed</div>
+                            <div style={{ color: '#e2e8f0' }}>{cleanupStatus?.space_freed_bytes ? `${(cleanupStatus.space_freed_bytes / 1024 / 1024).toFixed(1)} MB` : '0 MB'}</div>
+                          </div>
+                        </div>
                       </div>
-                      <em>{server.active_users || 0}/{server.max_users || 30}</em>
-                    </div>
-                    );
-                  })}
+                    )}
+                  </div>
                 </div>
-              ) : (
-                <div className="app-dashboard-empty">No server data available yet.</div>
-              )}
-            </div>
+              </>
+            )}
           </div>
         )}
 
-        {appSupportTab === 'terminals' && <ManageTerminals canManage={canAccessAdminFeatures} onInventoryChange={loadDashboard} />}
+        {appSupportTab === 'terminals' && (
+          <ManageTerminals canManage={canAccessAdminFeatures} onInventoryChange={loadDashboard} />
+        )}
 
-        {appSupportTab === 'terminal-management' && <TerminalManagement canManage={canAccessUserFeatures} dashboard={dashboard} />}
+        {appSupportTab === 'terminal-management' && (
+          <TerminalManagement canManage={canAccessUserFeatures} dashboard={dashboard} />
+        )}
 
         {appSupportTab === 'monitor-terminal' && (
-          <div className="tab-content">
-            <h2>Monitor Terminal</h2>
-            <p className="coming-soon">Coming soon...</p>
-          </div>
+          <MonitorTerminal canManage={canAccessAdminFeatures} />
+        )}
+
+        {appSupportTab === 'server-performance' && (
+          <ServerPerformance canManage={canAccessAdminFeatures} />
+        )}
+
+        {appSupportTab === 'cleanup-server' && (
+          <ServerCleanup isSuperAdmin={isSuperAdmin} />
         )}
 
         {appSupportTab === 'user-workspace' && canAccessUserFeatures && (
@@ -138,6 +176,12 @@ export default function ApplicationSupport() {
           </div>
         )}
       </div>
+
+      {isChartFullscreen && (
+        <div className="fullscreen-chart-overlay">
+          <LiveTerminalChart onExit={() => setIsChartFullscreen(false)} />
+        </div>
+      )}
     </div>
   );
 }

@@ -1,14 +1,7 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useMemo } from 'react';
 import { backupPrintersAPI, issuesAPI, printersAPI } from '../utils/api';
-import { useApp, CURRENT_USER, PLANT_LOCATIONS } from '../context/AppContext';
+import { useApp, CURRENT_USER, PLANT_LOCATIONS, displayName } from '../context/AppContext';
 import { toSentenceCase } from '../utils/textFormat';
-
-const displayName = (value) =>
-  String(value || '')
-    .split('.')
-    .filter(Boolean)
-    .map((part) => part[0].toUpperCase() + part.slice(1))
-    .join(' ');
 
 const normalizeUserId = (value) => String(value || '').trim().toLowerCase();
 
@@ -459,19 +452,20 @@ export default function IssuesTracker() {
     } catch {}
   };
 
-  const selectedIssue = getIssueById(editId);
-  const selectedIssueNumber = getIssueNumber(selectedIssue);
-  const selectedIssueInMyBucket = isIssueInMyBucket(selectedIssue);
-  const assigningIssue = getIssueById(assigningId);
-  const assigningIssueInMyBucket = isIssueInMyBucket(assigningIssue);
-  const assignableUsers = getAssignableUsers(assigningIssue);
+  const selectedIssue = useMemo(() => getIssueById(editId), [editId, data]);
+  const selectedIssueNumber = useMemo(() => getIssueNumber(selectedIssue), [selectedIssue]);
+  const selectedIssueInMyBucket = useMemo(() => isIssueInMyBucket(selectedIssue), [selectedIssue]);
+  const assigningIssue = useMemo(() => getIssueById(assigningId), [assigningId, data]);
+  const assigningIssueInMyBucket = useMemo(() => isIssueInMyBucket(assigningIssue), [assigningIssue]);
+  const assignableUsers = useMemo(() => getAssignableUsers(assigningIssue), [assigningIssue, users]);
   const upgradeBaseSeverity = selectedIssue?.severity || form.severity;
-  const visibleBackupMatches = backupMatches.filter(
+  const visibleBackupMatches = useMemo(() => backupMatches.filter(
     (printer) => (printer.plant_location || 'B26') === (form.plant_location || 'B26')
-  );
-  const selectedBackupPrinter = visibleBackupMatches.find(
+  ), [backupMatches, form.plant_location]);
+  const selectedBackupPrinter = useMemo(() => visibleBackupMatches.find(
     (printer) => String(printer.id) === String(form.backup_printer_id)
-  ) || backupMatches.find((printer) => String(printer.id) === String(form.backup_printer_id));
+  ) || backupMatches.find((printer) => String(printer.id) === String(form.backup_printer_id)),
+  [visibleBackupMatches, backupMatches, form.backup_printer_id]);
 
   useEffect(() => {
     if (!form.backup_printer_id || !selectedBackupPrinter) return;
@@ -501,46 +495,48 @@ export default function IssuesTracker() {
     openIssueEditor(matchedIssue);
   }, [data]);
 
-  const filtered = data
-    .filter((issue) => {
-      const query = search.trim().toLowerCase();
-      const matchesFilters = (!sevF || issue.severity === sevF) && (!statF || issue.status === statF);
-      if (!query) return matchesFilters;
+  const filtered = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    return data
+      .filter((issue) => {
+        const matchesFilters = (!sevF || issue.severity === sevF) && (!statF || issue.status === statF);
+        if (!query) return matchesFilters;
 
-      const fields = [
-        issue.pmno,
-        issue.serial,
-        issue.issue_unique_id,
-        issue.title,
-        issue.model,
-        issue.loc,
-        issue.desc,
-        issue.category,
-        issue.action,
-        issue.reporter,
-        issue.backup_printer_pmno,
-        issue.backup_printer_serial,
-      ];
+        const fields = [
+          issue.pmno,
+          issue.serial,
+          issue.issue_unique_id,
+          issue.title,
+          issue.model,
+          issue.loc,
+          issue.desc,
+          issue.category,
+          issue.action,
+          issue.reporter,
+          issue.backup_printer_pmno,
+          issue.backup_printer_serial,
+        ];
 
-      return fields.some((field) => String(field || '').toLowerCase().includes(query)) && matchesFilters;
-    })
-    .sort((a, b) => {
-      if (a.status !== b.status) return a.status === 'open' ? -1 : 1;
-      const severityOrder = { High: 0, Medium: 1, Low: 2 };
-      if (a.severity !== b.severity) return (severityOrder[a.severity] || 1) - (severityOrder[b.severity] || 1);
-      return new Date(b.created_at) - new Date(a.created_at);
-    });
+        return fields.some((field) => String(field || '').toLowerCase().includes(query)) && matchesFilters;
+      })
+      .sort((a, b) => {
+        if (a.status !== b.status) return a.status === 'open' ? -1 : 1;
+        const severityOrder = { High: 0, Medium: 1, Low: 2 };
+        if (a.severity !== b.severity) return (severityOrder[a.severity] || 1) - (severityOrder[b.severity] || 1);
+        return new Date(b.created_at) - new Date(a.created_at);
+      });
+  }, [data, search, sevF, statF]);
 
-  const openCount = data.filter((issue) => issue.status === 'open').length;
-  const highCount = data.filter((issue) => issue.status === 'open' && issue.severity === 'High').length;
-  const resolvedCount = data.filter((issue) => issue.status === 'resolved').length;
-  const breachedCount = data.filter((issue) => {
+  const openCount = useMemo(() => data.filter((issue) => issue.status === 'open').length, [data]);
+  const highCount = useMemo(() => data.filter((issue) => issue.status === 'open' && issue.severity === 'High').length, [data]);
+  const resolvedCount = useMemo(() => data.filter((issue) => issue.status === 'resolved').length, [data]);
+  const breachedCount = useMemo(() => data.filter((issue) => {
     const created = new Date(issue.created_at);
     const severityDays = { High: 1, Medium: 3, Low: 7 };
     const deadline = new Date(created);
     deadline.setDate(deadline.getDate() + (severityDays[issue.severity] || 3));
     return deadline < Date.now() && issue.status === 'open';
-  }).length;
+  }).length, [data]);
 
   return (
     <div className="screen issues-screen">

@@ -15,7 +15,8 @@ export default function Login({ onLoginSuccess }) {
     setLoading(true);
 
     try {
-      const response = await authAPI.login(email, password);
+      const trimmedEmail = email.trim().toLowerCase();
+      const response = await authAPI.login(trimmedEmail, password);
       const { token, user } = response.data;
       localStorage.setItem('authToken', token);
       localStorage.setItem('user', JSON.stringify(user));

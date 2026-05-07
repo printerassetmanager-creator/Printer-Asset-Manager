@@ -33,14 +33,12 @@ const useSessionTimeout = (onSessionExpire, timeoutMinutes = 20, isAuthenticated
     };
 
     const expireSession = (reason) => {
-      console.warn(`Session expired: Browser hidden for ${timeoutMinutes} minutes`);
       onSessionExpireRef.current(reason);
     };
 
     const handleVisibilityChange = () => {
       if (document.hidden) {
         // Browser is now hidden (minimized or closed tab)
-        console.log(`Browser hidden - will logout in ${timeoutMinutes} minutes`);
         warningShownRef.current = false;
 
         // Start timer: after timeoutMinutes, logout
@@ -65,7 +63,6 @@ const useSessionTimeout = (onSessionExpire, timeoutMinutes = 20, isAuthenticated
         }, timeoutMinutes * 60 * 1000);
       } else {
         // Browser is now visible - cancel logout timer
-        console.log('Browser visible - logout timer canceled');
         clearTimers();
       }
     };
