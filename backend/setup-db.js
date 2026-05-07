@@ -14,8 +14,16 @@ async function initializeDatabase() {
     // Split and execute statements (PostgreSQL requires separate statements)
     const statements = schemaSql.split(';').filter(stmt => stmt.trim());
     for (const statement of statements) {
-      if (statement.trim()) {
+      if (!statement.trim()) continue;
+      try {
         await pool.query(statement);
+      } catch (stmtErr) {
+        const message = String(stmtErr.message || '').toLowerCase();
+        if (message.includes('already exists') || message.includes('duplicate') || message.includes('does not exist') || message.includes('column') && message.includes('does not exist')) {
+          console.log(`⚠ Schema statement skipped: ${stmtErr.message}`);
+          continue;
+        }
+        throw stmtErr;
       }
     }
     console.log('✓ Schema loaded successfully');

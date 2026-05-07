@@ -55,21 +55,64 @@ sudo systemctl start postgresql
 sudo systemctl enable postgresql
 
 log "Creating database and user..."
-sudo -u postgres psql << EOF
-CREATE DATABASE printer_ms;
-CREATE USER printer_user WITH PASSWORD 'PrinterAsset2024!';
+sudo -u postgres psql << 'EOF'
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT FROM pg_database WHERE datname = 'printer_ms') THEN
+    CREATE DATABASE printer_ms;
+  END IF;
+END
+$$;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'printer_user') THEN
+    CREATE USER printer_user WITH PASSWORD 'PrinterAsset2024!';
+  ELSE
+    ALTER USER printer_user WITH PASSWORD 'PrinterAsset2024!';
+  END IF;
+END
+$$;
+
 ALTER ROLE printer_user SET client_encoding TO 'utf8';
 ALTER ROLE printer_user SET default_transaction_isolation TO 'read committed';
 GRANT ALL PRIVILEGES ON DATABASE printer_ms TO printer_user;
 \c printer_ms
 GRANT ALL ON SCHEMA public TO printer_user;
+GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO printer_user;
+GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO printer_user;
 \q
 EOF
 
-log "Cloning repository..."
-cd /home/ubuntu
-git clone https://github.com/printerassetmanager-creator/Printer-Asset-Manager.git
-cd Printer-Asset-Manager
+log "Reassigning ownership of existing public schema objects to printer_user..."
+sudo -u postgres psql -d printer_ms << 'EOF'
+DO $$
+DECLARE
+  t record;
+BEGIN
+  FOR t IN SELECT tablename FROM pg_tables WHERE schemaname = 'public' LOOP
+    EXECUTE format('ALTER TABLE public.%I OWNER TO printer_user', t.tablename);
+  END LOOP;
+  FOR t IN SELECT sequence_name FROM information_schema.sequences WHERE sequence_schema = 'public' LOOP
+    EXECUTE format('ALTER SEQUENCE public.%I OWNER TO printer_user', t.sequence_name);
+  END LOOP;
+END
+$$;
+EOF
+
+repo_dir="/home/ubuntu/Printer-Asset-Manager"
+if [ -d "${repo_dir}" ]; then
+  log "Repository already exists, updating existing checkout..."
+  cd "${repo_dir}"
+  git fetch origin
+  git reset --hard origin/main
+  git clean -fd
+else
+  log "Cloning repository..."
+  cd /home/ubuntu
+  git clone https://github.com/printerassetmanager-creator/Printer-Asset-Manager.git
+  cd Printer-Asset-Manager
+fi
 
 log "Setting up backend..."
 cd backend
@@ -106,10 +149,11 @@ npm run build
 
 log "Starting services with PM2..."
 cd ../backend
-pm2 start "npm start" --name "printer-backend"
+pm2 delete backend frontend printer-backend printer-frontend || true
+pm2 start "npm start" --name "printer-backend" --cwd /home/ubuntu/Printer-Asset-Manager/backend
 
 cd ../frontend
-pm2 start "npx serve dist -p 3000" --name "printer-frontend"
+pm2 start "npx serve dist -p 3000" --name "printer-frontend" --cwd /home/ubuntu/Printer-Asset-Manager/frontend
 
 pm2 startup
 pm2 save

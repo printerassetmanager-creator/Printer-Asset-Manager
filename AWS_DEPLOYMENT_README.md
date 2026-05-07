@@ -135,6 +135,12 @@ cd backend && npm install && pm2 restart printer-backend
 cd ../frontend && npm install && npm run build && pm2 restart printer-frontend
 ```
 
+If the live app still uses old PM2 process names from a previous deployment, remove those stale services first:
+```bash
+pm2 delete backend frontend || true
+pm2 restart printer-backend printer-frontend
+```
+
 ---
 
 ## 🆘 TROUBLESHOOTING
