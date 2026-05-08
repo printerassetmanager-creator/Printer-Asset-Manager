@@ -1,9 +1,24 @@
 import React, { useState } from 'react';
+import {
+  ArrowLeftIcon,
+  BriefcaseIcon,
+  EyeIcon,
+  EyeOffIcon,
+  HashIcon,
+  HeadsetIcon,
+  LockIcon,
+  MailIcon,
+  SendIcon,
+  ShieldIcon,
+  UserIcon,
+  UserPlusIcon,
+  UsersIcon,
+} from '../components/AuthFrame';
 import { authAPI } from '../utils/api';
 import '../styles/auth.css';
 
 export default function Register({ onBack }) {
-  const [supportType, setSupportType] = useState('technical');
+  const [supportType, setSupportType] = useState('application');
   const [email, setEmail] = useState('');
   const [fullName, setFullName] = useState('');
   const [password, setPassword] = useState('');
@@ -15,6 +30,12 @@ export default function Register({ onBack }) {
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
+  const supportOptions = [
+    { value: 'technical', title: 'Technical Support', icon: <HeadsetIcon /> },
+    { value: 'application', title: 'Application Support', icon: <BriefcaseIcon /> },
+    { value: 'both', title: 'Both Support Types', icon: <UsersIcon /> },
+  ];
 
   const validatePassword = (pwd) => {
     if (pwd.length < 6) return 'Password must be at least 6 characters';
@@ -36,8 +57,7 @@ export default function Register({ onBack }) {
     return '';
   };
 
-  const handleSendOtp = async (e) => {
-    e.preventDefault();
+  const handleSendOtp = async () => {
     setError('');
     setSuccess('');
 
@@ -60,8 +80,7 @@ export default function Register({ onBack }) {
     }
   };
 
-  const handleRegister = async (e) => {
-    e.preventDefault();
+  const handleRegister = async () => {
     setError('');
     setSuccess('');
 
@@ -100,172 +119,143 @@ export default function Register({ onBack }) {
   };
 
   return (
-    <div className="auth-container">
-      <div className="auth-box">
-        <div className="auth-header">
-          <div className="logo-container">
-            <img src="/jabil-logo-auth.svg" alt="JABIL Logo" className="auth-logo" />
-          </div>
-          <h1>Create Account</h1>
-          <p>Verify your email before creating your account</p>
+    <div className="login-page">
+      <div className="login-card">
+        <div className="login-brand">JABIL</div>
+        <h1 className="login-title">Create Account</h1>
+        <p className="login-subtitle">Verify your email before creating your account</p>
+
+        {error && <div className="login-error">{error}</div>}
+        {success && <div className="login-success">{success}</div>}
+
+        <div className="support-options">
+          {supportOptions.map((option) => (
+            <button
+              key={option.value}
+              type="button"
+              className={`support-card ${supportType === option.value ? 'selected' : ''}`}
+              onClick={() => setSupportType(option.value)}
+              disabled={loading}
+            >
+              <span className="support-icon">{option.icon}</span>
+              <span className="support-text">{option.title}</span>
+            </button>
+          ))}
         </div>
 
-        <form onSubmit={otpSent ? handleRegister : handleSendOtp} className="auth-form">
-          <div className="form-group">
-            <label>Register As</label>
-            <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
-              <label style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <input
-                  type="radio"
-                  name="supportType"
-                  value="technical"
-                  checked={supportType === 'technical'}
-                  onChange={() => setSupportType('technical')}
-                  disabled={loading}
-                />
-                Technical Support
-              </label>
-              <label style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <input
-                  type="radio"
-                  name="supportType"
-                  value="application"
-                  checked={supportType === 'application'}
-                  onChange={() => setSupportType('application')}
-                  disabled={loading}
-                />
-                Application Support
-              </label>
-              <label style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <input
-                  type="radio"
-                  name="supportType"
-                  value="both"
-                  checked={supportType === 'both'}
-                  onChange={() => setSupportType('both')}
-                  disabled={loading}
-                />
-                Both Support Types
-              </label>
-            </div>
-          </div>
-
-          {error && <div className="auth-error">{error}</div>}
-          {success && <div className="auth-success">{success}</div>}
-
-          <>
-            <div className="form-group">
-              <label>Full Name (Optional)</label>
+        <form className="login-form" onSubmit={(e) => { e.preventDefault(); otpSent ? handleRegister() : handleSendOtp(); }}>
+          <div className="login-field">
+            <label className="login-label">Full Name (Optional)</label>
+            <div className="login-input">
+              <span className="login-icon"><UserIcon /></span>
               <input
                 type="text"
                 value={fullName}
                 onChange={(e) => setFullName(e.target.value)}
                 placeholder="Enter your full name"
                 disabled={loading}
+                autoComplete="name"
               />
             </div>
+          </div>
 
-            <div className="form-group">
-              <label>Email Address *</label>
+          <div className="login-field">
+            <label className="login-label">Email Address</label>
+            <div className="login-input">
+              <span className="login-icon"><MailIcon /></span>
               <input
                 type="email"
                 value={email}
                 onChange={(e) => handleEmailChange(e.target.value)}
                 placeholder="Enter your email"
                 disabled={loading}
+                autoComplete="email"
                 required
               />
-              {otpSent ? <small>If you change the email, a new OTP will be required.</small> : null}
             </div>
+          </div>
 
-            <div className="form-group">
-              <label>Password (min 6 characters) *</label>
-              <div className="password-input">
-                <input
-                  type={showPassword ? 'text' : 'password'}
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Enter password"
-                  disabled={loading}
-                  required
-                />
-                <button
-                  type="button"
-                  className="toggle-password"
-                  onClick={() => setShowPassword(!showPassword)}
-                >
-                  {showPassword ? 'Show' : 'Hide'}
-                </button>
-              </div>
+          <div className="login-field">
+            <label className="login-label">Password</label>
+            <div className="login-input">
+              <span className="login-icon"><LockIcon /></span>
+              <input
+                type={showPassword ? 'text' : 'password'}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Enter your password"
+                disabled={loading}
+                autoComplete="new-password"
+                required
+              />
+              <button
+                type="button"
+                className="login-eye"
+                onClick={() => setShowPassword(!showPassword)}
+                aria-label={showPassword ? 'Hide password' : 'Show password'}
+              >
+                {showPassword ? <EyeOffIcon /> : <EyeIcon />}
+              </button>
             </div>
+          </div>
 
-            <div className="form-group">
-              <label>Confirm Password *</label>
-              <div className="password-input">
-                <input
-                  type={showConfirmPassword ? 'text' : 'password'}
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  placeholder="Confirm password"
-                  disabled={loading}
-                  required
-                />
-                <button
-                  type="button"
-                  className="toggle-password"
-                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                >
-                  {showConfirmPassword ? 'Show' : 'Hide'}
-                </button>
-              </div>
+          <div className="login-field">
+            <label className="login-label">Confirm Password</label>
+            <div className="login-input">
+              <span className="login-icon"><LockIcon /></span>
+              <input
+                type={showConfirmPassword ? 'text' : 'password'}
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                placeholder="Confirm your password"
+                disabled={loading}
+                autoComplete="new-password"
+                required
+              />
+              <button
+                type="button"
+                className="login-eye"
+                onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                aria-label={showConfirmPassword ? 'Hide confirm password' : 'Show confirm password'}
+              >
+                {showConfirmPassword ? <EyeOffIcon /> : <EyeIcon />}
+              </button>
             </div>
+          </div>
 
-            {otpSent ? (
-              <div className="form-group">
-                <label>Email Verification OTP *</label>
+          {otpSent && (
+            <div className="login-field">
+              <label className="login-label">Email OTP</label>
+              <div className="login-input">
+                <span className="login-icon"><HashIcon /></span>
                 <input
                   type="text"
                   value={otp}
-                  onChange={(e) => setOtp(e.target.value)}
-                  placeholder="Enter the 6-digit OTP"
+                  onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                  placeholder="Enter OTP"
                   disabled={loading}
+                  inputMode="numeric"
                   maxLength={6}
                   required
                 />
-                <small>Check your email inbox for the OTP. It is valid for 10 minutes.</small>
               </div>
-            ) : null}
+            </div>
+          )}
 
-            <button type="submit" className="btn btn-primary btn-block" disabled={loading}>
-              {loading
-                ? otpSent
-                  ? 'Verifying OTP...'
-                  : 'Sending OTP...'
-                : otpSent
-                  ? 'Verify OTP & Create Account'
-                  : 'Send OTP'}
-            </button>
-
-            {otpSent ? (
-              <button
-                type="button"
-                className="btn btn-ghost btn-block"
-                onClick={handleSendOtp}
-                disabled={loading}
-              >
-                Resend OTP
-              </button>
-            ) : null}
-          </>
+          <button className="login-button" type="submit" disabled={loading}>
+            {loading ? (otpSent ? 'Verifying...' : 'Sending...') : otpSent ? 'Verify OTP & Create Account' : 'Send OTP'}
+          </button>
         </form>
 
-        <div className="auth-footer">
-          <button type="button" className="btn btn-ghost" onClick={onBack} disabled={loading}>
-            Back to Login
+        <div className="login-footer">
+          <button type="button" className="login-link" onClick={onBack}>
+            <ArrowLeftIcon /> Back to Login
           </button>
-          <p style={{ fontSize: '12px', marginTop: '10px' }}>
-            Your account will be created only after email OTP verification and then sent for admin approval.
-          </p>
+        </div>
+
+        <div className="auth-note">
+          <span className="auth-note-icon"><ShieldIcon /></span>
+          Your account will be created only after email OTP verification and then sent for admin approval.
         </div>
       </div>
     </div>

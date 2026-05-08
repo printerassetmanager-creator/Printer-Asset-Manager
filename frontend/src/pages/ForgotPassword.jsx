@@ -1,9 +1,20 @@
 import React, { useState } from 'react';
+import {
+  ArrowLeftIcon,
+  EyeIcon,
+  EyeOffIcon,
+  HashIcon,
+  KeyIcon,
+  LockIcon,
+  MailIcon,
+  SendIcon,
+  ShieldIcon,
+} from '../components/AuthFrame';
 import { authAPI } from '../utils/api';
 import '../styles/auth.css';
 
 export default function ForgotPassword({ onBack }) {
-  const [step, setStep] = useState(1); // 1: Enter email, 2: Enter OTP and new password
+  const [step, setStep] = useState(1);
   const [email, setEmail] = useState('');
   const [otp, setOtp] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -14,15 +25,14 @@ export default function ForgotPassword({ onBack }) {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
-  const handleSendOTP = async (e) => {
-    e.preventDefault();
+  const handleSendOTP = async () => {
     setError('');
     setSuccess('');
     setLoading(true);
 
     try {
       await authAPI.forgotPassword(email);
-      setSuccess('OTP sent to your email!');
+      setSuccess('OTP sent to your email.');
       setStep(2);
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to send OTP');
@@ -31,8 +41,7 @@ export default function ForgotPassword({ onBack }) {
     }
   };
 
-  const handleResetPassword = async (e) => {
-    e.preventDefault();
+  const handleResetPassword = async () => {
     setError('');
     setSuccess('');
 
@@ -50,7 +59,7 @@ export default function ForgotPassword({ onBack }) {
 
     try {
       await authAPI.resetPassword(email, otp, newPassword, confirmPassword);
-      setSuccess('Password reset successfully! Redirecting to login...');
+      setSuccess('Password reset successfully. Redirecting to login...');
       setTimeout(() => {
         onBack();
       }, 2000);
@@ -62,117 +71,132 @@ export default function ForgotPassword({ onBack }) {
   };
 
   return (
-    <div className="auth-container">
-      <div className="auth-box">
-        <div className="auth-header">
-          <div className="logo-container">
-            <img src="/jabil-logo.svg" alt="JABIL Logo" className="auth-logo" />
-          </div>
-          <h1>Reset Password</h1>
-          <p>{step === 1 ? 'Enter your email' : 'Enter OTP and new password'}</p>
-        </div>
+    <div className="login-page">
+      <div className="login-card">
+        <div className="login-brand">JABIL</div>
+        <h1 className="login-title">Change Password</h1>
+        <p className="login-subtitle">
+          {step === 1 ? 'Enter your registered email address' : 'Verify OTP and enter a new password'}
+        </p>
 
-        {step === 1 ? (
-          <form onSubmit={handleSendOTP} className="auth-form">
-            {error && <div className="auth-error">{error}</div>}
-            {success && <div className="auth-success">{success}</div>}
+        {error && <div className="login-error">{error}</div>}
+        {success && <div className="login-success">{success}</div>}
 
-            <div className="form-group">
-              <label>Email Address *</label>
+        <form
+          className="login-form"
+          onSubmit={(e) => {
+            e.preventDefault();
+            step === 1 ? handleSendOTP() : handleResetPassword();
+          }}
+        >
+          <div className="login-field">
+            <label className="login-label">Email Address</label>
+            <div className="login-input">
+              <span className="login-icon"><MailIcon /></span>
               <input
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="Enter your email"
-                disabled={loading}
+                disabled={loading || step === 2}
+                autoComplete="email"
                 required
               />
             </div>
+          </div>
 
-            <button type="submit" className="btn btn-primary btn-block" disabled={loading}>
-              {loading ? 'Sending OTP...' : 'Send OTP'}
-            </button>
-          </form>
-        ) : (
-          <form onSubmit={handleResetPassword} className="auth-form">
-            {error && <div className="auth-error">{error}</div>}
-            {success && <div className="auth-success">{success}</div>}
-
-            <div className="form-group">
-              <label>OTP (6 digits) *</label>
-              <input
-                type="text"
-                value={otp}
-                onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                placeholder="Enter OTP from email"
-                maxLength="6"
-                disabled={loading}
-                required
-              />
-              <small>Check your email for the OTP</small>
-            </div>
-
-            <div className="form-group">
-              <label>New Password (min 6 characters) *</label>
-              <div className="password-input">
-                <input
-                  type={showPassword ? 'text' : 'password'}
-                  value={newPassword}
-                  onChange={(e) => setNewPassword(e.target.value)}
-                  placeholder="Enter new password"
-                  disabled={loading}
-                  required
-                />
-                <button
-                  type="button"
-                  className="toggle-password"
-                  onClick={() => setShowPassword(!showPassword)}
-                >
-                  {showPassword ? '👁️' : '👁️‍🗨️'}
-                </button>
+          {step === 2 && (
+            <>
+              <div className="login-field">
+                <label className="login-label">Email OTP</label>
+                <div className="login-input">
+                  <span className="login-icon"><HashIcon /></span>
+                  <input
+                    type="text"
+                    value={otp}
+                    onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                    placeholder="Enter OTP"
+                    disabled={loading}
+                    inputMode="numeric"
+                    maxLength={6}
+                    required
+                  />
+                </div>
               </div>
-            </div>
 
-            <div className="form-group">
-              <label>Confirm Password *</label>
-              <div className="password-input">
-                <input
-                  type={showConfirmPassword ? 'text' : 'password'}
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  placeholder="Confirm new password"
-                  disabled={loading}
-                  required
-                />
-                <button
-                  type="button"
-                  className="toggle-password"
-                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                >
-                  {showConfirmPassword ? '👁️' : '👁️‍🗨️'}
-                </button>
+              <div className="login-field">
+                <label className="login-label">New Password</label>
+                <div className="login-input">
+                  <span className="login-icon"><LockIcon /></span>
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    placeholder="Enter new password"
+                    disabled={loading}
+                    autoComplete="new-password"
+                    required
+                  />
+                  <button
+                    type="button"
+                    className="login-eye"
+                    onClick={() => setShowPassword(!showPassword)}
+                    aria-label={showPassword ? 'Hide password' : 'Show password'}
+                  >
+                    {showPassword ? <EyeOffIcon /> : <EyeIcon />}
+                  </button>
+                </div>
               </div>
-            </div>
 
-            <button type="submit" className="btn btn-primary btn-block" disabled={loading}>
-              {loading ? 'Resetting...' : 'Reset Password'}
-            </button>
+              <div className="login-field">
+                <label className="login-label">Confirm Password</label>
+                <div className="login-input">
+                  <span className="login-icon"><LockIcon /></span>
+                  <input
+                    type={showConfirmPassword ? 'text' : 'password'}
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    placeholder="Confirm password"
+                    disabled={loading}
+                    autoComplete="new-password"
+                    required
+                  />
+                  <button
+                    type="button"
+                    className="login-eye"
+                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                    aria-label={showConfirmPassword ? 'Hide confirm password' : 'Show confirm password'}
+                  >
+                    {showConfirmPassword ? <EyeOffIcon /> : <EyeIcon />}
+                  </button>
+                </div>
+              </div>
+            </>
+          )}
 
+          <button className="login-button" type="submit" disabled={loading}>
+            {loading ? (step === 1 ? 'Sending...' : 'Resetting...') : step === 1 ? 'Send OTP' : 'Reset Password'}
+          </button>
+        </form>
+
+        <div className="login-footer auth-footer-row">
+          {step === 2 && (
             <button
               type="button"
-              className="btn btn-ghost btn-block"
+              className="login-link"
               onClick={() => setStep(1)}
-              disabled={loading}
             >
-              Back to Email
+              <ArrowLeftIcon /> Back to Email
             </button>
-          </form>
-        )}
-
-        <div className="auth-footer">
-          <button type="button" className="btn btn-ghost" onClick={onBack} disabled={loading}>
-            ← Back to Login
+          )}
+          <button type="button" className="login-link" onClick={onBack}>
+            Back to Login
           </button>
+        </div>
+
+        <div className="auth-note">
+          <span className="auth-note-icon"><ShieldIcon /></span>
+          Reset your password securely using email OTP verification before returning to your account.
         </div>
       </div>
     </div>

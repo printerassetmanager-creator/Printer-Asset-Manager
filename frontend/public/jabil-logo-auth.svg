@@ -20,5 +20,6 @@
   </defs>
   <g filter="url(#logoShadow)">
     <text x="245" y="328" class="word" font-size="270" fill="url(#letterFill)" stroke="#062d63" stroke-width="12" paint-order="stroke fill">JABIL</text>
+    <path d="M525 302 L725 252 L714 232 L514 282 Z" fill="#19c7ff" opacity="0.95"/>
   </g>
 </svg>

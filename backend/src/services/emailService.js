@@ -1,19 +1,23 @@
 const nodemailer = require('nodemailer');
 require('dotenv').config();
 
-// Configure email transporter
+const emailUser = process.env.EMAIL_USER || 'aniketbhosale1012@gmail.com';
+const emailPassword = process.env.EMAIL_PASSWORD || process.env.APP_PASSWORD;
+const emailFrom = `"Printer Asset Manager" <${emailUser}>`;
+
+// Configure email transporter with explicit Gmail SMTP settings
 const transporter = nodemailer.createTransport({
-  service: 'gmail',
+  host: 'smtp.gmail.com',
+  port: 465,
+  secure: true,
   auth: {
-    user: process.env.EMAIL_USER || 'aniketbhosale1012@gmail.com',
-    pass: process.env.EMAIL_PASSWORD || process.env.APP_PASSWORD, // Use app-specific password for Gmail
+    user: emailUser,
+    pass: emailPassword,
+    method: 'LOGIN',
   },
 });
 
 const assertEmailConfig = () => {
-  const emailUser = process.env.EMAIL_USER || 'aniketbhosale1012@gmail.com';
-  const emailPassword = process.env.EMAIL_PASSWORD || process.env.APP_PASSWORD;
-
   if (!emailUser || !emailPassword) {
     const error = new Error('Email service is not configured. Add EMAIL_USER and EMAIL_PASSWORD or APP_PASSWORD to backend/.env');
     error.code = 'EMAIL_NOT_CONFIGURED';
@@ -36,7 +40,7 @@ const sendOTP = async (email, otp) => {
   try {
     assertEmailConfig();
     const mailOptions = {
-      from: process.env.EMAIL_USER || 'aniketbhosale1012@gmail.com',
+      from: emailFrom,
       to: email,
       subject: 'Password Reset OTP - Printer Asset Manager',
       html: `
@@ -59,7 +63,7 @@ const sendRegistrationOTP = async (email, otp) => {
   try {
     assertEmailConfig();
     const mailOptions = {
-      from: process.env.EMAIL_USER || 'aniketbhosale1012@gmail.com',
+      from: emailFrom,
       to: email,
       subject: 'Email Verification OTP - Printer Asset Manager',
       html: `
@@ -82,7 +86,7 @@ const sendAccountApprovalNotification = async (email, fullName) => {
   try {
     assertEmailConfig();
     const mailOptions = {
-      from: process.env.EMAIL_USER || 'aniketbhosale1012@gmail.com',
+      from: emailFrom,
       to: email,
       subject: 'Account Approved - Printer Asset Manager',
       html: `
@@ -107,7 +111,7 @@ const sendAccountRejectionNotification = async (email, fullName, reason) => {
   try {
     assertEmailConfig();
     const mailOptions = {
-      from: process.env.EMAIL_USER || 'aniketbhosale1012@gmail.com',
+      from: emailFrom,
       to: email,
       subject: 'Account Request - Update - Printer Asset Manager',
       html: `
@@ -131,7 +135,7 @@ const sendIssueAssignmentNotification = async (email, userName, issueDetails) =>
   try {
     assertEmailConfig();
     const mailOptions = {
-      from: process.env.EMAIL_USER || 'aniketbhosale1012@gmail.com',
+      from: emailFrom,
       to: email,
       subject: `🔴 Issue Assigned to You - "${issueDetails.title}" - Printer Asset Manager`,
       html: `
@@ -190,7 +194,7 @@ const sendHighSeverityIssueAlert = async (emails, issueDetails) => {
     assertEmailConfig();
     const emailList = Array.isArray(emails) ? emails : [emails];
     const mailOptions = {
-      from: process.env.EMAIL_USER || 'aniketbhosale1012@gmail.com',
+      from: emailFrom,
       to: emailList.join(','),
       subject: `⚠️ HIGH SEVERITY Issue Created - Printer Asset Manager`,
       html: `
@@ -265,7 +269,7 @@ const sendApplicationSupportMonitorAlert = async (emails, alertDetails) => {
     `;
 
     const mailOptions = {
-      from: process.env.EMAIL_USER || 'aniketbhosale1012@gmail.com',
+      from: emailFrom,
       to: emailList.join(','),
       subject: alertDetails.critical
         ? `Critical Monitor Terminal Alert - ${alertDetails.status || 'issue detected'}`
@@ -326,7 +330,7 @@ const sendApplicationSupportTerminalLoadAlert = async (emails, alertDetails) => 
     }).join('');
 
     const mailOptions = {
-      from: process.env.EMAIL_USER || 'aniketbhosale1012@gmail.com',
+      from: emailFrom,
       to: emailList.join(','),
       subject: `Terminal Load Needs Attention - ${alertDetails.terminals.length} terminal(s) at 30+ users`,
       html: `
@@ -365,7 +369,7 @@ const sendApplicationSupportTerminalRecoveryAlert = async (emails, recoveryDetai
     `).join('');
 
     const mailOptions = {
-      from: process.env.EMAIL_USER || 'aniketbhosale1012@gmail.com',
+      from: emailFrom,
       to: emailList.join(','),
       subject: `Terminal Load Normalized - ${recoveryDetails.terminals.length} terminal(s) back to normal`,
       html: `

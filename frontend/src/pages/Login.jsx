@@ -1,10 +1,17 @@
 import React, { useState } from 'react';
+import {
+  EyeIcon,
+  EyeOffIcon,
+  LockIcon,
+  MailIcon,
+} from '../components/AuthFrame';
 import { authAPI } from '../utils/api';
 import '../styles/auth.css';
 
 export default function Login({ onLoginSuccess }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [rememberMe, setRememberMe] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
@@ -29,86 +36,69 @@ export default function Login({ onLoginSuccess }) {
     }
   };
 
-  const handleCreateAccount = () => {
-    onLoginSuccess({ screen: 'register' });
-  };
-
-  const handleForgotPassword = () => {
-    onLoginSuccess({ screen: 'forgot-password' });
-  };
-
   return (
-    <div className="auth-container login-page">
-      <div className="auth-box">
-        <div className="auth-header">
-          <div className="logo-container">
-            <img src="/jabil-logo-auth.svg" alt="JABIL Logo" className="auth-logo" />
+    <div className="login-page">
+      <div className="login-card">
+        <div className="login-brand">JABIL</div>
+        <h1 className="login-title">Welcome Back</h1>
+        <p className="login-subtitle">Login to continue to your account</p>
+
+        {error && <div className="login-error">{error}</div>}
+
+        <form className="login-form" onSubmit={handleLogin}>
+          <div className="login-field">
+            <label className="login-label">Email Address</label>
+            <div className="login-input">
+              <span className="login-icon"><MailIcon /></span>
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="Enter your email"
+                autoComplete="email"
+                disabled={loading}
+                required
+              />
+            </div>
           </div>
-          <h1>IT Support Activities</h1>
-          <p>Login to your account</p>
-        </div>
 
-        <form onSubmit={handleLogin} className="auth-form">
-          {error && <div className="auth-error">{error}</div>}
-
-          <div className="form-group">
-            <label>Email Address</label>
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="Enter your email"
-              disabled={loading}
-              required
-            />
-          </div>
-
-          <div className="form-group">
-            <label>Password</label>
-            <div className="password-input">
+          <div className="login-field">
+            <label className="login-label">Password</label>
+            <div className="login-input">
+              <span className="login-icon"><LockIcon /></span>
               <input
                 type={showPassword ? 'text' : 'password'}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="Enter your password"
+                autoComplete="current-password"
                 disabled={loading}
                 required
               />
               <button
                 type="button"
-                className="toggle-password"
+                className="login-eye"
                 onClick={() => setShowPassword(!showPassword)}
+                aria-label={showPassword ? 'Hide password' : 'Show password'}
               >
-                {showPassword ? '👁️' : '👁️‍🗨️'}
+                {showPassword ? <EyeOffIcon /> : <EyeIcon />}
               </button>
             </div>
           </div>
 
-          <button type="submit" className="btn btn-primary btn-block" disabled={loading}>
+          <label className="login-checkbox">
+            <input
+              type="checkbox"
+              checked={rememberMe}
+              onChange={(e) => setRememberMe(e.target.checked)}
+            />
+            Remember me
+          </label>
+
+          <button type="submit" className="login-button" disabled={loading}>
             {loading ? 'Logging in...' : 'Login'}
           </button>
         </form>
-
-        <div className="auth-divider">OR</div>
-
-        <div className="auth-links">
-          <button
-            type="button"
-            className="btn btn-ghost"
-            onClick={handleForgotPassword}
-            disabled={loading}
-          >
-            Forgot Password?
-          </button>
-          <button
-            type="button"
-            className="btn btn-ghost"
-            onClick={handleCreateAccount}
-            disabled={loading}
-          >
-            Create New Account
-          </button>
-        </div>
       </div>
     </div>
   );

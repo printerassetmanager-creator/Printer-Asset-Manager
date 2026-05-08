@@ -19,6 +19,30 @@ html,body,#root{height:100%;overflow:hidden;font-family:'Inter',system-ui,sans-s
   --shadow:0 2px 12px rgba(0,0,0,.4);
 }
 
+@media (max-width: 1280px) {
+  :root { font-size: 14px; }
+}
+
+@media (max-width: 1024px) {
+  :root { font-size: 13px; }
+}
+
+@media (max-width: 768px) {
+  :root { font-size: 12px; }
+}
+
+@media (max-width: 560px) {
+  :root { font-size: 11px; }
+}
+
+@media (orientation: portrait) {
+  html { font-size: 12.5px; }
+}
+
+@media (orientation: landscape) and (max-height: 650px) {
+  html { font-size: 13px; }
+}
+
 .app{display:flex;height:100vh;width:100vw;overflow:hidden;background:var(--bg)}
 .main-area{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0}
 
@@ -294,6 +318,46 @@ html,body,#root{height:100%;overflow:hidden;font-family:'Inter',system-ui,sans-s
 
 /* SEARCH ROW */
 .search-row{display:flex;gap:8px;align-items:center;margin-bottom:12px}
+
+@media (max-width: 1280px) {
+  .sidebar{width:220px;min-width:220px;}
+  .topbar{padding:10px 18px;}
+  .screen{padding:16px 18px;}
+}
+
+@media (max-width: 1024px) {
+  .app{flex-direction:column;}
+  .sidebar{width:100%;min-width:0;border-right:none;border-bottom:1px solid var(--border);}
+  .main-area{width:100%;}
+  .topbar{padding:10px 14px;justify-content:space-between;}
+  .screen{padding:14px 16px;}
+  .btn{padding:8px 12px;font-size:12px;}
+  .card{padding:12px;}
+  .kpi-grid{grid-template-columns:repeat(3,1fr);}
+}
+
+@media (max-width: 768px) {
+  .sidebar{display:none;}
+  .app{overflow-x:hidden;}
+  .topbar{padding:10px 12px;}
+  .screen{padding:12px 14px;}
+  .card,.tbl-wrap,.approvals-reject-box{border-radius:16px;}
+  .kpi-grid{grid-template-columns:repeat(2,1fr);}
+  .search-row{flex-direction:column;align-items:stretch;}
+}
+
+@media (max-width: 560px) {
+  .screen{padding:10px 12px;}
+  .btn{padding:7px 10px;font-size:11px;}
+  .topbar{padding:8px 12px;}
+  .kpi-grid{grid-template-columns:1fr;}
+}
+
+@media (orientation: portrait) and (max-width: 900px) {
+  .topbar,.screen{padding-left:12px;padding-right:12px;}
+  .btn{font-size:12px;}
+}
+
 .search-row input,.search-row select{background:var(--bg);border:1px solid var(--border);border-radius:var(--r);padding:8px 11px;font-size:13px;color:var(--text);font-family:'Inter',sans-serif;outline:none}
 .search-row input{flex:1}
 .search-row input:focus,.search-row select:focus{border-color:var(--blue)}
