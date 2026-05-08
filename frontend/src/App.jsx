@@ -121,9 +121,11 @@ function AppInner() {
         height: '100vh',
         background: '#6c5ce7',
       }}>
-        {authScreen === 'login' && <Login onLoginSuccess={handleLoginSuccess} />}
-        {authScreen === 'register' && <Register onBack={handleBackToLogin} />}
-        {authScreen === 'forgot-password' && <ForgotPassword onBack={handleBackToLogin} />}
+        <Suspense fallback={<div style={{ color: '#fff', textAlign: 'center' }}>Loading...</div>}>
+          {authScreen === 'login' && <Login onLoginSuccess={handleLoginSuccess} />}
+          {authScreen === 'register' && <Register onBack={handleBackToLogin} />}
+          {authScreen === 'forgot-password' && <ForgotPassword onBack={handleBackToLogin} />}
+        </Suspense>
       </div>
     );
   }

@@ -317,12 +317,16 @@ html,body,#root{height:100%;overflow:hidden;font-family:'Inter',system-ui,sans-s
 .cf-title{font-size:13px;color:var(--text);font-weight:600}
 
 /* HP TABS */
-.hp-tabs{display:flex;gap:0;border-bottom:1px solid var(--border);margin-bottom:16px}
-.hp-tab{padding:9px 18px;font-size:13px;color:var(--text3);cursor:pointer;border-bottom:2px solid transparent;transition:all .12s;font-weight:400}
+.hp-tabs{display:flex;gap:0;border-bottom:1px solid var(--border);margin-bottom:16px;overflow-x:auto;white-space:nowrap;-webkit-overflow-scrolling:touch}
+.hp-tabs::-webkit-scrollbar{height:6px}
+.hp-tabs::-webkit-scrollbar-thumb{background:rgba(255,255,255,.12);border-radius:999px}
+.hp-tab{flex:0 0 auto;padding:9px 18px;font-size:13px;color:var(--text3);cursor:pointer;border-bottom:2px solid transparent;transition:all .12s;font-weight:400;white-space:nowrap}
 .hp-tab:hover{color:var(--text2)}
 .hp-tab.active{color:var(--cyan);border-bottom-color:var(--cyan);font-weight:500}
 .hp-panel{display:none}
 .hp-panel.active{display:block}
+
+.screen.loading{display:flex;align-items:center;justify-content:center;min-height:100%;color:var(--text3)}
 
 /* CARTRIDGE GAUGE */
 .cart-gauge-wrap{display:flex;align-items:center;gap:8px}
