@@ -72,6 +72,12 @@ function AppInner() {
 
   useSessionTimeout(handleSessionExpire, 20, isAuthenticated);
 
+  React.useEffect(() => {
+    if (isAuthenticated && currentScreen === 'login') {
+      setCurrentScreen('dashboard');
+    }
+  }, [isAuthenticated, currentScreen, setCurrentScreen]);
+
   // Handle support mode changes
   React.useEffect(() => {
     if (!isSuperAdmin && userSupportType === 'application' && supportMode !== 'application') {

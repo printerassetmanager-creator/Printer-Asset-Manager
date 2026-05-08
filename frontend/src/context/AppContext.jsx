@@ -43,6 +43,11 @@ const getInitialScreen = () => {
     const screen = params.get('screen');
     if (screen === 'issues') return 'issues';
     if (screen === 'printmonitarbot') return 'printmonitarbot';
+
+    const hasUser = !!localStorage.getItem('user');
+    const hasToken = !!localStorage.getItem('authToken');
+    if (hasUser && hasToken) return 'dashboard';
+
     return 'login';
   } catch (e) {
     console.warn('URL parsing error:', e);
