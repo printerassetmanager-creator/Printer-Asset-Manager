@@ -1,9 +1,14 @@
 import React, { useState } from 'react';
 import {
+  AuthDivider,
+  AuthFrame,
   EyeIcon,
   EyeOffIcon,
   LockIcon,
+  LoginIcon,
   MailIcon,
+  SendIcon,
+  UserPlusIcon,
 } from '../components/AuthFrame';
 import { authAPI } from '../utils/api';
 import '../styles/auth.css';
@@ -37,69 +42,96 @@ export default function Login({ onLoginSuccess }) {
   };
 
   return (
-    <div className="login-page">
-      <div className="login-card">
-        <div className="login-brand">JABIL</div>
-        <h1 className="login-title">Welcome Back</h1>
-        <p className="login-subtitle">Login to continue to your account</p>
+    <AuthFrame
+      title="Welcome Back"
+      subtitle="Login to continue to your account"
+      icon={<LoginIcon />}
+      accent="check"
+    >
+      <div className="auth-narrow">
+        <div className="auth-form-shell">
+          <div className={`auth-border-sparkle ${error ? 'auth-border-sparkle--error' : ''}`} />
+          {error && <div className="auth-error">{error}</div>}
 
-        {error && <div className="login-error">{error}</div>}
-
-        <form className="login-form" onSubmit={handleLogin}>
-          <div className="login-field">
-            <label className="login-label">Email Address</label>
-            <div className="login-input">
-              <span className="login-icon"><MailIcon /></span>
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="Enter your email"
-                autoComplete="email"
-                disabled={loading}
-                required
-              />
+          <form className="auth-form" onSubmit={handleLogin}>
+            <div className="form-group">
+              <label className="form-label">Email Address</label>
+              <div className="input-wrapper">
+                <i className="input-left"><MailIcon /></i>
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="Enter your email"
+                  autoComplete="email"
+                  disabled={loading}
+                  required
+                />
+              </div>
             </div>
-          </div>
 
-          <div className="login-field">
-            <label className="login-label">Password</label>
-            <div className="login-input">
-              <span className="login-icon"><LockIcon /></span>
-              <input
-                type={showPassword ? 'text' : 'password'}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="Enter your password"
-                autoComplete="current-password"
-                disabled={loading}
-                required
-              />
-              <button
-                type="button"
-                className="login-eye"
-                onClick={() => setShowPassword(!showPassword)}
-                aria-label={showPassword ? 'Hide password' : 'Show password'}
+            <div className="form-group">
+              <label className="form-label">Password</label>
+              <div className="input-wrapper">
+                <i className="input-left"><LockIcon /></i>
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="Enter your password"
+                  autoComplete="current-password"
+                  disabled={loading}
+                  required
+                />
+                <i
+                  className="input-right"
+                  onClick={() => setShowPassword(!showPassword)}
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                >
+                  {showPassword ? <EyeOffIcon /> : <EyeIcon />}
+                </i>
+              </div>
+            </div>
+
+            <div className="options">
+              <label className="remember">
+                <input
+                  type="checkbox"
+                  checked={rememberMe}
+                  onChange={(e) => setRememberMe(e.target.checked)}
+                />
+                Remember me
+              </label>
+              <a
+                href="#"
+                className="forgot"
+                onClick={(e) => {
+                  e.preventDefault();
+                  onLoginSuccess({ screen: 'forgot-password' });
+                }}
               >
-                {showPassword ? <EyeOffIcon /> : <EyeIcon />}
-              </button>
+                Forgot Password?
+              </a>
             </div>
-          </div>
 
-          <label className="login-checkbox">
-            <input
-              type="checkbox"
-              checked={rememberMe}
-              onChange={(e) => setRememberMe(e.target.checked)}
-            />
-            Remember me
-          </label>
+            <button type="submit" className="login-btn" disabled={loading}>
+              {loading ? 'Logging in...' : 'Login'}
+            </button>
+          </form>
+        </div>
 
-          <button type="submit" className="login-button" disabled={loading}>
-            {loading ? 'Logging in...' : 'Login'}
-          </button>
-        </form>
+        <div className="or-divider">
+          <span className="or-circle">OR</span>
+        </div>
+
+        <button
+          type="button"
+          className="create-btn"
+          onClick={() => onLoginSuccess({ screen: 'register' })}
+        >
+          Create Account
+        </button>
       </div>
-    </div>
+    </AuthFrame>
   );
 }

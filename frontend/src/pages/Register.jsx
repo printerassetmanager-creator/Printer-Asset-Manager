@@ -1,6 +1,9 @@
 import React, { useState } from 'react';
 import {
   ArrowLeftIcon,
+  AuthDivider,
+  AuthFrame,
+  AuthNotice,
   BriefcaseIcon,
   EyeIcon,
   EyeOffIcon,
@@ -119,35 +122,37 @@ export default function Register({ onBack }) {
   };
 
   return (
-    <div className="login-page">
-      <div className="login-card">
-        <div className="login-brand">JABIL</div>
-        <h1 className="login-title">Create Account</h1>
-        <p className="login-subtitle">Verify your email before creating your account</p>
+    <AuthFrame
+      title="Create Account"
+      subtitle="Verify your email before creating your account"
+      icon={<UserPlusIcon />}
+    >
+      <div className="auth-narrow">
+        {error && <div className="auth-error">{error}</div>}
+        {success && <div className="auth-success">{success}</div>}
 
-        {error && <div className="login-error">{error}</div>}
-        {success && <div className="login-success">{success}</div>}
-
-        <div className="support-options">
+        <p className="sec-lbl">Register As</p>
+        <div className="reg-grid">
           {supportOptions.map((option) => (
             <button
               key={option.value}
               type="button"
-              className={`support-card ${supportType === option.value ? 'selected' : ''}`}
+              className={`reg-card ${option.value === 'application' ? 'rc-as' : ''} ${option.value === 'both' ? 'rc-bs' : ''} ${supportType === option.value ? 'sel' : ''}`}
               onClick={() => setSupportType(option.value)}
               disabled={loading}
             >
-              <span className="support-icon">{option.icon}</span>
-              <span className="support-text">{option.title}</span>
+              <span className="reg-badge">{'\u2713'}</span>
+              <span className="reg-ico">{option.icon}</span>
+              <span className="reg-nm">{option.title}</span>
             </button>
           ))}
         </div>
 
-        <form className="login-form" onSubmit={(e) => { e.preventDefault(); otpSent ? handleRegister() : handleSendOtp(); }}>
-          <div className="login-field">
-            <label className="login-label">Full Name (Optional)</label>
-            <div className="login-input">
-              <span className="login-icon"><UserIcon /></span>
+        <form className="auth-form" onSubmit={(e) => { e.preventDefault(); otpSent ? handleRegister() : handleSendOtp(); }}>
+          <div className="form-group">
+            <label className="form-label">Full Name (Optional)</label>
+            <div className="input-wrapper">
+              <i className="input-left"><UserIcon /></i>
               <input
                 type="text"
                 value={fullName}
@@ -159,10 +164,10 @@ export default function Register({ onBack }) {
             </div>
           </div>
 
-          <div className="login-field">
-            <label className="login-label">Email Address</label>
-            <div className="login-input">
-              <span className="login-icon"><MailIcon /></span>
+          <div className="form-group">
+            <label className="form-label">Email Address <span className="r">*</span></label>
+            <div className="input-wrapper">
+              <i className="input-left"><MailIcon /></i>
               <input
                 type="email"
                 value={email}
@@ -175,10 +180,10 @@ export default function Register({ onBack }) {
             </div>
           </div>
 
-          <div className="login-field">
-            <label className="login-label">Password</label>
-            <div className="login-input">
-              <span className="login-icon"><LockIcon /></span>
+          <div className="form-group">
+            <label className="form-label">Password (min 6 characters) <span className="r">*</span></label>
+            <div className="input-wrapper">
+              <i className="input-left"><LockIcon /></i>
               <input
                 type={showPassword ? 'text' : 'password'}
                 value={password}
@@ -188,21 +193,20 @@ export default function Register({ onBack }) {
                 autoComplete="new-password"
                 required
               />
-              <button
-                type="button"
-                className="login-eye"
+              <i
+                className="input-right"
                 onClick={() => setShowPassword(!showPassword)}
                 aria-label={showPassword ? 'Hide password' : 'Show password'}
               >
                 {showPassword ? <EyeOffIcon /> : <EyeIcon />}
-              </button>
+              </i>
             </div>
           </div>
 
-          <div className="login-field">
-            <label className="login-label">Confirm Password</label>
-            <div className="login-input">
-              <span className="login-icon"><LockIcon /></span>
+          <div className="form-group">
+            <label className="form-label">Confirm Password <span className="r">*</span></label>
+            <div className="input-wrapper">
+              <i className="input-left"><LockIcon /></i>
               <input
                 type={showConfirmPassword ? 'text' : 'password'}
                 value={confirmPassword}
@@ -212,22 +216,21 @@ export default function Register({ onBack }) {
                 autoComplete="new-password"
                 required
               />
-              <button
-                type="button"
-                className="login-eye"
+              <i
+                className="input-right"
                 onClick={() => setShowConfirmPassword(!showConfirmPassword)}
                 aria-label={showConfirmPassword ? 'Hide confirm password' : 'Show confirm password'}
               >
                 {showConfirmPassword ? <EyeOffIcon /> : <EyeIcon />}
-              </button>
+              </i>
             </div>
           </div>
 
           {otpSent && (
-            <div className="login-field">
-              <label className="login-label">Email OTP</label>
-              <div className="login-input">
-                <span className="login-icon"><HashIcon /></span>
+            <div className="form-group auth-otp-row">
+              <label className="form-label">Email OTP <span className="r">*</span></label>
+              <div className="input-wrapper">
+                <i className="input-left"><HashIcon /></i>
                 <input
                   type="text"
                   value={otp}
@@ -242,22 +245,24 @@ export default function Register({ onBack }) {
             </div>
           )}
 
-          <button className="login-button" type="submit" disabled={loading}>
+          <button className="login-btn" type="submit" disabled={loading}>
+            <SendIcon />
             {loading ? (otpSent ? 'Verifying...' : 'Sending...') : otpSent ? 'Verify OTP & Create Account' : 'Send OTP'}
           </button>
         </form>
 
-        <div className="login-footer">
-          <button type="button" className="login-link" onClick={onBack}>
-            <ArrowLeftIcon /> Back to Login
-          </button>
+        <div className="or-divider">
+          <span className="or-circle">OR</span>
         </div>
 
-        <div className="auth-note">
-          <span className="auth-note-icon"><ShieldIcon /></span>
+        <button type="button" className="create-btn" onClick={onBack}>
+          Back to Login
+        </button>
+
+        <AuthNotice icon={<ShieldIcon />}>
           Your account will be created only after email OTP verification and then sent for admin approval.
-        </div>
+        </AuthNotice>
       </div>
-    </div>
+    </AuthFrame>
   );
 }

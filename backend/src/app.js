@@ -27,6 +27,7 @@ app.use('/api/i-learn', require('./routes/iLearn'));
 app.use('/api/grammar', require('./routes/grammar'));
 app.use('/api/dashboard', require('./routes/dashboard'));
 app.use('/api/application-support', require('./routes/applicationSupport'));
+app.use('/api/cleanup', require('./routes/cleanup'));
 
 app.get('/health', async (req, res) => {
   try {

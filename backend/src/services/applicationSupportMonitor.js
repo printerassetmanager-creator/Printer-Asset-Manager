@@ -23,7 +23,7 @@ const SERVER_PERFORMANCE_RETRY_LIMIT = 2;
 const SERVER_PERFORMANCE_TOTAL_ATTEMPTS = SERVER_PERFORMANCE_RETRY_LIMIT + 1;
 const SERVER_PERFORMANCE_TIMEOUT_MS = 130 * 1000;
 const SERVER_PERFORMANCE_SLOW_THRESHOLD_MS = 90 * 1000;
-const SERVER_CLEANUP_INTERVAL_MS = 5 * 60 * 60 * 1000; // every 5 hours
+const SERVER_CLEANUP_INTERVAL_MS = 8 * 60 * 60 * 1000; // every 8 hours
 const SERVER_CLEANUP_RETRY_LIMIT = 1;
 const CLEANUP_LOG_RETENTION_DAYS = 90;
 const RDP_STORAGE_DIR = path.resolve(__dirname, '..', 'rdp_files');
@@ -2277,6 +2277,19 @@ const parseQueryUserOutput = (output) => {
   return lines.slice(1).map((line) => line.split(/\s+/)[0]).filter(Boolean);
 };
 
+const escapePowerShellSingleQuoted = (value) => String(value || '').replace(/'/g, "''");
+
+const buildCleanupCredentialScript = ({ username, password }) => {
+  if (!username || !password) {
+    return '$cleanupCredential = $null';
+  }
+
+  return `
+$cleanupSecurePassword = ConvertTo-SecureString '${escapePowerShellSingleQuoted(password)}' -AsPlainText -Force
+$cleanupCredential = New-Object System.Management.Automation.PSCredential ('${escapePowerShellSingleQuoted(username)}', $cleanupSecurePassword)
+`;
+};
+
 const buildCleanupPowerShellScript = ({ excludedProfiles }) => {
   const quotedExcludes = (Array.isArray(excludedProfiles) ? excludedProfiles : []).map((profile) => profile.toString().replace(/"/g, '`"'));
   const filterActiveScript = quotedExcludes.length > 0
@@ -2284,43 +2297,103 @@ const buildCleanupPowerShellScript = ({ excludedProfiles }) => {
     : '$excluded = @()';
 
   return `
-    $delProf2 = 'C:\\Tools\\DelProf2.exe'
-    if (-not (Test-Path $delProf2)) {
-      throw 'DelProf2.exe not found at ' + $delProf2;
+    $ErrorActionPreference = 'Stop'
+    $currentTime = Get-Date
+    $inactiveHours = 8
+    $inactiveThreshold = $currentTime.AddHours(-$inactiveHours)
+
+    Write-Host "[$(Get-Date -Format 'HH:mm:ss')] Starting profile cleanup scan..."
+
+    # Get all user profiles using native Win32_UserProfile
+    $profiles = Get-CimInstance -ClassName Win32_UserProfile | Where-Object {
+      $_.LocalPath -and $_.LocalPath -match '^C:\\\\Users\\\\'
     }
 
-    ${filterActiveScript}
-    $excluded += @('Administrator','Default','Public','Default User','All Users','WDAGUtilityAccount','DefaultAppPool','DefaultAccount')
-    $excluded = $excluded | Sort-Object -Unique
+    Write-Host "[$(Get-Date -Format 'HH:mm:ss')] Found $($profiles.Count) total profiles"
 
-    $profiles = Get-ChildItem 'C:\\Users' -Directory | Where-Object {
-      $name = $_.Name
-      -not ($excluded -contains $name)
+    # Strictly protect system and built-in profiles plus any currently active user profiles
+    $protectedProfiles = @(
+      'Administrator',
+      'Default',
+      'Public',
+      'Default User',
+      'All Users',
+      'Guest',
+      'WDAGUtilityAccount',
+      'DefaultAppPool',
+      'DefaultAccount'
+    )
+    $filteredProfiles = $profiles | Where-Object {
+      $profileName = Split-Path $_.LocalPath -Leaf
+      -not ($protectedProfiles -contains $profileName) -and
+      -not ($excluded -contains $profileName) -and
+      -not $_.Loaded -and
+      -not $_.Special
     }
 
-    $deletedProfiles = $profiles | Select-Object -ExpandProperty Name
+    Write-Host "[$(Get-Date -Format 'HH:mm:ss')] $($filteredProfiles.Count) profiles after filtering system/special accounts"
+
+    # Find inactive profiles older than 8 hours
+    $inactiveProfiles = $filteredProfiles | Where-Object {
+      $_.LastUseTime -and ([DateTime]::FromFileTime($_.LastUseTime) -lt $inactiveThreshold)
+    }
+
+    Write-Host "[$(Get-Date -Format 'HH:mm:ss')] Found $($inactiveProfiles.Count) inactive profiles (>$inactiveHours hours)"
+
+    $deletedProfiles = @()
     $spaceFreedBytes = 0
-    foreach ($profile in $profiles) {
-      $spaceFreedBytes += (Get-ChildItem $profile.FullName -Recurse -ErrorAction SilentlyContinue | Measure-Object -Property Length -Sum).Sum
+
+    foreach ($profile in $inactiveProfiles) {
+      $profileName = Split-Path $profile.LocalPath -Leaf
+      $lastUseTime = [DateTime]::FromFileTime($profile.LastUseTime)
+      $hoursInactive = [math]::Round(($currentTime - $lastUseTime).TotalHours, 1)
+
+      Write-Host "[$(Get-Date -Format 'HH:mm:ss')] Deleting profile: $profileName (inactive for $hoursInactive hours)"
+
+      try {
+        # Calculate space before deletion
+        if (Test-Path $profile.LocalPath) {
+          $profileSize = (Get-ChildItem $profile.LocalPath -Recurse -ErrorAction SilentlyContinue | Measure-Object -Property Length -Sum).Sum
+          $spaceFreedBytes += $profileSize
+        }
+
+        # Remove the profile using native method
+        $profile | Remove-CimInstance
+        $deletedProfiles += $profileName
+
+        Write-Host "[$(Get-Date -Format 'HH:mm:ss')] Successfully deleted profile: $profileName"
+
+      } catch {
+        Write-Host "[$(Get-Date -Format 'HH:mm:ss')] Failed to delete profile: $profileName - $($_.Exception.Message)"
+      }
     }
 
-    if ($deletedProfiles.Count -eq 0) {
-      Write-Output 'DELETED_PROFILES:'
-      Write-Output 'SPACE_FREED_BYTES:0'
-      return
-    }
+    $executionTime = [math]::Round((Get-Date).Subtract($currentTime).TotalSeconds, 2)
+    Write-Host "[$(Get-Date -Format 'HH:mm:ss')] Cleanup completed in $executionTime seconds"
+    Write-Host "[$(Get-Date -Format 'HH:mm:ss')] Deleted $($deletedProfiles.Count) profiles, freed $([math]::Round($spaceFreedBytes / 1MB, 2)) MB"
 
-    $excludeArgs = $excluded | ForEach-Object { "/ed:\"$_\"" }
-    $command = "& \"$delProf2\" /u /q " + ($excludeArgs -join ' ')
-    Invoke-Expression $command
-    Write-Output ('DELETED_PROFILES:' + ($deletedProfiles -join ','))
-    Write-Output ('SPACE_FREED_BYTES:' + $spaceFreedBytes)
+    # Return structured output
+    Write-Output "DELETED_PROFILES:$($deletedProfiles -join ',')"
+    Write-Output "SPACE_FREED_BYTES:$spaceFreedBytes"
+    Write-Output "EXECUTION_TIME_SECONDS:$executionTime"
+    Write-Output "PROFILES_SCANNED:$($profiles.Count)"
+    Write-Output "INACTIVE_PROFILES_FOUND:$($inactiveProfiles.Count)"
   `;
 };
 
-async function getActiveServerUsers(serverName) {
+async function getActiveServerUsers(serverName, credentials = {}) {
   try {
-    const { stdout } = await runPowerShellCommand(['-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', `query user /server:${serverName}`]);
+    const safeServerName = escapePowerShellSingleQuoted(serverName);
+    const credentialScript = buildCleanupCredentialScript(credentials);
+    const command = credentials.username && credentials.password
+      ? `
+$ErrorActionPreference = 'Stop'
+$serverName = '${safeServerName}'
+${credentialScript}
+Invoke-Command -ComputerName $serverName -Credential $cleanupCredential -ScriptBlock { query user } -ErrorAction Stop
+`
+      : `query user /server:${safeServerName}`;
+    const { stdout } = await runPowerShellCommand(['-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', command]);
     return parseQueryUserOutput(stdout);
   } catch (error) {
     const stderr = String(error.stderr || '').toLowerCase();
@@ -2366,17 +2439,25 @@ async function getConfiguredCleanupServerNames() {
   return result.rows.map((row) => row.name);
 }
 
-async function runServerCleanupOnServer(serverName, triggeredBy) {
-  const activeUsers = await getActiveServerUsers(serverName);
+async function runServerCleanupOnServer(serverName, triggeredBy, credentials = {}) {
+  const activeUsers = await getActiveServerUsers(serverName, credentials);
   const cleanupScript = buildCleanupPowerShellScript({ excludedProfiles: activeUsers });
   const envOptions = { ...process.env };
+  const safeServerName = escapePowerShellSingleQuoted(serverName);
+  const credentialScript = buildCleanupCredentialScript(credentials);
+  const credentialArgument = credentials.username && credentials.password ? '-Credential $cleanupCredential' : '';
 
   const command = [
     '-NoProfile',
     '-ExecutionPolicy',
     'Bypass',
     '-Command',
-    `Invoke-Command -ComputerName ${serverName} -ScriptBlock { ${cleanupScript} } -ErrorAction Stop`,
+    `
+$ErrorActionPreference = 'Stop'
+$serverName = '${safeServerName}'
+${credentialScript}
+Invoke-Command -ComputerName $serverName ${credentialArgument} -ScriptBlock { ${cleanupScript} } -ErrorAction Stop
+`,
   ];
 
   try {
@@ -2411,17 +2492,21 @@ async function runServerCleanupOnServer(serverName, triggeredBy) {
   }
 }
 
-async function runServerCleanupOnServers({ serverNames = [], triggeredBy = 'system' }) {
+async function runServerCleanupOnServers({ serverNames = [], triggeredBy = 'system', username, password }) {
   const cleanedServers = Array.isArray(serverNames) && serverNames.length > 0
     ? serverNames.map((name) => String(name || '').trim()).filter(Boolean)
     : await getConfiguredCleanupServerNames();
+  const credentials = {
+    username: String(username || '').trim(),
+    password: String(password || ''),
+  };
 
   if (cleanedServers.length === 0) {
     return { message: 'No configured servers found for cleanup', cleanedServers: [] };
   }
 
   const results = await Promise.allSettled(
-    cleanedServers.map((server) => runServerCleanupOnServer(server, triggeredBy))
+    cleanedServers.map((server) => runServerCleanupOnServer(server, triggeredBy, credentials))
   );
 
   const normalizedResults = results.map((result) => result.status === 'fulfilled'

@@ -1,6 +1,9 @@
 import React, { useState } from 'react';
 import {
   ArrowLeftIcon,
+  AuthDivider,
+  AuthFrame,
+  AuthNotice,
   EyeIcon,
   EyeOffIcon,
   HashIcon,
@@ -71,28 +74,27 @@ export default function ForgotPassword({ onBack }) {
   };
 
   return (
-    <div className="login-page">
-      <div className="login-card">
-        <div className="login-brand">JABIL</div>
-        <h1 className="login-title">Change Password</h1>
-        <p className="login-subtitle">
-          {step === 1 ? 'Enter your registered email address' : 'Verify OTP and enter a new password'}
-        </p>
-
-        {error && <div className="login-error">{error}</div>}
-        {success && <div className="login-success">{success}</div>}
+    <AuthFrame
+      title="Forgot Password"
+      subtitle={step === 1 ? 'Enter your registered email address' : 'Verify OTP and enter a new password'}
+      icon={<KeyIcon />}
+      accent="check"
+    >
+      <div className="auth-narrow">
+        {error && <div className="auth-error">{error}</div>}
+        {success && <div className="auth-success">{success}</div>}
 
         <form
-          className="login-form"
+          className="auth-form"
           onSubmit={(e) => {
             e.preventDefault();
             step === 1 ? handleSendOTP() : handleResetPassword();
           }}
         >
-          <div className="login-field">
-            <label className="login-label">Email Address</label>
-            <div className="login-input">
-              <span className="login-icon"><MailIcon /></span>
+          <div className="form-group">
+            <label className="form-label">Email Address</label>
+            <div className="input-wrapper">
+              <i className="input-left"><MailIcon /></i>
               <input
                 type="email"
                 value={email}
@@ -107,10 +109,10 @@ export default function ForgotPassword({ onBack }) {
 
           {step === 2 && (
             <>
-              <div className="login-field">
-                <label className="login-label">Email OTP</label>
-                <div className="login-input">
-                  <span className="login-icon"><HashIcon /></span>
+              <div className="form-group">
+                <label className="form-label">Email OTP</label>
+                <div className="input-wrapper">
+                  <i className="input-left"><HashIcon /></i>
                   <input
                     type="text"
                     value={otp}
@@ -124,10 +126,10 @@ export default function ForgotPassword({ onBack }) {
                 </div>
               </div>
 
-              <div className="login-field">
-                <label className="login-label">New Password</label>
-                <div className="login-input">
-                  <span className="login-icon"><LockIcon /></span>
+              <div className="form-group">
+                <label className="form-label">New Password</label>
+                <div className="input-wrapper">
+                  <i className="input-left"><LockIcon /></i>
                   <input
                     type={showPassword ? 'text' : 'password'}
                     value={newPassword}
@@ -137,21 +139,20 @@ export default function ForgotPassword({ onBack }) {
                     autoComplete="new-password"
                     required
                   />
-                  <button
-                    type="button"
-                    className="login-eye"
+                  <i
+                    className="input-right"
                     onClick={() => setShowPassword(!showPassword)}
                     aria-label={showPassword ? 'Hide password' : 'Show password'}
                   >
                     {showPassword ? <EyeOffIcon /> : <EyeIcon />}
-                  </button>
+                  </i>
                 </div>
               </div>
 
-              <div className="login-field">
-                <label className="login-label">Confirm Password</label>
-                <div className="login-input">
-                  <span className="login-icon"><LockIcon /></span>
+              <div className="form-group">
+                <label className="form-label">Confirm Password</label>
+                <div className="input-wrapper">
+                  <i className="input-left"><LockIcon /></i>
                   <input
                     type={showConfirmPassword ? 'text' : 'password'}
                     value={confirmPassword}
@@ -161,44 +162,46 @@ export default function ForgotPassword({ onBack }) {
                     autoComplete="new-password"
                     required
                   />
-                  <button
-                    type="button"
-                    className="login-eye"
+                  <i
+                    className="input-right"
                     onClick={() => setShowConfirmPassword(!showConfirmPassword)}
                     aria-label={showConfirmPassword ? 'Hide confirm password' : 'Show confirm password'}
                   >
                     {showConfirmPassword ? <EyeOffIcon /> : <EyeIcon />}
-                  </button>
+                  </i>
                 </div>
               </div>
             </>
           )}
 
-          <button className="login-button" type="submit" disabled={loading}>
+          <button className="login-btn" type="submit" disabled={loading}>
             {loading ? (step === 1 ? 'Sending...' : 'Resetting...') : step === 1 ? 'Send OTP' : 'Reset Password'}
           </button>
         </form>
 
-        <div className="login-footer auth-footer-row">
+        <div className="or-divider">
+          <span className="or-circle">OR</span>
+        </div>
+
+        <div className="auth-action-row">
           {step === 2 && (
             <button
               type="button"
-              className="login-link"
+              className="create-btn"
               onClick={() => setStep(1)}
             >
-              <ArrowLeftIcon /> Back to Email
+              Back to Email
             </button>
           )}
-          <button type="button" className="login-link" onClick={onBack}>
+          <button type="button" className="create-btn" onClick={onBack}>
             Back to Login
           </button>
         </div>
 
-        <div className="auth-note">
-          <span className="auth-note-icon"><ShieldIcon /></span>
+        <AuthNotice icon={<ShieldIcon />}>
           Reset your password securely using email OTP verification before returning to your account.
-        </div>
+        </AuthNotice>
       </div>
-    </div>
+    </AuthFrame>
   );
 }

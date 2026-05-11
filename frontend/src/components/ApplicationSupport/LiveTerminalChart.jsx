@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Area,
   CartesianGrid,
@@ -91,7 +91,7 @@ const buildSparklinePoints = (values) => {
     .join(' ');
 };
 
-const LiveTerminalChart = ({ inline = false, onExit, onFullScreen }) => {
+const LiveTerminalChart = ({ inline = false, onExit, onFullScreen, refreshSignal }) => {
   const [history, setHistory] = useState([]);
   const [terminalCodes, setTerminalCodes] = useState([]);
   const [latestData, setLatestData] = useState({});
@@ -100,6 +100,7 @@ const LiveTerminalChart = ({ inline = false, onExit, onFullScreen }) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const timerRef = useRef(null);
+  const isFirstRefresh = useRef(true);
 
   const loadHistory = async (minutes) => {
     const rangeHours = Math.max(1, Math.ceil(minutes / 60));
@@ -124,7 +125,7 @@ const LiveTerminalChart = ({ inline = false, onExit, onFullScreen }) => {
     };
   };
 
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     try {
       const [{ data }, historical] = await Promise.all([
         dashboardAPI.getActiveUsers(),
@@ -166,7 +167,7 @@ const LiveTerminalChart = ({ inline = false, onExit, onFullScreen }) => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [rangeMinutes]);
 
   useEffect(() => {
     loadData();
@@ -176,7 +177,16 @@ const LiveTerminalChart = ({ inline = false, onExit, onFullScreen }) => {
         window.clearInterval(timerRef.current);
       }
     };
-  }, [rangeMinutes]);
+  }, [rangeMinutes, loadData]);
+
+  useEffect(() => {
+    if (refreshSignal === undefined) return;
+    if (isFirstRefresh.current) {
+      isFirstRefresh.current = false;
+      return;
+    }
+    loadData();
+  }, [refreshSignal, loadData]);
 
   const sortedCodes = useMemo(() => sortTerminalCodes(terminalCodes), [terminalCodes]);
   const chartLines = useMemo(

@@ -4,6 +4,8 @@ const pool = require('./db/pool');
 const { startPrinterMonitor } = require('./services/printerMonitor');
 const { startHPPrinterMonitor } = require('./services/hpPrinterMonitor');
 const { startApplicationSupportMonitor, startServerCleanupManager } = require('./services/applicationSupportMonitor');
+const CleanupController = require('./controllers/cleanupController');
+const WebSocketService = require('./websocket/cleanupSocket');
 
 const PORT = process.env.PORT || 5000;
 
@@ -47,15 +49,25 @@ async function startServer() {
       console.log('✅ All critical tables present\n');
     }
 
-    app.listen(PORT, () => {
-      console.log(`\n✅ Server running on port ${PORT}`);
-      console.log(`\n📊 API Endpoints ready:`);
-      console.log(`   - /api/auth/login`);
-      console.log(`   - /api/printers`);
-      console.log(`   - /api/health (health check)`);
-      console.log('\n🌐 Frontend: http://localhost:3000');
-      console.log(`📡 Backend API: http://localhost:${PORT}\n`);
-    });
+    // Initialize cleanup services
+    const cleanupController = new CleanupController();
+    const server = app.listen(PORT); // Get the server instance for Socket.IO
+    const webSocketService = new WebSocketService(server);
+
+    console.log(`\n✅ Server running on port ${PORT}`);
+    console.log(`\n📊 API Endpoints ready:`);
+    console.log(`   - /api/auth/login`);
+    console.log(`   - /api/printers`);
+    console.log(`   - /api/health (health check)`);
+    console.log('\n🌐 Frontend: http://localhost:3000');
+    console.log(`📡 Backend API: http://localhost:${PORT}\n`);
+
+    try {
+      await cleanupController.initialize();
+      console.log('🧹 Server cleanup service initialized');
+    } catch (err) {
+      console.warn('⚠️  Server cleanup service failed to initialize:', err.message);
+    }
 
     try {
       if (existingTables.has('printers')) {

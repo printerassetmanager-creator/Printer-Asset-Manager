@@ -728,10 +728,21 @@ router.post('/server-cleanup', async (req, res) => {
 
   const requestedServers = Array.isArray(req.body.serverNames) ? req.body.serverNames : [req.body.serverName].filter(Boolean);
   const serverNames = Array.from(new Set(requestedServers.map((name) => String(name || '').trim()).filter(Boolean)));
+  const username = String(req.body.username || '').trim();
+  const password = String(req.body.password || '');
+
+  if (!username || !password) {
+    return res.status(400).json({ error: 'Server admin ID and password are required' });
+  }
 
   try {
     await ensureApplicationSupportTables();
-    const cleanupResult = await runServerCleanupOnServers({ serverNames, triggeredBy: req.user?.email || 'super_admin' });
+    const cleanupResult = await runServerCleanupOnServers({
+      serverNames,
+      triggeredBy: req.user?.email || 'super_admin',
+      username,
+      password,
+    });
     res.json(cleanupResult);
   } catch (error) {
     console.error('Server cleanup error:', error);

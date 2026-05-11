@@ -18,6 +18,8 @@ export default function ApplicationSupport() {
   const [loadingDashboard, setLoadingDashboard] = useState(false);
   const [dashboardError, setDashboardError] = useState('');
   const [isChartFullscreen, setIsChartFullscreen] = useState(false);
+  const [dashboardRefreshKey, setDashboardRefreshKey] = useState(0);
+  const [inventory, setInventory] = useState([]);
   const userSupportType = user?.support_type || user?.supportType;
 
   const isAppSupportAdmin = useMemo(
@@ -38,8 +40,6 @@ export default function ApplicationSupport() {
     () => isSuperAdmin || isAppSupportUser,
     [isSuperAdmin, isAppSupportUser]
   );
-  const [cleanupStatus, setCleanupStatus] = useState(null);
-  const [cleanupError, setCleanupError] = useState('');
 
   const loadDashboard = useCallback(async () => {
     setLoadingDashboard(true);
@@ -54,34 +54,49 @@ export default function ApplicationSupport() {
     }
   }, []);
 
-  const loadCleanupStatus = useCallback(async () => {
-    setCleanupError('');
+  const loadInventory = useCallback(async () => {
     try {
-      const { data } = await applicationSupportAPI.getServerCleanupStatus();
-      setCleanupStatus(data);
+      const { data } = await applicationSupportAPI.getInventory();
+      setInventory(Array.isArray(data) ? data : []);
     } catch (error) {
-      setCleanupError(error.response?.data?.error || 'Failed to load server cleanup status');
+      console.error('Failed to load inventory:', error);
     }
   }, []);
+
+  const refreshInventory = useCallback(() => {
+    loadInventory();
+    setDashboardRefreshKey(prev => prev + 1); // Trigger refresh for components that need it
+  }, [loadInventory]);
+
+  const refreshDashboard = useCallback(async () => {
+    setDashboardRefreshKey((key) => key + 1);
+    await loadDashboard();
+  }, [loadDashboard]);
+
 
   useEffect(() => {
     if (supportMode === 'application' && canAccessUserFeatures) {
       loadDashboard();
-      loadCleanupStatus();
+      loadInventory();
       const intervalId = setInterval(() => {
         loadDashboard();
-        loadCleanupStatus();
       }, 60000);
       return () => clearInterval(intervalId);
     }
     return undefined;
-  }, [supportMode, canAccessUserFeatures, loadDashboard, loadCleanupStatus]);
+  }, [supportMode, canAccessUserFeatures, loadDashboard, loadInventory]);
 
   useEffect(() => {
     if (appSupportTab === 'admin-users' || appSupportTab === 'admin-settings') {
       setAppSupportTab('dashboard');
     }
   }, [appSupportTab, setAppSupportTab]);
+
+  useEffect(() => {
+    if (appSupportTab === 'cleanup-server' && !isSuperAdmin) {
+      setAppSupportTab('dashboard');
+    }
+  }, [appSupportTab, isSuperAdmin, setAppSupportTab]);
 
   if (supportMode !== 'application' || !canAccessUserFeatures) {
     return (
@@ -114,35 +129,9 @@ export default function ApplicationSupport() {
                 <LiveTerminalChart
                   inline
                   onFullScreen={() => setIsChartFullscreen(true)}
+                  refreshSignal={dashboardRefreshKey}
                 />
                 <div className="app-dashboard-grid" style={{ marginTop: '22px' }}>
-                  <div className="app-dashboard-panel" style={{ minHeight: '180px' }}>
-                    <h3>Cleanup Manager</h3>
-                    {cleanupError ? (
-                      <div className="alert alert-error">{cleanupError}</div>
-                    ) : (
-                      <div style={{ display: 'grid', gap: '10px' }}>
-                        <div style={{ color: '#94a3b8', fontSize: '13px' }}>Last cleanup</div>
-                        <div style={{ color: '#f8fafc', fontSize: '18px', fontWeight: '700' }}>
-                          {cleanupStatus?.created_at ? new Date(cleanupStatus.created_at).toLocaleString() : 'No cleanup run yet'}
-                        </div>
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: '10px' }}>
-                          <div>
-                            <div className="app-dashboard-label">Server</div>
-                            <div style={{ color: '#e2e8f0' }}>{cleanupStatus?.server_name || '--'}</div>
-                          </div>
-                          <div>
-                            <div className="app-dashboard-label">Status</div>
-                            <div style={{ color: cleanupStatus?.status === 'success' ? '#22c55e' : '#f97316' }}>{cleanupStatus?.status || 'idle'}</div>
-                          </div>
-                          <div>
-                            <div className="app-dashboard-label">Space freed</div>
-                            <div style={{ color: '#e2e8f0' }}>{cleanupStatus?.space_freed_bytes ? `${(cleanupStatus.space_freed_bytes / 1024 / 1024).toFixed(1)} MB` : '0 MB'}</div>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-                  </div>
                 </div>
               </>
             )}
@@ -150,7 +139,7 @@ export default function ApplicationSupport() {
         )}
 
         {appSupportTab === 'terminals' && (
-          <ManageTerminals canManage={canAccessAdminFeatures} onInventoryChange={loadDashboard} />
+          <ManageTerminals canManage={canAccessAdminFeatures} onInventoryChange={refreshInventory} />
         )}
 
         {appSupportTab === 'terminal-management' && (
@@ -166,7 +155,7 @@ export default function ApplicationSupport() {
         )}
 
         {appSupportTab === 'cleanup-server' && (
-          <ServerCleanup isSuperAdmin={isSuperAdmin} />
+          <ServerCleanup isSuperAdmin={isSuperAdmin} inventory={inventory} onInventoryRefresh={refreshInventory} />
         )}
 
         {appSupportTab === 'user-workspace' && canAccessUserFeatures && (

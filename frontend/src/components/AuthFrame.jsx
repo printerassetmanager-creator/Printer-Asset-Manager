@@ -1,5 +1,4 @@
 import React from 'react';
-import AuthSidebar from './AuthSidebar';
 
 const iconProps = {
   width: 22,
@@ -166,42 +165,27 @@ export function HashIcon() {
 
 export function AuthFrame({ title, subtitle, icon, accent = 'plus', children }) {
   return (
-    <div className="auth-container auth-scene">
-      <AuthSidebar />
-      <main className="right-panel" aria-label={title}>
-        <section className="form-card">
-          <div className="hdr" aria-hidden="true">
-            <div className="hdots">
-              <span className="hdot" />
-              <span className="hdot" />
-              <span className="hdot" />
-              <span className="hdot" />
-              <span className="hdot a" />
-              <span className="hdot a" />
-              <span className="hdot a strong" />
-            </div>
-            <div className="avatar-wrap">
-              <span className="avatar-glyph">{icon}</span>
-              {accent && <span className="av-plus">{accent === 'check' ? '✓' : '+'}</span>}
-            </div>
-            <div className="hdots">
-              <span className="hdot a strong" />
-              <span className="hdot a" />
-              <span className="hdot a" />
-              <span className="hdot" />
-              <span className="hdot" />
-              <span className="hdot" />
-              <span className="hdot" />
-            </div>
-          </div>
+    <div className="main-container">
+      <div className="left-section">
+        <div className="jabil-logo">JABIL</div>
+        <h2 className="hero-title">Powered by <span>Innovation.</span> Driven by Excellence.</h2>
+        <div className="hero-line"></div>
+        <p className="hero-text">Manage all your printer assets and support tickets seamlessly.</p>
+      </div>
 
-          <h1 className="f-title">{title}</h1>
-          <p className="f-sub">{subtitle}</p>
-          <div className="f-line" />
+      <section className="login-card">
+        <div className="top-header">
+          <div className="cyber-line"></div>
+          <div className="top-icon">{icon}</div>
+          <div className="cyber-line"></div>
+        </div>
 
-          {children}
-        </section>
-      </main>
+        <h1 className="login-title">{title}</h1>
+        <p className="login-subtitle">{subtitle}</p>
+        <div className="cyber-divider"></div>
+
+        {children}
+      </section>
     </div>
   );
 }

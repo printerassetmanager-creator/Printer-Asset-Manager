@@ -137,10 +137,12 @@ export default function Sidebar() {
               <svg className="ni-icon" viewBox="0 0 16 16" fill="none"><rect x="1.5" y="2" width="13" height="10" rx="1.2" stroke="#4a7fd4" strokeWidth="1.2"/><path d="M4 5.5h8M4 8h5M4 10.5h7" stroke="#4a7fd4" strokeWidth="1" strokeLinecap="round"/><path d="M5 14h6" stroke="#4a7fd4" strokeWidth="1.2" strokeLinecap="round"/></svg>
               <span className="ni-label">Server Performance</span>
             </div>
-            <div className={appSupportNi('cleanup-server')} onClick={() => openAppSupportTab('cleanup-server')}>
-              <svg className="ni-icon" viewBox="0 0 16 16" fill="none"><path d="M3 3.5h10v2H3v-2z" fill="#4a7fd4"/><path d="M4 6.5h8v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6z" stroke="#4a7fd4" strokeWidth="1.2"/><path d="M6 9h4" stroke="#4a7fd4" strokeWidth="1.2" strokeLinecap="round"/></svg>
-              <span className="ni-label">Cleanup Server</span>
-            </div>
+            {isSuperAdmin && (
+              <div className={appSupportNi('cleanup-server')} onClick={() => openAppSupportTab('cleanup-server')}>
+                <svg className="ni-icon" viewBox="0 0 16 16" fill="none"><path d="M3 3.5h10v2H3v-2z" fill="#4a7fd4"/><path d="M4 6.5h8v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6z" stroke="#4a7fd4" strokeWidth="1.2"/><path d="M6 9h4" stroke="#4a7fd4" strokeWidth="1.2" strokeLinecap="round"/></svg>
+                <span className="ni-label">Cleanup Server</span>
+              </div>
+            )}
             <div className={appSupportNi('user-workspace')} onClick={() => openAppSupportTab('user-workspace')}>
               <svg className="ni-icon" viewBox="0 0 16 16" fill="none"><path d="M1 4h14v10a1 1 0 01-1 1H2a1 1 0 01-1-1V4z" stroke="#4a7fd4" strokeWidth="1.2"/><path d="M1 4h14v2H1z" fill="#4a7fd4" fillOpacity="0.3"/><path d="M4 9h8M4 11.5h6" stroke="#4a7fd4" strokeWidth="1" strokeLinecap="round"/></svg>
               <span className="ni-label">User Workspace</span>
