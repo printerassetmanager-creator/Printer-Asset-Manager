@@ -120,19 +120,11 @@ function AppInner() {
 
   if (!isAuthenticated) {
     return (
-      <div style={{
-        display: 'flex',
-        justifyContent: 'center',
-        alignItems: 'center',
-        height: '100vh',
-        background: '#6c5ce7',
-      }}>
-        <Suspense fallback={<div style={{ color: '#fff', textAlign: 'center' }}>Loading...</div>}>
-          {authScreen === 'login' && <Login onLoginSuccess={handleLoginSuccess} />}
-          {authScreen === 'register' && <Register onBack={handleBackToLogin} />}
-          {authScreen === 'forgot-password' && <ForgotPassword onBack={handleBackToLogin} />}
-        </Suspense>
-      </div>
+      <Suspense fallback={<div style={{ color: '#fff', textAlign: 'center', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>Loading...</div>}>
+        {authScreen === 'login' && <Login onLoginSuccess={handleLoginSuccess} />}
+        {authScreen === 'register' && <Register onBack={handleBackToLogin} />}
+        {authScreen === 'forgot-password' && <ForgotPassword onBack={handleBackToLogin} />}
+      </Suspense>
     );
   }
 

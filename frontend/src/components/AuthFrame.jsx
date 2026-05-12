@@ -166,26 +166,41 @@ export function HashIcon() {
 export function AuthFrame({ title, subtitle, icon, accent = 'plus', children }) {
   return (
     <div className="main-container">
-      <div className="left-section">
-        <div className="jabil-logo">JABIL</div>
-        <h2 className="hero-title">Powered by <span>Innovation.</span> Driven by Excellence.</h2>
-        <div className="hero-line"></div>
-        <p className="hero-text">Manage all your printer assets and support tickets seamlessly.</p>
-      </div>
+      <div className="login-wrapper">
+        <aside className="left-panel">
+          <div>
+            <div className="logo">
+              J<span>A</span>BIL
+            </div>
 
-      <section className="login-card">
-        <div className="top-header">
-          <div className="cyber-line"></div>
-          <div className="top-icon">{icon}</div>
-          <div className="cyber-line"></div>
+            <div className="small-heading">
+              SMART SUPPORT. STRONGER SYSTEMS.
+            </div>
+
+            <div className="left-title">
+              Powering Support.<br />
+              Driving Performance.<br />
+              Delivering <span className="gradient-text">Excellence.</span>
+            </div>
+
+            <div className="line"></div>
+
+            <div className="description">
+              Manage application support terminals and servers with real-time insights and seamless control.
+            </div>
+          </div>
+        </aside>
+
+        <div className="right-panel">
+          <div className="login-card">
+            <div className="lock-circle">{icon}</div>
+            <div className="login-title">{title}</div>
+            <div className="login-sub">{subtitle}</div>
+            <div className="card-line"></div>
+            {children}
+          </div>
         </div>
-
-        <h1 className="login-title">{title}</h1>
-        <p className="login-subtitle">{subtitle}</p>
-        <div className="cyber-divider"></div>
-
-        {children}
-      </section>
+      </div>
     </div>
   );
 }
