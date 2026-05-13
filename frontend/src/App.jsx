@@ -158,9 +158,11 @@ function AppInner() {
       <Sidebar />
       <div className="main-area">
         <Topbar onUserClick={() => setShowUserProfile(true)} onLogout={handleLogout} />
-        <Suspense fallback={<div className="screen loading">Loading...</div>}>
-          {renderScreen()}
-        </Suspense>
+        <div className="screen">
+          <Suspense fallback={<div className="screen loading">Loading...</div>}>
+            {renderScreen()}
+          </Suspense>
+        </div>
         <div className="act-bar">
           <div className="act-info">
             Logged in as <span>{user?.email}</span>

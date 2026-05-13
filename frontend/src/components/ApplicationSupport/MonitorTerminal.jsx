@@ -65,6 +65,42 @@ const formatCountdown = (targetTimestamp, now) => {
   return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
 };
 
+const formatYAxisTick = (value) => {
+  if (!Number.isFinite(value)) return '';
+  if (value < 60) {
+    return `${value} sec`;
+  }
+  if (value % 60 === 0) {
+    return `${value / 60} min`;
+  }
+  const minutes = Math.floor(value / 60);
+  return `${minutes}.5 min`;
+};
+
+const getYAxisTimeTicks = (maxSeconds = 300) => {
+  return [15, 30, 60, 90, 120, 150, 180, 210, 240, 270, 300].filter((value) => value <= maxSeconds);
+};
+
+const buildXAxisTicks = (rangeMs, now, count = 6) => {
+  if (!Number.isFinite(rangeMs) || rangeMs <= 0 || !Number.isFinite(now)) return [];
+  const start = now - rangeMs;
+  const step = rangeMs / Math.max(count - 1, 1);
+  const ticks = [];
+  for (let index = 0; index < count; index += 1) {
+    ticks.push(Math.round(start + step * index));
+  }
+  return ticks;
+};
+
+const formatXAxisTick = (timestamp, rangeMs) => {
+  if (!Number.isFinite(timestamp)) return '';
+  const date = new Date(timestamp);
+  if (rangeMs >= 24 * 60 * 60 * 1000) {
+    return date.toLocaleDateString([], { month: 'short', day: 'numeric' });
+  }
+  return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+};
+
 const getStatusTone = (color) => {
   if (color === 'green') return 'running';
   if (color === 'yellow') return 'slow';
@@ -97,11 +133,7 @@ const buildChartData = (logs, rangeMs) => {
     });
 
   return Array.from(grouped.values())
-    .sort((a, b) => a.timestamp - b.timestamp)
-    .map((point) => ({
-      ...point,
-      label: new Date(point.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-    }));
+    .sort((a, b) => a.timestamp - b.timestamp);
 };
 
 const buildSparklineData = (logs, terminalCode) => {
@@ -332,6 +364,8 @@ export default function MonitorTerminal({ canManage }) {
     ? Math.round((terminals.reduce((sum, terminal) => sum + Number(terminal.averageLaunchSeconds || 0), 0) / terminals.length) * 10) / 10
     : 0;
   const chartData = useMemo(() => buildChartData(logs, selectedRange), [logs, selectedRange]);
+  const xAxisTicks = useMemo(() => buildXAxisTicks(selectedRange, now), [selectedRange, now]);
+  const yAxisTicks = useMemo(() => getYAxisTimeTicks(300, 15), []);
   const nextCycleAt = (status?.lastCompletedAt ? new Date(status.lastCompletedAt).getTime() : status?.lastRunAt ? new Date(status.lastRunAt).getTime() : null)
     ? (status?.lastCompletedAt ? new Date(status.lastCompletedAt).getTime() : new Date(status.lastRunAt).getTime()) + (5 * 60 * 1000)
     : null;
@@ -500,17 +534,29 @@ export default function MonitorTerminal({ canManage }) {
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={chartData} margin={{ top: 20, right: 28, left: 4, bottom: 8 }}>
                   <CartesianGrid stroke="rgba(34, 63, 108, 0.65)" vertical={false} />
-                  <XAxis dataKey="label" tick={{ fill: '#cbd7ec', fontSize: 12 }} axisLine={false} tickLine={false} />
-                  <YAxis 
-                    domain={[0, 150]} 
-                    ticks={[5, 10, 15, 20, 25, 30]} 
-                    tick={{ fill: '#cbd7ec', fontSize: 12 }} 
-                    axisLine={false} 
-                    tickLine={false} 
+                  <XAxis
+                    dataKey="timestamp"
+                    type="number"
+                    domain={["dataMin", "dataMax"]}
+                    ticks={xAxisTicks}
+                    tickFormatter={(value) => formatXAxisTick(value, selectedRange)}
+                    tick={{ fill: '#cbd7ec', fontSize: 12 }}
+                    axisLine={false}
+                    tickLine={false}
+                    interval="preserveStartEnd"
+                  />
+                  <YAxis
+                    domain={[0, 300]}
+                    ticks={yAxisTicks}
+                    tickFormatter={formatYAxisTick}
+                    tick={{ fill: '#cbd7ec', fontSize: 12 }}
+                    axisLine={false}
+                    tickLine={false}
                   />
                   <Tooltip
                     contentStyle={{ background: '#071526', border: '1px solid rgba(60, 100, 168, 0.55)', borderRadius: 10 }}
                     labelStyle={{ color: '#f4f7ff' }}
+                    labelFormatter={(value) => formatXAxisTick(value, selectedRange)}
                   />
                   <ReferenceLine y={130} stroke="#ff5a4f" strokeDasharray="6 6" />
                   <Legend content={() => null} />
@@ -836,17 +882,29 @@ export default function MonitorTerminal({ canManage }) {
                 <ResponsiveContainer width="100%" height="100%">
                   <LineChart data={chartData} margin={{ top: 20, right: 28, left: 60, bottom: 8 }}>
                     <CartesianGrid stroke="rgba(34, 63, 108, 0.65)" vertical={false} />
-                    <XAxis dataKey="label" tick={{ fill: '#cbd7ec', fontSize: 12 }} axisLine={false} tickLine={false} />
-                    <YAxis 
-                      domain={[0, 150]} 
-                      ticks={[5, 10, 15, 20, 25, 30]} 
-                      tick={{ fill: '#cbd7ec', fontSize: 12 }} 
+                    <XAxis
+                      dataKey="timestamp"
+                      type="number"
+                      domain={["dataMin", "dataMax"]}
+                      ticks={xAxisTicks}
+                      tickFormatter={(value) => formatXAxisTick(value, selectedRange)}
+                      tick={{ fill: '#cbd7ec', fontSize: 12 }}
+                      axisLine={false}
+                      tickLine={false}
+                      interval="preserveStartEnd"
+                    />
+                    <YAxis
+                      domain={[0, 300]}
+                      ticks={yAxisTicks}
+                      tickFormatter={formatYAxisTick}
+                      tick={{ fill: '#cbd7ec', fontSize: 12 }}
                       axisLine={{ stroke: 'rgba(100, 150, 200, 0.3)' }}
-                      tickLine={false} 
+                      tickLine={false}
                     />
                     <Tooltip
                       contentStyle={{ background: '#071526', border: '1px solid rgba(60, 100, 168, 0.55)', borderRadius: 10 }}
                       labelStyle={{ color: '#f4f7ff' }}
+                      labelFormatter={(value) => formatXAxisTick(value, selectedRange)}
                     />
                     <ReferenceLine y={130} stroke="#ff5a4f" strokeDasharray="6 6" />
                     <Legend content={() => null} />

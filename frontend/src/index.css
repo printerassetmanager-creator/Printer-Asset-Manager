@@ -1,5 +1,7 @@
 *{margin:0;padding:0;box-sizing:border-box}
-html,body,#root{height:100%;overflow:hidden;font-family:'Inter',system-ui,sans-serif;font-size:14px;background:#0a0d14;color:#f7f9ff}
+:root{--ui-scale:1}
+html,body{height:100%;overflow:hidden;font-family:'Inter',system-ui,sans-serif;font-size:13px;background:#0a0d14;color:#f7f9ff}
+#root{height:100%;width:100%;overflow:hidden;font-family:'Inter',system-ui,sans-serif;font-size:13px;background:#0a0d14;color:#f7f9ff}
 ::-webkit-scrollbar{width:5px;height:5px}
 ::-webkit-scrollbar-track{background:transparent}
 ::-webkit-scrollbar-thumb{background:#1e2540;border-radius:3px}
@@ -106,7 +108,7 @@ html,body,#root{height:100%;overflow:hidden;font-family:'Inter',system-ui,sans-s
 .ni.adm-ni.active{background:rgba(159,127,237,.07);border-left-color:var(--amber)}
 
 /* TOPBAR */
-.topbar{padding:12px 22px;border-bottom:1px solid var(--border);display:flex;align-items:center;background:var(--bg2);flex-shrink:0}
+.topbar{position:relative;z-index:10030;padding:12px 22px;border-bottom:1px solid var(--border);display:flex;align-items:center;background:var(--bg2);flex-shrink:0}
 .tb-title{font-size:16px;color:var(--text);font-weight:600;letter-spacing:-.01em}
 .tb-meta{font-size:11px;color:var(--text3);margin-top:2px;font-weight:700}
 .tb-center{flex:1;display:flex;justify-content:center}
@@ -119,13 +121,13 @@ html,body,#root{height:100%;overflow:hidden;font-family:'Inter',system-ui,sans-s
 .topbar-profile-btn span{background:linear-gradient(135deg, rgba(168,127,250,.95), rgba(81,101,255,.95))}
 .topbar-logout-btn{border-color:rgba(230,104,122,.28)}
 .topbar-logout-btn span{background:linear-gradient(135deg, rgba(255,185,120,.95), rgba(234,112,88,.95))}
-.support-mode-selector{position:relative}
+.support-mode-selector{position:relative;z-index:10050}
 .support-mode-button{display:flex;align-items:center;gap:8px;padding:6px 12px;background:var(--bg);border:1px solid var(--border);border-radius:var(--r);font-size:12px;color:var(--text);font-weight:500;cursor:pointer;transition:all .12s}
 .support-mode-button:hover{border-color:rgba(74,127,212,.5)}
 .support-mode-button:focus{outline:none;border-color:var(--blue);box-shadow:0 0 0 3px rgba(74,127,212,.1)}
 .support-caret{width:14px;height:14px;color:var(--text3);transition:transform .15s}
 .support-caret.open{transform:rotate(180deg)}
-.support-mode-menu{position:absolute;top:100%;left:50%;transform:translateX(-50%);margin-top:4px;background:var(--bg3);border:1px solid var(--border);border-radius:var(--r);z-index:100;min-width:160px;box-shadow:0 4px 12px rgba(0,0,0,.3)}
+.support-mode-menu{position:absolute;top:100%;left:50%;transform:translateX(-50%);margin-top:4px;background:var(--bg3);border:1px solid var(--border);border-radius:var(--r);z-index:10060;min-width:160px;box-shadow:0 4px 12px rgba(0,0,0,.3)}
 .support-mode-item{display:block;width:100%;padding:8px 12px;text-align:left;font-size:12px;color:var(--text2);background:none;border:none;cursor:pointer;transition:background .08s;font-family:"Inter",sans-serif}
 .support-mode-item:hover{background:rgba(74,127,212,.08)}
 .support-mode-item.active{background:rgba(74,127,212,.12);color:var(--blue);font-weight:600}
@@ -1573,3 +1575,37 @@ textarea:focus {
   background: rgba(4, 10, 26, .86);
   backdrop-filter: blur(14px);
 }
+
+/* Compact UI scale: keeps the whole application denser without editing every page. */
+.sidebar{width:210px;min-width:210px}
+.sb-logo-container{height:62px}
+.sb-logo{max-width:194px}
+.sb-user,.sb-plant-selector{padding:9px 12px}
+.ni,.ni-group-header{gap:8px;padding:7px 12px}
+.ni-icon{width:15px;height:15px}
+.ni-label{font-size:12px}
+.topbar{padding:9px 16px}
+.tb-title{font-size:14px}
+.screen{padding:14px 16px;gap:10px}
+.act-bar{padding:8px 16px}
+.card,.desktop-panel,.modal,.modal-content,.issue-card,.recipe-card,.approvals-card{padding:9px}
+.card-hd{margin-bottom:10px}
+.kpi-grid,.desktop-kpi-grid{gap:8px}
+.kpi,.desktop-kpi-card{padding:7px 8px}
+.kpi-val{font-size:22px}
+.desktop-kpi-value{font-size:28px;margin-top:10px}
+.desktop-kpi-icon{width:42px;height:42px}
+.desktop-kpi-icon svg{width:22px;height:22px}
+.tbl th,.issues-table th,.data-table th,.desktop-table th{padding:7px 9px;height:34px;font-size:9px}
+.tbl td,.issues-table td,.data-table td,.desktop-table td{padding:7px 9px;height:40px;font-size:11px}
+.field input,.field select,.field textarea,input:not([type="checkbox"]):not([type="radio"]),select,textarea{padding:6px 9px;font-size:12px}
+.field textarea{min-height:58px}
+.btn,.topbar-account-btn,.support-mode-button,.action-pill,.desktop-view-button,.desktop-wide-button,.desktop-more-issues{min-height:0;padding:6px 10px;font-size:11px}
+.action-pill{min-width:96px;border-radius:10px}
+.action-pill-icon{width:20px;height:20px}
+.badge,.tag,.status-badge,.issue-time-pill,.desktop-pm-badge,.desktop-status-badge{padding:2px 6px;font-size:9px}
+.fgrid{gap:9px}
+.frow{gap:8px}
+.desktop-dashboard{padding:16px}
+.desktop-dashboard-grid{gap:14px}
+.desktop-side-stack{gap:12px}
