@@ -1,4 +1,4 @@
-const { Queue, Worker, QueueScheduler } = require('bullmq');
+const { Queue, Worker } = require('bullmq');
 const Redis = require('redis');
 
 class CleanupQueueService {
@@ -12,7 +12,6 @@ class CleanupQueueService {
 
     this.cleanupQueue = null;
     this.cleanupWorker = null;
-    this.queueScheduler = null;
   }
 
   async initialize() {
@@ -35,11 +34,6 @@ class CleanupQueueService {
           delay: 60000 // 1 minute
         }
       }
-    });
-
-    // Initialize queue scheduler for delayed jobs
-    this.queueScheduler = new QueueScheduler('server-cleanup', {
-      connection: redisConnection
     });
 
     console.log('Cleanup queue service initialized');
@@ -179,9 +173,6 @@ class CleanupQueueService {
   async shutdown() {
     if (this.cleanupWorker) {
       await this.cleanupWorker.close();
-    }
-    if (this.queueScheduler) {
-      await this.queueScheduler.close();
     }
     if (this.cleanupQueue) {
       await this.cleanupQueue.close();
