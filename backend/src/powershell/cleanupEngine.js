@@ -189,7 +189,7 @@ try {
           Write-Host "[$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')] Successfully deleted: $profileName ($([math]::Round($profileSize / 1MB, 2)) MB)"
 
         } catch {
-          $errorMsg = "Failed to delete ${profileName}: $($_.Exception.Message)"
+          $errorMsg = "Failed to delete $($profileName): $($_.Exception.Message)"
           Write-Host "[$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')] ERROR: $errorMsg"
           $cleanupResults.failed += $profileName
         }
