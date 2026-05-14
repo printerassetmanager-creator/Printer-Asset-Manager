@@ -67,6 +67,7 @@ export default function Topbar({ onUserClick, onLogout }) {
   const [time, setTime] = useState('');
   const [showSupportDropdown, setShowSupportDropdown] = useState(false);
   const supportSelectorRef = useRef(null);
+  const supportMenuRef = useRef(null);
   const [supportMenuStyle, setSupportMenuStyle] = useState({});
 
   useEffect(() => {
@@ -107,17 +108,22 @@ export default function Topbar({ onUserClick, onLogout }) {
 
     positionSupportMenu();
     const handlePointerDown = (event) => {
-      if (supportSelectorRef.current?.contains(event.target)) return;
+      if (
+        supportSelectorRef.current?.contains(event.target) ||
+        supportMenuRef.current?.contains(event.target)
+      ) return;
       setShowSupportDropdown(false);
     };
     const handleLayoutChange = () => positionSupportMenu();
 
     document.addEventListener('pointerdown', handlePointerDown);
+    document.addEventListener('touchstart', handlePointerDown);
     window.addEventListener('resize', handleLayoutChange);
     window.addEventListener('scroll', handleLayoutChange, true);
 
     return () => {
       document.removeEventListener('pointerdown', handlePointerDown);
+      document.removeEventListener('touchstart', handlePointerDown);
       window.removeEventListener('resize', handleLayoutChange);
       window.removeEventListener('scroll', handleLayoutChange, true);
     };
@@ -162,7 +168,7 @@ export default function Topbar({ onUserClick, onLogout }) {
               </svg>
             </button>
             {showSupportDropdown && (
-              <div className="support-mode-menu" style={supportMenuStyle} role="menu">
+              <div className="support-mode-menu" ref={supportMenuRef} style={supportMenuStyle} role="menu">
                 {hasTechnicalAccess && (
                   <button 
                     type="button"
