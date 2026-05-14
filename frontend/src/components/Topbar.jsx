@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useApp } from '../context/AppContext';
 
 const screenTitles = {
@@ -66,6 +66,8 @@ export default function Topbar({ onUserClick, onLogout }) {
   const { currentScreen, user, supportMode, setSupportMode } = useApp();
   const [time, setTime] = useState('');
   const [showSupportDropdown, setShowSupportDropdown] = useState(false);
+  const supportSelectorRef = useRef(null);
+  const [supportMenuStyle, setSupportMenuStyle] = useState({});
 
   useEffect(() => {
     const tick = () => setTime(new Date().toLocaleTimeString('en-GB'));
@@ -81,11 +83,58 @@ export default function Topbar({ onUserClick, onLogout }) {
 
   const canSwitchSupportMode = hasTechnicalAccess && hasApplicationAccess;
 
+  const positionSupportMenu = useCallback(() => {
+    const selector = supportSelectorRef.current;
+    if (!selector) return;
+
+    const rect = selector.getBoundingClientRect();
+    const menuWidth = 190;
+    const viewportPadding = 12;
+    const left = Math.min(
+      Math.max(rect.left + rect.width / 2 - menuWidth / 2, viewportPadding),
+      window.innerWidth - menuWidth - viewportPadding
+    );
+
+    setSupportMenuStyle({
+      top: `${rect.bottom + 8}px`,
+      left: `${left}px`,
+      width: `${menuWidth}px`,
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!showSupportDropdown) return undefined;
+
+    positionSupportMenu();
+    const handlePointerDown = (event) => {
+      if (supportSelectorRef.current?.contains(event.target)) return;
+      setShowSupportDropdown(false);
+    };
+    const handleLayoutChange = () => positionSupportMenu();
+
+    document.addEventListener('pointerdown', handlePointerDown);
+    window.addEventListener('resize', handleLayoutChange);
+    window.addEventListener('scroll', handleLayoutChange, true);
+
+    return () => {
+      document.removeEventListener('pointerdown', handlePointerDown);
+      window.removeEventListener('resize', handleLayoutChange);
+      window.removeEventListener('scroll', handleLayoutChange, true);
+    };
+  }, [showSupportDropdown, positionSupportMenu]);
+
   const handleSupportModeChange = (mode) => {
     if ((mode === 'desktop' && hasTechnicalAccess) || (mode === 'application' && hasApplicationAccess)) {
       setSupportMode(mode);
     }
     setShowSupportDropdown(false);
+  };
+
+  const toggleSupportDropdown = () => {
+    if (!showSupportDropdown) {
+      positionSupportMenu();
+    }
+    setShowSupportDropdown((value) => !value);
   };
 
   const showAccountActions = supportMode === 'application';
@@ -99,10 +148,13 @@ export default function Topbar({ onUserClick, onLogout }) {
       
       {canSwitchSupportMode && (
         <div className="tb-center">
-          <div className="support-mode-selector">
+          <div className="support-mode-selector" ref={supportSelectorRef}>
             <button 
+              type="button"
               className="support-mode-button"
-              onClick={() => setShowSupportDropdown(!showSupportDropdown)}
+              onClick={toggleSupportDropdown}
+              aria-expanded={showSupportDropdown}
+              aria-haspopup="menu"
             >
               <span>{supportMode === 'desktop' ? 'Desktop Support' : 'Application Support'}</span>
               <svg className={`support-caret ${showSupportDropdown ? 'open' : ''}`} viewBox="0 0 16 16" fill="none">
@@ -110,19 +162,23 @@ export default function Topbar({ onUserClick, onLogout }) {
               </svg>
             </button>
             {showSupportDropdown && (
-              <div className="support-mode-menu">
+              <div className="support-mode-menu" style={supportMenuStyle} role="menu">
                 {hasTechnicalAccess && (
                   <button 
+                    type="button"
                     className={`support-mode-item ${supportMode === 'desktop' ? 'active' : ''}`}
                     onClick={() => handleSupportModeChange('desktop')}
+                    role="menuitem"
                   >
                     Desktop Support
                   </button>
                 )}
                 {hasApplicationAccess && (
                   <button 
+                    type="button"
                     className={`support-mode-item ${supportMode === 'application' ? 'active' : ''}`}
                     onClick={() => handleSupportModeChange('application')}
+                    role="menuitem"
                   >
                     Application Support
                   </button>

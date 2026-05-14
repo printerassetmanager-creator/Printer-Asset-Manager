@@ -253,15 +253,6 @@ export default function Sidebar() {
         </div>
       )}
 
-      {(user?.support_type === 'application' || user?.support_type === 'both' || user?.supportType === 'application' || user?.supportType === 'both') && !isApplicationMode && (
-        <div className="adm-section">
-          <div className="adm-lbl">Application Support</div>
-          <div className={`ni adm-ni${currentScreen === 'appsupport' ? ' active' : ''}`} onClick={() => openAppSupportTab('dashboard')}>
-            <svg className="ni-icon" viewBox="0 0 16 16" fill="none"><rect x="1.5" y="2" width="13" height="11" rx="1.2" stroke="#22d3ee" strokeWidth="1.2"/><path d="M4 6h8M4 8h6M4 10h7" stroke="#22d3ee" strokeWidth="1" strokeLinecap="round"/></svg>
-            <span className="ni-label" style={{color:'#22d3ee'}}>App Support</span>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

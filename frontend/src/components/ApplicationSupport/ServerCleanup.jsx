@@ -51,7 +51,7 @@ export default function ServerCleanup({ isSuperAdmin, inventory: propInventory, 
   const [activeCleanups, setActiveCleanups] = useState(new Map());
   const [socketConnected, setSocketConnected] = useState(false);
   const socketRef = useRef(null);
-  const logsEndRef = useRef(null);
+  const logsContainerRef = useRef(null);
 
   const servers = useMemo(
     () => inventory.flatMap((terminal) => (terminal.servers || []).map((server) => server.name)),
@@ -174,9 +174,16 @@ export default function ServerCleanup({ isSuperAdmin, inventory: propInventory, 
     };
   }, []);
 
-  // Auto-scroll logs
+  // Auto-scroll logs only when the user is already near the bottom
   useEffect(() => {
-    logsEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    const container = logsContainerRef.current;
+    if (!container) return;
+
+    const distanceFromBottom = container.scrollHeight - container.scrollTop - container.clientHeight;
+    const shouldAutoScroll = distanceFromBottom < 120;
+    if (shouldAutoScroll) {
+      container.scrollTo({ top: container.scrollHeight, behavior: 'smooth' });
+    }
   }, [realTimeLogs]);
 
   const addLogEntry = (server, message) => {
@@ -558,7 +565,7 @@ export default function ServerCleanup({ isSuperAdmin, inventory: propInventory, 
             ● {socketConnected ? 'Connected' : 'Disconnected'}
           </span>
         </h3>
-        <div style={{
+        <div ref={logsContainerRef} style={{
           marginTop: '16px',
           maxHeight: '300px',
           overflowY: 'auto',
@@ -591,7 +598,6 @@ export default function ServerCleanup({ isSuperAdmin, inventory: propInventory, 
               </div>
             ))
           )}
-          <div ref={logsEndRef} />
         </div>
         {activeCleanups.size > 0 && (
           <div style={{ marginTop: '12px', color: '#fbbf24', fontSize: '13px' }}>

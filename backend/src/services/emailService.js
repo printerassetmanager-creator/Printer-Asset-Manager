@@ -1,19 +1,17 @@
 const nodemailer = require('nodemailer');
 require('dotenv').config();
 
-const emailUser = process.env.EMAIL_USER || 'aniketbhosale1012@gmail.com';
-const emailPassword = process.env.EMAIL_PASSWORD || process.env.APP_PASSWORD;
+const emailUser = process.env.EMAIL_USER?.trim();
+const rawEmailPassword = process.env.EMAIL_PASSWORD || process.env.APP_PASSWORD;
+const emailPassword = rawEmailPassword?.replace(/\s+/g, '');
 const emailFrom = `"Printer Asset Manager" <${emailUser}>`;
 
-// Configure email transporter with explicit Gmail SMTP settings
+// Configure email transporter for Gmail SMTP
 const transporter = nodemailer.createTransport({
-  host: 'smtp.gmail.com',
-  port: 465,
-  secure: true,
+  service: 'gmail',
   auth: {
     user: emailUser,
     pass: emailPassword,
-    method: 'LOGIN',
   },
 });
 
@@ -51,8 +49,13 @@ const sendOTP = async (email, otp) => {
         <p>If you didn't request this, please ignore this email.</p>
       `,
     };
-    await transporter.sendMail(mailOptions);
-    console.log(`OTP sent to ${email}`);
+    const info = await transporter.sendMail(mailOptions);
+    console.log(`OTP sent to ${email}`, {
+      messageId: info.messageId,
+      accepted: info.accepted,
+      rejected: info.rejected,
+      response: info.response,
+    });
   } catch (error) {
     console.error('Error sending OTP:', error);
     throw error;
@@ -74,8 +77,13 @@ const sendRegistrationOTP = async (email, otp) => {
         <p>If you did not request account creation, please ignore this email.</p>
       `,
     };
-    await transporter.sendMail(mailOptions);
-    console.log(`Registration OTP sent to ${email}`);
+    const info = await transporter.sendMail(mailOptions);
+    console.log(`Registration OTP sent to ${email}`, {
+      messageId: info.messageId,
+      accepted: info.accepted,
+      rejected: info.rejected,
+      response: info.response,
+    });
   } catch (error) {
     console.error('Error sending registration OTP:', error);
     throw error;

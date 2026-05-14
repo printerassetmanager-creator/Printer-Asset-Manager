@@ -139,23 +139,33 @@ export default function ApplicationSupport() {
         )}
 
         {appSupportTab === 'terminals' && (
-          <ManageTerminals canManage={canAccessAdminFeatures} onInventoryChange={refreshInventory} />
+          <div className="tab-content">
+            <ManageTerminals canManage={canAccessAdminFeatures} onInventoryChange={refreshInventory} />
+          </div>
         )}
 
         {appSupportTab === 'terminal-management' && (
-          <TerminalManagement canManage={canAccessUserFeatures} dashboard={dashboard} />
+          <div className="tab-content">
+            <TerminalManagement canManage={canAccessUserFeatures} dashboard={dashboard} />
+          </div>
         )}
 
         {appSupportTab === 'monitor-terminal' && (
-          <MonitorTerminal canManage={canAccessAdminFeatures} />
+          <div className="tab-content">
+            <MonitorTerminal canManage={canAccessAdminFeatures} />
+          </div>
         )}
 
         {appSupportTab === 'server-performance' && (
-          <ServerPerformance canManage={canAccessAdminFeatures} />
+          <div className="tab-content">
+            <ServerPerformance canManage={canAccessAdminFeatures} />
+          </div>
         )}
 
         {appSupportTab === 'cleanup-server' && (
-          <ServerCleanup isSuperAdmin={isSuperAdmin} inventory={inventory} onInventoryRefresh={refreshInventory} />
+          <div className="tab-content">
+            <ServerCleanup isSuperAdmin={isSuperAdmin} inventory={inventory} onInventoryRefresh={refreshInventory} />
+          </div>
         )}
 
         {appSupportTab === 'user-workspace' && canAccessUserFeatures && (

@@ -174,13 +174,13 @@ export function AuthFrame({ title, subtitle, icon, accent = 'plus', children }) 
             </div>
 
             <div className="small-heading">
-              SMART SUPPORT. STRONGER SYSTEMS.
+              Predict. Prevent. Perform.
             </div>
 
             <div className="left-title">
-              Powering Support.<br />
-              Driving Performance.<br />
-              Delivering <span className="gradient-text">Excellence.</span>
+              Monitoring Operations.<br />
+              Minimizing Downtime.<br />
+              Maximizing <span className="gradient-text">Performance.</span>
             </div>
 
             <div className="line"></div>

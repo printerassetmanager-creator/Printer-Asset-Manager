@@ -2,6 +2,7 @@ import React, { useState, lazy, Suspense } from 'react';
 import { AppProvider, useApp } from './context/AppContext';
 import Sidebar from './components/Sidebar';
 import Topbar from './components/Topbar';
+import LoadingFallback from './components/LoadingFallback';
 import useSessionTimeout from './hooks/useSessionTimeout';
 
 const Dashboard = lazy(() => import('./pages/Dashboard'));
@@ -120,7 +121,7 @@ function AppInner() {
 
   if (!isAuthenticated) {
     return (
-      <Suspense fallback={<div style={{ color: '#fff', textAlign: 'center', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>Loading...</div>}>
+      <Suspense fallback={<LoadingFallback variant="auth" />}>
         {authScreen === 'login' && <Login onLoginSuccess={handleLoginSuccess} />}
         {authScreen === 'register' && <Register onBack={handleBackToLogin} />}
         {authScreen === 'forgot-password' && <ForgotPassword onBack={handleBackToLogin} />}
@@ -159,7 +160,7 @@ function AppInner() {
       <div className="main-area">
         <Topbar onUserClick={() => setShowUserProfile(true)} onLogout={handleLogout} />
         <div className="screen">
-          <Suspense fallback={<div className="screen loading">Loading...</div>}>
+          <Suspense fallback={<LoadingFallback />}>
             {renderScreen()}
           </Suspense>
         </div>
@@ -181,7 +182,7 @@ function AppInner() {
       </div>
 
       {showUserProfile && (
-        <Suspense fallback={<div className="screen loading">Loading...</div>}>
+        <Suspense fallback={<LoadingFallback variant="modal" />}>
           <UserProfile user={user} onClose={closeUserProfile} onLogout={handleLogout} />
         </Suspense>
       )}

@@ -20,8 +20,8 @@ export default function UserProfile({ user, onClose, onLogout }) {
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
-  const handleChangePassword = async (e) => {
-    e.preventDefault();
+  const handleChangePassword = async (event) => {
+    event.preventDefault();
     setError('');
     setSuccess('');
 
@@ -39,19 +39,14 @@ export default function UserProfile({ user, onClose, onLogout }) {
 
     try {
       const token = localStorage.getItem('authToken');
-      await authAPI.changePassword(
-        currentPassword,
-        newPassword,
-        confirmPassword,
-        token
-      );
-      setSuccess('Password changed successfully!');
+      await authAPI.changePassword(currentPassword, newPassword, confirmPassword, token);
+      setSuccess('Password changed successfully');
       setTimeout(() => {
         setShowPasswordForm(false);
         setCurrentPassword('');
         setNewPassword('');
         setConfirmPassword('');
-      }, 2000);
+      }, 1600);
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to change password');
     } finally {
@@ -60,12 +55,14 @@ export default function UserProfile({ user, onClose, onLogout }) {
   };
 
   return (
-    <div className="user-profile-modal">
+    <div className="user-profile-modal" role="dialog" aria-modal="true" aria-labelledby="user-profile-title">
       <div className="modal-overlay" onClick={onClose}></div>
-      <div className="modal-content user-profile-box">
+      <div className="modal-content user-profile-box" onClick={(event) => event.stopPropagation()}>
         <div className="modal-header">
-          <h2>👤 User Profile</h2>
-          <button className="close-btn" onClick={onClose}>✕</button>
+          <h2 id="user-profile-title">User Profile</h2>
+          <button type="button" className="close-btn" onClick={onClose} aria-label="Close profile">
+            X
+          </button>
         </div>
 
         <div className="profile-info">
@@ -85,14 +82,11 @@ export default function UserProfile({ user, onClose, onLogout }) {
 
         {!showPasswordForm ? (
           <div className="profile-actions">
-            <button
-              className="btn btn-secondary"
-              onClick={() => setShowPasswordForm(true)}
-            >
-              🔐 Change Password
+            <button type="button" className="btn btn-secondary" onClick={() => setShowPasswordForm(true)}>
+              Change Password
             </button>
-            <button className="btn btn-danger" onClick={onLogout}>
-              🚪 Logout
+            <button type="button" className="btn btn-danger" onClick={onLogout}>
+              Logout
             </button>
           </div>
         ) : (
@@ -106,7 +100,7 @@ export default function UserProfile({ user, onClose, onLogout }) {
                 <input
                   type={showCurrentPassword ? 'text' : 'password'}
                   value={currentPassword}
-                  onChange={(e) => setCurrentPassword(e.target.value)}
+                  onChange={(event) => setCurrentPassword(event.target.value)}
                   placeholder="Enter current password"
                   disabled={loading}
                   required
@@ -114,9 +108,9 @@ export default function UserProfile({ user, onClose, onLogout }) {
                 <button
                   type="button"
                   className="toggle-password"
-                  onClick={() => setShowCurrentPassword(!showCurrentPassword)}
+                  onClick={() => setShowCurrentPassword((value) => !value)}
                 >
-                  {showCurrentPassword ? '👁️' : '👁️‍🗨️'}
+                  {showCurrentPassword ? 'Hide' : 'Show'}
                 </button>
               </div>
             </div>
@@ -127,7 +121,7 @@ export default function UserProfile({ user, onClose, onLogout }) {
                 <input
                   type={showNewPassword ? 'text' : 'password'}
                   value={newPassword}
-                  onChange={(e) => setNewPassword(e.target.value)}
+                  onChange={(event) => setNewPassword(event.target.value)}
                   placeholder="Enter new password"
                   disabled={loading}
                   required
@@ -135,9 +129,9 @@ export default function UserProfile({ user, onClose, onLogout }) {
                 <button
                   type="button"
                   className="toggle-password"
-                  onClick={() => setShowNewPassword(!showNewPassword)}
+                  onClick={() => setShowNewPassword((value) => !value)}
                 >
-                  {showNewPassword ? '👁️' : '👁️‍🗨️'}
+                  {showNewPassword ? 'Hide' : 'Show'}
                 </button>
               </div>
             </div>
@@ -148,7 +142,7 @@ export default function UserProfile({ user, onClose, onLogout }) {
                 <input
                   type={showConfirmPassword ? 'text' : 'password'}
                   value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  onChange={(event) => setConfirmPassword(event.target.value)}
                   placeholder="Confirm new password"
                   disabled={loading}
                   required
@@ -156,9 +150,9 @@ export default function UserProfile({ user, onClose, onLogout }) {
                 <button
                   type="button"
                   className="toggle-password"
-                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                  onClick={() => setShowConfirmPassword((value) => !value)}
                 >
-                  {showConfirmPassword ? '👁️' : '👁️‍🗨️'}
+                  {showConfirmPassword ? 'Hide' : 'Show'}
                 </button>
               </div>
             </div>

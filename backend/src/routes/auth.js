@@ -16,6 +16,8 @@ const normalizeSupportType = (supportType) => {
   return ALLOWED_SUPPORT_TYPES.includes(requestedType) ? requestedType : 'technical';
 };
 
+const normalizeEmail = (email) => String(email || '').trim().toLowerCase();
+
 const ensureRegistrationOtpsTable = async () => {
   await pool.query(`
     CREATE TABLE IF NOT EXISTS registration_otps (
@@ -34,16 +36,29 @@ const ensureRegistrationOtpsTable = async () => {
   `);
 };
 
+const ensurePasswordResetTokensTable = async () => {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS password_reset_tokens (
+      id SERIAL PRIMARY KEY,
+      user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+      otp VARCHAR(6) NOT NULL,
+      expires_at TIMESTAMP NOT NULL,
+      is_used BOOLEAN DEFAULT FALSE,
+      created_at TIMESTAMP DEFAULT NOW()
+    )
+  `);
+};
+
 // ═══ SEND REGISTRATION OTP - Verify email before account creation ═══
 router.post('/send-registration-otp', async (req, res) => {
-  const { email } = req.body;
+  const email = normalizeEmail(req.body.email);
 
   try {
     if (!email) {
       return res.status(400).json({ error: 'Email is required' });
     }
 
-    const existingUser = await pool.query('SELECT id FROM users WHERE email = $1', [email]);
+    const existingUser = await pool.query('SELECT id FROM users WHERE lower(email) = $1', [email]);
     if (existingUser.rows.length > 0) {
       return res.status(409).json({ error: 'User already exists' });
     }
@@ -78,7 +93,8 @@ router.post('/send-registration-otp', async (req, res) => {
 
 // ═══ REGISTER - Create new account (pending approval) ═══
 router.post('/register', async (req, res) => {
-  const { email, password, confirmPassword, fullName, otp, supportType } = req.body;
+  const { password, confirmPassword, fullName, otp, supportType } = req.body;
+  const email = normalizeEmail(req.body.email);
 
   try {
     // Validation
@@ -95,7 +111,7 @@ router.post('/register', async (req, res) => {
     }
 
     // Check if user already exists
-    const existingUser = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
+    const existingUser = await pool.query('SELECT * FROM users WHERE lower(email) = $1', [email]);
     if (existingUser.rows.length > 0) {
       return res.status(409).json({ error: 'User already exists' });
     }
@@ -250,7 +266,7 @@ router.post('/login', async (req, res) => {
 
 // ═══ FORGOT PASSWORD - Send OTP ═══
 router.post('/forgot-password', async (req, res) => {
-  const { email } = req.body;
+  const email = normalizeEmail(req.body.email);
 
   try {
     if (!email) {
@@ -258,7 +274,7 @@ router.post('/forgot-password', async (req, res) => {
     }
 
     // Find user
-    const userResult = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
+    const userResult = await pool.query('SELECT * FROM users WHERE lower(email) = $1', [email]);
     if (userResult.rows.length === 0) {
       // Don't reveal if email exists for security
       return res.json({ message: 'If this email exists, an OTP has been sent' });
@@ -271,6 +287,7 @@ router.post('/forgot-password', async (req, res) => {
 
     // Save OTP with expiration (10 minutes)
     const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
+    await ensurePasswordResetTokensTable();
     await pool.query(
       'INSERT INTO password_reset_tokens (user_id, otp, expires_at) VALUES ($1, $2, $3)',
       [user.id, otp, expiresAt]
@@ -297,7 +314,8 @@ router.post('/forgot-password', async (req, res) => {
 
 // ═══ VERIFY OTP AND RESET PASSWORD ═══
 router.post('/reset-password', async (req, res) => {
-  const { email, otp, newPassword, confirmPassword } = req.body;
+  const { otp, newPassword, confirmPassword } = req.body;
+  const email = normalizeEmail(req.body.email);
 
   try {
     if (!email || !otp || !newPassword || !confirmPassword) {
@@ -313,7 +331,7 @@ router.post('/reset-password', async (req, res) => {
     }
 
     // Find user
-    const userResult = await pool.query('SELECT * FROM users WHERE email = $1', [email]);
+    const userResult = await pool.query('SELECT * FROM users WHERE lower(email) = $1', [email]);
     if (userResult.rows.length === 0) {
       return res.status(404).json({ error: 'User not found' });
     }

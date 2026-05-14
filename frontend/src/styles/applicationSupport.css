@@ -3,8 +3,8 @@
 .app-support-container {
   display: flex;
   flex-direction: column;
-  min-height: 100%;
-  height: 100%;
+  flex: 1;
+  min-height: 0;
   background: linear-gradient(180deg, #07111d 0%, #091622 100%);
   padding: 20px;
   gap: 20px;
@@ -102,7 +102,6 @@
 .app-support-content {
   flex: 1;
   min-height: 0;
-  height: 100%;
   background: rgba(15, 23, 42, 0.95);
   border-radius: 24px;
   border: 1px solid rgba(148, 163, 184, 0.14);
@@ -112,6 +111,15 @@
   flex-direction: column;
   visibility: visible;
   opacity: 1;
+  scrollbar-gutter: stable both-edges;
+  overscroll-behavior: contain;
+}
+
+.app-support-content > * {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
 .tab-content {
@@ -119,6 +127,9 @@
   flex: 1;
   min-height: 0;
   overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-gutter: stable both-edges;
 }
 
 .tab-content h2 {
@@ -139,6 +150,7 @@
   padding: 30px;
   flex: 1;
   overflow-y: auto;
+  overflow-x: hidden;
   display: flex;
   flex-direction: column;
   gap: 24px;
@@ -146,6 +158,7 @@
   background: rgba(15, 23, 42, 0.95);
   visibility: visible;
   opacity: 1;
+  scrollbar-gutter: stable both-edges;
 }
 
 .app-dashboard-header {
@@ -884,6 +897,18 @@
   display: flex;
   flex-direction: column;
   gap: 16px;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.terminal-management {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 24px;
+  height: 100%;
+  overflow-y: auto;
+  min-height: 0;
 }
 
 .server-performance-grid {
@@ -1762,6 +1787,7 @@
   gap: 16px;
   padding: 24px;
   height: 100%;
+  min-height: 0;
   overflow-y: auto;
 }
 
