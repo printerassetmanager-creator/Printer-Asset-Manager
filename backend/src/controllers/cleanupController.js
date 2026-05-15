@@ -12,6 +12,11 @@ class CleanupController {
   }
 
   async initialize() {
+    if (process.platform !== 'win32' && process.env.ENABLE_SERVER_CLEANUP !== 'true') {
+      console.warn('Server cleanup service is disabled on non-Windows hosts. Set ENABLE_SERVER_CLEANUP=true to force enable.');
+      return;
+    }
+
     await this.databaseService.initializeTables();
     await this.queueService.initialize();
 
