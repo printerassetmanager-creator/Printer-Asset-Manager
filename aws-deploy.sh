@@ -118,6 +118,16 @@ log "Setting up backend..."
 cd backend
 npm install
 
+existing_env="/home/ubuntu/Printer-Asset-Manager/backend/.env"
+existing_email_user=""
+existing_email_password=""
+existing_app_password=""
+if [ -f "${existing_env}" ]; then
+  existing_email_user=$(grep -E '^EMAIL_USER=' "${existing_env}" | tail -n 1 | cut -d= -f2- || true)
+  existing_email_password=$(grep -E '^EMAIL_PASSWORD=' "${existing_env}" | tail -n 1 | cut -d= -f2- || true)
+  existing_app_password=$(grep -E '^APP_PASSWORD=' "${existing_env}" | tail -n 1 | cut -d= -f2- || true)
+fi
+
 # Generate JWT secret
 JWT_SECRET=$(node -e "console.log(require('crypto').randomBytes(32).toString('hex'))")
 
@@ -134,6 +144,19 @@ JWT_SECRET=${JWT_SECRET}
 LOG_LEVEL=info
 ALLOWED_ORIGINS=*
 EOF
+
+if [ -n "${existing_email_user}" ]; then
+  {
+    echo "EMAIL_USER=${existing_email_user}"
+    if [ -n "${existing_email_password}" ]; then
+      echo "EMAIL_PASSWORD=${existing_email_password}"
+    elif [ -n "${existing_app_password}" ]; then
+      echo "APP_PASSWORD=${existing_app_password}"
+    fi
+  } >> .env
+else
+  warn "Email is not configured on AWS. Add EMAIL_USER and EMAIL_PASSWORD or APP_PASSWORD to backend/.env, then run: pm2 restart printer-backend --update-env"
+fi
 
 log "Initializing database..."
 node setup-db.js
