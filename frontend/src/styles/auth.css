@@ -434,6 +434,13 @@ body::before{
   border:2px dotted rgba(120,145,255,.35);
 }
 
+.login-title{
+  text-align:center;
+  font-size:28px;
+  font-weight:700;
+  color:#fff;
+}
+
 .login-sub{
   text-align:center;
   color:#b5bfd0;
@@ -719,6 +726,9 @@ body::before{
 
 .input-wrapper{
   position:relative;
+  display:flex;
+  align-items:center;
+  gap:12px;
 }
 
 /* input */
@@ -734,7 +744,7 @@ body::before{
       rgba(10,23,48,.96),
       rgba(6,16,36,.92)
     );
-  padding:0 40px;
+  padding:0 48px 0 16px;
   color:white;
   font-size:12px;
   outline:none;
@@ -767,24 +777,28 @@ body::before{
 /* icons */
 
 .input-wrapper i{
-
-  position:absolute;
-
-  top:50%;
-  transform:translateY(-50%);
-
+  position:relative;
   color:var(--cyan);
-
   font-size:16px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  width:28px;
+  height:28px;
+  flex-shrink:0;
 }
 
 .input-left{
-  left:14px;
+  order:-1;
 }
 
 .input-right{
-  right:14px;
   cursor:pointer;
+}
+
+.lock-circle svg{
+  width:28px;
+  height:28px;
 }
 
 /* =========================

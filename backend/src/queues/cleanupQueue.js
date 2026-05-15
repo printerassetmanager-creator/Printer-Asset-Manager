@@ -26,8 +26,8 @@ class CleanupQueueService {
     this.cleanupQueue = new Queue('server-cleanup', {
       connection: redisConnection,
       defaultJobOptions: {
-        removeOnComplete: 50,
-        removeOnFail: 20,
+        removeOnComplete: true,
+        removeOnFail: true,
         attempts: 3,
         backoff: {
           type: 'exponential',
@@ -63,8 +63,8 @@ class CleanupQueueService {
         jobId,
         priority: this.getPriorityValue(priority),
         delay,
-        removeOnComplete: 10,
-        removeOnFail: 5
+        removeOnComplete: true,
+        removeOnFail: true
       }
     );
 

@@ -3,9 +3,15 @@ const pool = require('../db/pool');
 class CleanupDatabaseService {
   constructor() {
     this.pool = pool;
+    this.enabled = process.env.ENABLE_CLEANUP_DB_LOGS === 'true';
   }
 
   async initializeTables() {
+    if (!this.enabled) {
+      console.warn('CleanupDatabaseService is disabled. Skipping cleanup-related table creation.');
+      return;
+    }
+
     await this.createServersTable();
     await this.createCleanupLogsTable();
     await this.createCleanupHistoryTable();
@@ -15,6 +21,8 @@ class CleanupDatabaseService {
   }
 
   async createServersTable() {
+    if (!this.enabled) return;
+
     await this.pool.query(`
       CREATE TABLE IF NOT EXISTS cleanup_servers (
         id SERIAL PRIMARY KEY,
@@ -39,6 +47,8 @@ class CleanupDatabaseService {
   }
 
   async createCleanupLogsTable() {
+    if (!this.enabled) return;
+
     await this.pool.query(`
       CREATE TABLE IF NOT EXISTS cleanup_logs (
         id SERIAL PRIMARY KEY,
@@ -73,6 +83,8 @@ class CleanupDatabaseService {
   }
 
   async createCleanupHistoryTable() {
+    if (!this.enabled) return;
+
     await this.pool.query(`
       CREATE TABLE IF NOT EXISTS cleanup_history (
         id SERIAL PRIMARY KEY,
@@ -87,6 +99,8 @@ class CleanupDatabaseService {
   }
 
   async createSchedulesTable() {
+    if (!this.enabled) return;
+
     await this.pool.query(`
       CREATE TABLE IF NOT EXISTS cleanup_schedules (
         id SERIAL PRIMARY KEY,
@@ -105,6 +119,8 @@ class CleanupDatabaseService {
   }
 
   async createActiveSessionsTable() {
+    if (!this.enabled) return;
+
     await this.pool.query(`
       CREATE TABLE IF NOT EXISTS active_sessions (
         id SERIAL PRIMARY KEY,
@@ -128,6 +144,8 @@ class CleanupDatabaseService {
   }
 
   async createCredentialsTable() {
+    if (!this.enabled) return;
+
     await this.pool.query(`
       CREATE TABLE IF NOT EXISTS server_credentials (
         id SERIAL PRIMARY KEY,
@@ -146,6 +164,8 @@ class CleanupDatabaseService {
 
   // Server management methods
   async addServer(serverData) {
+    if (!this.enabled) return null;
+
     const { name, hostname, ip_address } = serverData;
     const result = await this.pool.query(`
       INSERT INTO cleanup_servers (name, hostname, ip_address)
@@ -160,6 +180,8 @@ class CleanupDatabaseService {
   }
 
   async getServers(activeOnly = true) {
+    if (!this.enabled) return [];
+
     const query = activeOnly
       ? 'SELECT * FROM cleanup_servers WHERE is_active = true ORDER BY name'
       : 'SELECT * FROM cleanup_servers ORDER BY name';
@@ -168,6 +190,8 @@ class CleanupDatabaseService {
   }
 
   async updateServerLastCleanup(serverName) {
+    if (!this.enabled) return;
+
     await this.pool.query(`
       UPDATE cleanup_servers
       SET last_cleanup = NOW(), updated_at = NOW()
@@ -177,6 +201,11 @@ class CleanupDatabaseService {
 
   // Cleanup log methods
   async saveCleanupLog(logData) {
+    if (!this.enabled) {
+      console.warn('Cleanup log saving is disabled. Skipping database write.');
+      return null;
+    }
+
     const {
       server_name,
       job_id,
@@ -215,6 +244,8 @@ class CleanupDatabaseService {
   }
 
   async getCleanupLogs(serverName = null, limit = 50) {
+    if (!this.enabled) return [];
+
     let query = `
       SELECT cl.*, cs.hostname, cs.ip_address
       FROM cleanup_logs cl
@@ -235,6 +266,8 @@ class CleanupDatabaseService {
   }
 
   async getCleanupStatus() {
+    if (!this.enabled) return null;
+
     const result = await this.pool.query(`
       SELECT * FROM cleanup_logs
       ORDER BY created_at DESC
@@ -259,6 +292,8 @@ class CleanupDatabaseService {
   }
 
   async getActiveSessions(serverId = null) {
+    if (!this.enabled) return [];
+
     let query = 'SELECT * FROM active_sessions WHERE is_active = true';
     const params = [];
 
@@ -274,6 +309,8 @@ class CleanupDatabaseService {
   }
 
   async clearInactiveSessions(olderThanMinutes = 30) {
+    if (!this.enabled) return;
+
     await this.pool.query(`
       UPDATE active_sessions
       SET is_active = false
@@ -283,6 +320,8 @@ class CleanupDatabaseService {
 
   // Credential management (encrypted)
   async saveServerCredentials(credentialData) {
+    if (!this.enabled) return null;
+
     const { server_id, username, encrypted_password, created_by } = credentialData;
     const result = await this.pool.query(`
       INSERT INTO server_credentials (server_id, username, encrypted_password, created_by)
@@ -297,6 +336,8 @@ class CleanupDatabaseService {
   }
 
   async getServerCredentials(serverId) {
+    if (!this.enabled) return [];
+
     const result = await this.pool.query(`
       SELECT * FROM server_credentials
       WHERE server_id = $1 AND is_active = true
@@ -307,6 +348,16 @@ class CleanupDatabaseService {
 
   // Analytics methods
   async getCleanupAnalytics(days = 30) {
+    if (!this.enabled) return {
+      total_cleanups: 0,
+      successful_cleanups: 0,
+      failed_cleanups: 0,
+      total_profiles_scanned: 0,
+      total_profiles_deleted: 0,
+      total_space_freed: 0,
+      avg_execution_time: 0
+    };
+
     const result = await this.pool.query(`
       SELECT
         COUNT(*) as total_cleanups,
@@ -323,6 +374,8 @@ class CleanupDatabaseService {
   }
 
   async getServerCleanupStats() {
+    if (!this.enabled) return [];
+
     const result = await this.pool.query(`
       SELECT
         server_name,

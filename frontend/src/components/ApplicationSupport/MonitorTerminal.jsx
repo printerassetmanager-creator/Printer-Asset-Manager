@@ -156,6 +156,7 @@ export default function MonitorTerminal({ canManage }) {
   const [saving, setSaving] = useState(false);
   const [starting, setStarting] = useState(false);
   const [stopping, setStopping] = useState(false);
+  const [testing, setTesting] = useState(false);
   const [activePanel, setActivePanel] = useState('');
   const [selectedRange, setSelectedRange] = useState(60 * 60 * 1000);
   const [now, setNow] = useState(Date.now());
@@ -166,6 +167,8 @@ export default function MonitorTerminal({ canManage }) {
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [isTestOnce, setIsTestOnce] = useState(false);
+  const [testingFile, setTestingFile] = useState(null);
 
   const inferTerminalCodeFromFileName = (fileName) => {
     if (!fileName) return '';
@@ -220,35 +223,47 @@ export default function MonitorTerminal({ canManage }) {
     [files]
   );
 
-  const handleTestRdpFile = async (file) => {
-    resetMessages();
+  const handleTestRdpFile = (file) => {
     if (!file) return;
-    setMessage(`Checking RDP file ${file.file_name} for ${file.terminal_code}...`);
+    setTestingFile(file);
+    setUsername('');
+    setPassword('');
+    resetMessages();
+    setActivePanel('credentials');
+  };
 
+  const handleTestRdpFileWithCredentials = async () => {
+    resetMessages();
+    if (!testingFile) return;
+    if (!username || !password) {
+      setError('Enter network security credentials to test RDP file');
+      return;
+    }
+    setTesting(true);
     try {
-      const logsRes = await applicationSupportAPI.getMonitorLogs();
-      const logsData = Array.isArray(logsRes.data) ? logsRes.data : [];
-      setLogs(logsData);
-      const latestLog = logsData.find(
-        (log) => log.terminal_code === file.terminal_code && log.source_file_name === file.file_name
-      );
-
-      if (latestLog) {
-        const statusLabel =
-          latestLog.status === 'success'
-            ? 'Success'
-            : latestLog.status === 'slow'
-            ? 'Slow'
-            : latestLog.status === 'failed'
-            ? 'Failed'
-            : latestLog.status;
-        const detail = latestLog.error_text ? `: ${latestLog.error_text}` : '';
-        setMessage(`Test result for ${file.terminal_code}: ${statusLabel}${detail}`);
-      } else {
-        setMessage(`No recent run found for ${file.file_name}. Start monitoring to validate it.`);
-      }
+      setMessage(`Testing RDP file ${testingFile.file_name} for ${testingFile.terminal_code}...`);
+      const { data } = await applicationSupportAPI.startMonitorTerminal({ 
+        username, 
+        password,
+        testFile: {
+          terminalCode: testingFile.terminal_code,
+          fileName: testingFile.file_name
+        }
+      });
+      setMessage(data?.message || `Test completed for ${testingFile.terminal_code}`);
+      setPassword('');
+      
+      // Fetch logs to show test result
+      setTimeout(() => {
+        fetchStatus();
+      }, 2000);
+      
+      setActivePanel('');
+      setTestingFile(null);
     } catch (err) {
-      setError(err.response?.data?.error || `Unable to test RDP file for ${file.terminal_code}`);
+      setError(err.response?.data?.details || err.response?.data?.error || `Failed to test RDP file for ${testingFile.terminal_code}`);
+    } finally {
+      setTesting(false);
     }
   };
 
@@ -265,14 +280,34 @@ export default function MonitorTerminal({ canManage }) {
     setStarting(true);
     try {
       const { data } = await applicationSupportAPI.startMonitorTerminal({ username, password });
-      setMessage(data?.message || 'Monitor terminal started');
+      setMessage(data?.message || (isTestOnce ? 'Test run started' : 'Monitor terminal started'));
       setPassword('');
       fetchStatus();
       setActivePanel('');
+      
+      // Auto-stop if it's a one-time test after 35 seconds (allowing time for one cycle)
+      if (isTestOnce) {
+        setTimeout(() => {
+          handleStopAfterTest();
+        }, 35000);
+      }
+      
+      setIsTestOnce(false);
     } catch (err) {
       setError(err.response?.data?.details || err.response?.data?.error || 'Failed to start monitor terminal');
+      setIsTestOnce(false);
     } finally {
       setStarting(false);
+    }
+  };
+
+  const handleStopAfterTest = async () => {
+    try {
+      const { data } = await applicationSupportAPI.stopMonitorTerminal();
+      setMessage(data?.message || 'Test run completed and monitoring stopped');
+      fetchStatus();
+    } catch (err) {
+      console.error('Error stopping test run:', err);
     }
   };
 
@@ -400,7 +435,7 @@ export default function MonitorTerminal({ canManage }) {
   }, [logs, nextCycleAt]);
 
   const recentLogs = useMemo(
-    () => logs.slice(0, 6).map((log) => ({
+    () => logs.slice(0, 20).map((log) => ({
       ...log,
       tone: getStatusTone(log.details_json?.color),
       text: buildLogMessage(log),
@@ -578,24 +613,44 @@ export default function MonitorTerminal({ canManage }) {
           </div>
 
           <div className="monitor-grid bottom monitor-info-grid">
-            <div className="monitor-panel" id="monitor-alert-summary">
-              <div className="monitor-panel-header">
-                <div className="monitor-panel-title">Alerts Summary</div>
-              </div>
-              <div className="monitor-alert-list">
-                {alertItems.map((item, index) => (
-                  <div key={`${item.title}-${index}`} className={`monitor-alert-card ${item.type}`}>
-                    <div className="monitor-alert-icon">{item.type === 'danger' ? '!' : item.type === 'warning' ? '!' : 'i'}</div>
-                    <div className="monitor-alert-copy">
-                      <strong>{item.title}</strong>
-                      <span>{item.message}</span>
-                    </div>
-                    <time>{item.time}</time>
+            {canManage ? (
+              <div className="monitor-panel monitor-control-panel">
+                <div className="monitor-panel-header">
+                  <div className="monitor-panel-title">Monitoring Control</div>
+                </div>
+                <div className="monitor-panel-body">
+                  <div className="monitor-control-row">
+                    <span>Auto Monitoring</span>
+                    <button
+                      type="button"
+                      className={`monitor-toggle ${status?.active ? 'enabled' : ''}`}
+                      onClick={status?.active ? handleStop : () => setActivePanel('credentials')}
+                    >
+                      <span />
+                    </button>
                   </div>
-                ))}
+                  <div className="monitor-control-status">{status?.active ? 'Enabled' : 'Disabled'}</div>
+                  <div className="monitor-control-divider" />
+                  <div className="monitor-control-row">
+                    <span>Next Cycle In</span>
+                    <strong>{formatCountdown(nextCycleAt, now)}</strong>
+                  </div>
+                  <div className="monitor-control-divider" />
+                  <button
+                    type="button"
+                    className="monitor-action-button primary"
+                    onClick={() => {
+                      setIsTestOnce(true);
+                      setActivePanel('credentials');
+                    }}
+                    disabled={status?.active || starting}
+                    style={{ width: '100%' }}
+                  >
+                    {starting ? 'Starting...' : 'Try Once'}
+                  </button>
+                </div>
               </div>
-              <button type="button" className="monitor-link-button">View All Alerts -&gt;</button>
-            </div>
+            ) : null}
 
             <div className="monitor-panel">
               <div className="monitor-panel-header">
@@ -690,31 +745,24 @@ export default function MonitorTerminal({ canManage }) {
           </div>
 
           <div className="monitor-grid">
-            {canManage ? (
-              <div className="monitor-panel monitor-control-panel">
-                <div className="monitor-panel-header">
-                  <div className="monitor-panel-title">Monitoring Control</div>
-                </div>
-                <div className="monitor-panel-body">
-                  <div className="monitor-control-row">
-                    <span>Auto Monitoring</span>
-                    <button
-                      type="button"
-                      className={`monitor-toggle ${status?.active ? 'enabled' : ''}`}
-                      onClick={status?.active ? handleStop : () => setActivePanel('credentials')}
-                    >
-                      <span />
-                    </button>
-                  </div>
-                  <div className="monitor-control-status">{status?.active ? 'Enabled' : 'Disabled'}</div>
-                  <div className="monitor-control-divider" />
-                  <div className="monitor-control-row">
-                    <span>Next Cycle In</span>
-                    <strong>{formatCountdown(nextCycleAt, now)}</strong>
-                  </div>
-                </div>
+            <div className="monitor-panel" id="monitor-alert-summary">
+              <div className="monitor-panel-header">
+                <div className="monitor-panel-title">Alerts Summary</div>
               </div>
-            ) : null}
+              <div className="monitor-alert-list">
+                {alertItems.map((item, index) => (
+                  <div key={`${item.title}-${index}`} className={`monitor-alert-card ${item.type}`}>
+                    <div className="monitor-alert-icon">{item.type === 'danger' ? '!' : item.type === 'warning' ? '!' : 'i'}</div>
+                    <div className="monitor-alert-copy">
+                      <strong>{item.title}</strong>
+                      <span>{item.message}</span>
+                    </div>
+                    <time>{item.time}</time>
+                  </div>
+                ))}
+              </div>
+              <button type="button" className="monitor-link-button">View All Alerts -&gt;</button>
+            </div>
 
             <div className="monitor-panel monitor-critical-panel">
               <div className="monitor-panel-header">
@@ -737,17 +785,37 @@ export default function MonitorTerminal({ canManage }) {
         <div className="monitor-overlay" onClick={() => setActivePanel('')}>
           <div className="monitor-overlay-card" onClick={(event) => event.stopPropagation()}>
             <div className="monitor-overlay-header">
-              <h3>{activePanel === 'credentials' ? 'Credentials' : 'RDP Terminals'}</h3>
-              <button type="button" onClick={() => setActivePanel('')}>x</button>
+              <h3>
+                {activePanel === 'credentials' ? (
+                  testingFile 
+                    ? `Test RDP File: ${testingFile.file_name}` 
+                    : (isTestOnce ? 'Test Terminal Launch (One Time)' : 'Network Security Credentials')
+                ) : 'RDP Terminals'}
+              </h3>
+              <button type="button" onClick={() => { setActivePanel(''); setIsTestOnce(false); setTestingFile(null); }}>x</button>
             </div>
 
             {activePanel === 'credentials' ? (
               <div className="monitor-overlay-body">
+                {testingFile && (
+                  <div className="monitor-overlay-note">
+                    Testing terminal code: <strong>{testingFile.terminal_code}</strong>
+                  </div>
+                )}
                 <input value={username} onChange={(event) => setUsername(event.target.value)} placeholder="Network Security ID" />
                 <input type="password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="Password" />
                 <div className="monitor-overlay-actions">
-                  <button type="button" className="primary" onClick={handleStart} disabled={starting || loading}>{starting ? 'Starting...' : 'Start Monitor'}</button>
-                  <button type="button" className="secondary" onClick={handleStop} disabled={stopping || loading}>{stopping ? 'Stopping...' : 'Stop Monitor'}</button>
+                  {testingFile ? (
+                    <>
+                      <button type="button" className="primary" onClick={handleTestRdpFileWithCredentials} disabled={testing || loading}>{testing ? 'Testing...' : 'Test RDP File'}</button>
+                      <button type="button" className="secondary" onClick={() => { setActivePanel(''); setTestingFile(null); }} disabled={testing}>{testing ? 'Testing...' : 'Cancel'}</button>
+                    </>
+                  ) : (
+                    <>
+                      <button type="button" className="primary" onClick={handleStart} disabled={starting || loading}>{starting ? (isTestOnce ? 'Testing...' : 'Starting...') : (isTestOnce ? 'Try Once' : 'Start Monitor')}</button>
+                      {!isTestOnce && <button type="button" className="secondary" onClick={handleStop} disabled={stopping || loading}>{stopping ? 'Stopping...' : 'Stop Monitor'}</button>}
+                    </>
+                  )}
                 </div>
               </div>
             ) : (

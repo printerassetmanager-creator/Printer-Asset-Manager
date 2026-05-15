@@ -162,7 +162,7 @@ export default function Topbar({ onUserClick, onLogout }) {
               aria-expanded={showSupportDropdown}
               aria-haspopup="menu"
             >
-              <span>{supportMode === 'desktop' ? 'Desktop Support' : 'Application Support'}</span>
+              <span>{supportMode === 'desktop' ? 'Technical Support' : 'Application Support'}</span>
               <svg className={`support-caret ${showSupportDropdown ? 'open' : ''}`} viewBox="0 0 16 16" fill="none">
                 <path d="M4 6l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
               </svg>
@@ -176,7 +176,7 @@ export default function Topbar({ onUserClick, onLogout }) {
                     onClick={() => handleSupportModeChange('desktop')}
                     role="menuitem"
                   >
-                    Desktop Support
+                    Technical Support
                   </button>
                 )}
                 {hasApplicationAccess && (

@@ -71,7 +71,7 @@ function AppInner() {
     closeUserProfile();
   };
 
-  useSessionTimeout(handleSessionExpire, 20, isAuthenticated);
+  useSessionTimeout(handleSessionExpire, 10, isAuthenticated);
 
   React.useEffect(() => {
     if (isAuthenticated && currentScreen === 'login') {
