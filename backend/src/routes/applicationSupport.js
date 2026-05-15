@@ -352,7 +352,10 @@ router.get('/dashboard/history', async (req, res) => {
     const cutoffDate = new Date(Date.now() - (rangeHours * 60 * 60 * 1000));
 
     const result = await pool.query(
-      `SELECT terminal_code, server_name, active_users, recorded_at
+      `SELECT terminal_code,
+              server_name,
+              active_users,
+              EXTRACT(EPOCH FROM recorded_at AT TIME ZONE 'Asia/Kolkata') * 1000 AS recorded_at_ms
        FROM app_support_terminal_history
        WHERE recorded_at >= $1
        ORDER BY recorded_at ASC`,
@@ -366,7 +369,7 @@ router.get('/dashboard/history', async (req, res) => {
         dataByTerminal[row.terminal_code] = [];
       }
       dataByTerminal[row.terminal_code].push({
-        timestamp: row.recorded_at.getTime(),
+        timestamp: Number(row.recorded_at_ms),
         server: row.server_name,
         users: row.active_users
       });

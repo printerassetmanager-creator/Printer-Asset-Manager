@@ -76,6 +76,8 @@ $$;
 
 ALTER ROLE printer_user SET client_encoding TO 'utf8';
 ALTER ROLE printer_user SET default_transaction_isolation TO 'read committed';
+ALTER ROLE printer_user SET timezone TO 'Asia/Kolkata';
+ALTER DATABASE printer_ms SET timezone TO 'Asia/Kolkata';
 GRANT ALL PRIVILEGES ON DATABASE printer_ms TO printer_user;
 \c printer_ms
 GRANT ALL ON SCHEMA public TO printer_user;
@@ -170,6 +172,12 @@ cd ../frontend
 npm install
 npm run build
 
+log "Publishing frontend build to Nginx web root..."
+sudo mkdir -p /var/www/printer-manager
+sudo rm -rf /var/www/printer-manager/*
+sudo cp -a dist/. /var/www/printer-manager/
+sudo chown -R www-data:www-data /var/www/printer-manager
+
 log "Starting services with PM2..."
 cd ../backend
 pm2 delete backend frontend printer-backend printer-frontend || true
@@ -187,39 +195,43 @@ upstream backend {
     server localhost:5000;
 }
 
-upstream frontend {
-    server localhost:3000;
-}
-
 server {
     listen 80;
     server_name _;
+    root /var/www/printer-manager;
+    index index.html;
+    client_max_body_size 25m;
 
-    # API endpoints
-    location /api {
-        proxy_pass http://backend;
+    location = /api/health {
+        proxy_pass http://backend/health;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    # API endpoints
+    location /api/ {
+        proxy_pass http://backend/api/;
         proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection "upgrade";
     }
 
-    # Frontend
-    location / {
-        proxy_pass http://frontend;
+    location /health {
+        proxy_pass http://backend/health;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
     }
 
-    # Static files caching
-    location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2)$ {
-        expires 30d;
-        add_header Cache-Control "public, immutable";
+    location / {
+        try_files $uri $uri/ /index.html;
     }
 }
 EOF

@@ -158,7 +158,9 @@ const LiveTerminalChart = ({ inline = false, onExit, onFullScreen, refreshSignal
           next.push(point);
         }
         const cutoff = timestamp - historyRetentionMs;
-        return next.filter((item) => item.timestamp >= cutoff);
+        return next
+          .filter((item) => item.timestamp >= cutoff && item.timestamp <= timestamp + refreshIntervalMs)
+          .sort((a, b) => a.timestamp - b.timestamp);
       });
       setError(null);
     } catch (fetchError) {
