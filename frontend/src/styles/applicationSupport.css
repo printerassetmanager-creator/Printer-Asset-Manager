@@ -2848,7 +2848,7 @@
 }
 
 .monitor-info-grid {
-  grid-template-columns: 1fr;
+  grid-template-columns: 330px minmax(0, 1fr) 390px;
 }
 
 .monitor-grid.bottom {
@@ -3082,8 +3082,6 @@
 
 .monitor-table-wrap {
   overflow-x: auto;
-  overflow-y: auto;
-  max-height: 400px;
 }
 
 .monitor-table {
@@ -3200,8 +3198,6 @@
   display: flex;
   flex-direction: column;
   gap: 12px;
-  overflow-y: auto;
-  max-height: 300px;
 }
 
 .monitor-recent-log-row {
